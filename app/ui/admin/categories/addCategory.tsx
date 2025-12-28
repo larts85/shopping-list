@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, SyntheticEvent } from "react";
+import React, { useState, SyntheticEvent } from "react";
 import { capitalize } from "../../utils/capitalize";
+import { TextInput, Button, ButtonVariant, ButtonType } from "../../../../shared";
 
-export default function FormPrueba() {
+export default function AddCategory() {
   const [formData, setFormData] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (event: SyntheticEvent) => {
     const target = event.target as HTMLInputElement;
@@ -14,45 +16,61 @@ export default function FormPrueba() {
 
   const handleSubmit = async (event: React.ChangeEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!formData.trim()) return;
+
+    setIsSubmitting(true);
     try {
-      await fetch("/api/categories/add-category", {
+      const response = await fetch("/api/categories/add-category", {
         method: "POST",
         body: JSON.stringify(formData),
         headers: {
           "Content-Type": "application/json",
         },
       });
+
+      if (!response.ok) {
+        throw new Error("Error al agregar la categoría");
+      }
+
       setFormData("");
+      // En lugar de recargar la página, podríamos emitir un evento o usar un estado global
       window.location.reload();
     } catch (error) {
       console.error("Error submitting form:", error);
+      // Aquí podríamos mostrar un mensaje de error al usuario
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <>
-      <form onSubmit={handleSubmit} className=" mx-auto mt-2 flex gap-2">
-        <div className="">
-          <input
+    <div className="mb-8">
+      <h2 className="text-xl font-semibold text-gray-900 mb-4">Agregar Nueva Categoría</h2>
+
+      <form onSubmit={handleSubmit} className="flex gap-4 items-end max-w-md">
+        <div className="flex-1">
+          <TextInput
             type="text"
-            id="name"
+            id="category-name"
             name="name"
             value={formData}
             onChange={handleChange}
-            placeholder="Nueva Categoria"
-            className=" border rounded-md py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            placeholder="Ej: Verduras, Frutas, Lácteos..."
+            label="Nombre de la categoría"
+            required
+            disabled={isSubmitting}
           />
         </div>
 
-        <div className="flex items-center justify-center ">
-          <button
-            type="submit"
-            className="px-3 py-1 bg-gray-700 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            Agregar
-          </button>
-        </div>
+        <Button
+          type={ButtonType.SUBMIT}
+          variant={ButtonVariant.PRIMARY}
+          disabled={isSubmitting || !formData.trim()}
+          isLoading={isSubmitting}
+        >
+          {isSubmitting ? "Agregando..." : "Agregar"}
+        </Button>
       </form>
-    </>
+    </div>
   );
 }

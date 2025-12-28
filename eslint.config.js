@@ -1,37 +1,37 @@
-import { dirname } from 'path'
-import { fileURLToPath } from 'url'
-import { FlatCompat } from '@eslint/eslintrc'
+import js from '@eslint/js'
+import tseslint from '@typescript-eslint/eslint-plugin'
+import tsparser from '@typescript-eslint/parser'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-})
-
-const eslintConfig = [
-  ...compat.extends(
-    'next/core-web-vitals',
-    'next/typescript',
-    'plugin:prettier/recommended'
-  ),
+export default [
+  js.configs.recommended,
   {
     files: ['**/*.ts', '**/*.tsx'],
-    rules: {
-      'prettier/prettier': [
-        'error',
-        {
-          bracketSpacing: true,
-          printWidth: 80,
-          singleQuote: true,
-          trailingComma: 'es5',
-          tabWidth: 2,
-          useTabs: false,
-          semi: false,
-          endOfLine: 'lf',
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        project: './tsconfig.json',
+        ecmaFeatures: {
+          jsx: true,
         },
-      ],
+      },
+      globals: {
+        React: 'readonly', // React is available globally in JSX
+        console: 'readonly', // Node.js console
+        fetch: 'readonly', // Browser fetch API
+        window: 'readonly', // Browser window
+        process: 'readonly', // Node.js process
+        alert: 'readonly', // Browser alert
+        setTimeout: 'readonly', // Browser setTimeout
+        Buffer: 'readonly', // Node.js Buffer
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tseslint,
+    },
+    rules: {
+      // React 17+ JSX Transform - no need to import React
       'react/react-in-jsx-scope': 'off',
+      // TypeScript rules
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
@@ -41,17 +41,49 @@ const eslintConfig = [
           caughtErrors: 'none',
         },
       ],
-      'no-console': ['error', { allow: ['warn', 'error', 'info', 'debug'] }],
       '@typescript-eslint/no-explicit-any': 'warn',
-      'react/jsx-max-props-per-line': [
-        'error',
-        { maximum: 3, when: 'multiline' },
-      ],
+      // Console rules
+      'no-console': ['error', { allow: ['warn', 'error', 'info', 'debug'] }],
+      // General rules
       'prefer-const': 'error',
-      'no-unused-expressions': 2,
-      '@typescript-eslint/no-non-null-assertion': 'off',
+      'no-unused-expressions': 'off', // Allow unused expressions
     },
   },
+  {
+    files: ['**/*.js', '**/*.jsx'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        React: 'readonly', // React is available globally in JSX
+        console: 'readonly', // Node.js console
+        fetch: 'readonly', // Browser fetch API
+        window: 'readonly', // Browser window
+        process: 'readonly', // Node.js process
+        alert: 'readonly', // Browser alert
+        setTimeout: 'readonly', // Browser setTimeout
+        Buffer: 'readonly', // Node.js Buffer
+      },
+    },
+    rules: {
+      'prefer-const': 'error',
+      'no-unused-vars': 'off',
+      'no-console': ['error', { allow: ['warn', 'error', 'info', 'debug'] }],
+    },
+  },
+  // Ignore build and generated files
+  {
+    ignores: [
+      '.next/**',
+      'node_modules/**',
+      'build/**',
+      'dist/**',
+      '*.min.js',
+    ],
+  },
 ]
-
-export default eslintConfig
