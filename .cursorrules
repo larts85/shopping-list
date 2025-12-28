@@ -1,0 +1,213 @@
+# Home Logistics - Cursor Rules
+
+## Project Intelligence
+
+This file captures important patterns, preferences, and project intelligence for the Home Logistics application.
+
+## Project Context
+
+Home Logistics is a Next.js 14 application that uses Google Drive and Google Sheets as a backend database for managing household shopping logistics.
+
+### Key Architectural Decisions
+
+1. **NextAuth v5 (Beta)**: Using the beta version for Next.js 14 App Router compatibility
+2. **Google Sheets as Database**: All data stored in user's Google Drive for data ownership
+3. **Server-First Architecture**: All Google API calls happen server-side for security
+4. **No Traditional Database**: Relying on Google Sheets API for data persistence
+
+## Critical Implementation Paths
+
+### Authentication Flow
+
+- Always use `googleSessionAuth()` helper to validate sessions before Google API calls
+- All tokens stored server-side in encrypted JWT cookies
+- Never expose access tokens to client-side code
+
+### Google API Integration
+
+- All API calls must be in Server Actions or Server Components
+- Use `"use server"` directive for server actions
+- Access tokens retrieved from session for each API call
+
+### Error Handling Pattern
+
+```typescript
+try {
+  const { session, accessToken } = await googleSessionAuth();
+  // API call
+} catch (error) {
+  console.error("Error:", error);
+  throw new Error("User-friendly error message");
+}
+```
+
+## Code Organization Preferences
+
+### File Structure
+
+- Server Actions: `/app/actions/`
+- UI Components: `/app/ui/`
+- Library/Utilities: `/app/lib/`
+- Routes: `/app/[route-name]/`
+
+### Naming Conventions
+
+- Components: PascalCase (e.g., `Authenticate.tsx`)
+- Server Actions: camelCase (e.g., `authenticate.js`)
+- Utilities: camelCase (e.g., `googleSessionAuth.ts`)
+
+### TypeScript Migration
+
+- Priority: Migrate JavaScript files to TypeScript
+- Legacy files still in JS: `app/actions/authenticate.js`
+- Use explicit types for all function parameters and returns
+
+## Known Challenges
+
+### Token Expiry
+
+- Access tokens expire after 1 hour
+- Refresh token automation not yet implemented
+- Current workaround: Re-authenticate when token expires
+
+### API Rate Limits
+
+- Google Sheets: 100 requests/100s per user
+- Google Drive: 1,000 requests/100s per user
+- Consider implementing request caching
+
+### Data Structure
+
+Google Sheets structure must match exactly:
+
+```
+homeLogistic/homeLogisticSheet
+├── categories (id, name)
+├── products (id, name, id_category, checked)
+├── list (id, id_product, name, id_category, cantidad, medida, precio, precio_total, precio_kg, kg_total, comprado)
+└── historical (id, id_list, id_product, name, id_category, cantidad, medida, precio, precio_total, precio_kg, kg_total, comprado, fecha)
+```
+
+## Tool Usage Patterns
+
+### Development Workflow
+
+1. Make code changes
+2. Test in development (`npm run dev`)
+3. Verify Google API integration
+4. Test authentication flow
+5. Commit changes
+
+### Environment Variables
+
+- Never commit `.env.local` to repository
+- Always update `.env.example` when adding new variables
+- Use `AUTH_SECRET` in production (generated with `openssl rand -base64 32`)
+
+## Security Patterns
+
+### Authentication
+
+- OAuth 2.0 authorization code flow only
+- Server-side session validation required
+- No client-side credential exposure
+
+### Google API Security
+
+- All API calls server-side
+- Access tokens passed in Authorization header
+- Validate user owns resources before operations
+
+## Testing Strategy (Future)
+
+When implementing tests:
+
+- Unit tests for utilities and helpers
+- Integration tests for Google API interactions
+- E2E tests for authentication flow
+- Mock Google API responses for testing
+
+## Deployment Considerations
+
+### Vercel (Recommended)
+
+- Environment variables must be set in Vercel dashboard
+- Update OAuth redirect URIs in Google Cloud Console
+- Verify callback URL matches deployment domain
+
+### Production Checklist
+
+- [ ] Set strong `AUTH_SECRET`
+- [ ] Update Google OAuth callback URLs
+- [ ] Verify all APIs enabled in Google Cloud
+- [ ] Test authentication flow
+- [ ] Verify data persistence
+
+## Common Pitfalls to Avoid
+
+1. **Don't expose tokens client-side**: Always keep access tokens in server actions
+2. **Don't forget session validation**: Always call `googleSessionAuth()` before API calls
+3. **Don't hardcode credentials**: Use environment variables
+4. **Don't skip error handling**: Wrap Google API calls in try-catch
+5. **Don't bypass middleware**: Middleware checks for required setup
+
+## Evolution of Project Decisions
+
+### Version 0.1.0 (Current)
+
+- Initial implementation with NextAuth v5 beta
+- Basic CRUD operations working
+- Google Sheets as primary database
+- No automated token refresh
+
+### Future Enhancements Planned
+
+- Automated token refresh implementation
+- Comprehensive test suite
+- TypeScript migration complete
+- Performance optimizations for API calls
+- Budget tracking and analytics
+
+## Important Notes
+
+- **NextAuth v5 is in beta**: Be prepared for breaking changes in future updates
+- **Google API quotas**: Monitor usage to avoid hitting rate limits
+- **User data ownership**: Data stored in user's Google Drive, not our servers
+- **No offline mode**: Application requires internet connection for all operations
+
+## Quick Reference
+
+### Start Development
+
+```bash
+npm run dev  # Port 2020
+```
+
+### Common Commands
+
+```bash
+npm run build    # Production build
+npm start        # Start production server
+npm run lint     # Run ESLint
+```
+
+### Environment Variables Required
+
+```
+AUTH_SECRET=
+AUTH_GOOGLE_ID=
+AUTH_GOOGLE_SECRET=
+```
+
+### Useful Links
+
+- [NextAuth Docs](https://next-auth.js.org/)
+- [Google API Docs](https://developers.google.com/)
+- [Memory Bank](./memory-bank/)
+- [Google Auth Guide](./GOOGLE_AUTH.md)
+
+---
+
+**Last Updated**: 2025-10-11
+**Cursor Version**: Latest
+**Project Version**: 0.1.0
