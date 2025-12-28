@@ -1,9 +1,7 @@
-import js from '@eslint/js'
 import tseslint from '@typescript-eslint/eslint-plugin'
 import tsparser from '@typescript-eslint/parser'
 
-export default [
-  js.configs.recommended,
+const eslintConfig = [
   {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
@@ -14,24 +12,12 @@ export default [
           jsx: true,
         },
       },
-      globals: {
-        React: 'readonly', // React is available globally in JSX
-        console: 'readonly', // Node.js console
-        fetch: 'readonly', // Browser fetch API
-        window: 'readonly', // Browser window
-        process: 'readonly', // Node.js process
-        alert: 'readonly', // Browser alert
-        setTimeout: 'readonly', // Browser setTimeout
-        Buffer: 'readonly', // Node.js Buffer
-      },
     },
     plugins: {
       '@typescript-eslint': tseslint,
     },
     rules: {
-      // React 17+ JSX Transform - no need to import React
       'react/react-in-jsx-scope': 'off',
-      // TypeScript rules
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
@@ -41,12 +27,11 @@ export default [
           caughtErrors: 'none',
         },
       ],
-      '@typescript-eslint/no-explicit-any': 'warn',
-      // Console rules
       'no-console': ['error', { allow: ['warn', 'error', 'info', 'debug'] }],
-      // General rules
+      '@typescript-eslint/no-explicit-any': 'warn',
+      // Basic rules
       'prefer-const': 'error',
-      'no-unused-expressions': 'off', // Allow unused expressions
+      'no-unused-expressions': 'off',
     },
   },
   {
@@ -59,16 +44,6 @@ export default [
           jsx: true,
         },
       },
-      globals: {
-        React: 'readonly', // React is available globally in JSX
-        console: 'readonly', // Node.js console
-        fetch: 'readonly', // Browser fetch API
-        window: 'readonly', // Browser window
-        process: 'readonly', // Node.js process
-        alert: 'readonly', // Browser alert
-        setTimeout: 'readonly', // Browser setTimeout
-        Buffer: 'readonly', // Node.js Buffer
-      },
     },
     rules: {
       'prefer-const': 'error',
@@ -76,7 +51,6 @@ export default [
       'no-console': ['error', { allow: ['warn', 'error', 'info', 'debug'] }],
     },
   },
-  // Ignore build and generated files
   {
     ignores: [
       '.next/**',
@@ -87,3 +61,5 @@ export default [
     ],
   },
 ]
+
+export default eslintConfig

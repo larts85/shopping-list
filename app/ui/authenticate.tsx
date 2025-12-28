@@ -1,4 +1,3 @@
-import React from "react";
 
 import { doGoogleLogin } from "../actions/authenticate";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "../../shared/components/ui/Card";

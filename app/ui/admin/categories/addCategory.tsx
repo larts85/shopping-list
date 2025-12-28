@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, SyntheticEvent } from "react";
+import { useState, SyntheticEvent } from "react";
 import { capitalize } from "../../utils/capitalize";
 import { TextInput, Button, ButtonVariant, ButtonType } from "../../../../shared";
 
