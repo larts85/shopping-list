@@ -1,0 +1,112 @@
+---
+description:
+globs: **/e2e/pageObjects/**/*.ts
+alwaysApply: false
+---
+
+## AI Assistant Instructions for Page Object Models (POMs) in `flows-e2e`
+
+AI Assistant, these are the guidelines you must strictly follow when creating or modifying Page Object Models (POMs) within the `flows-e2e` repository. POMs are crucial for maintaining robust and readable E2E tests.
+
+### 1. Definition and Purpose of POM (Context for Your Actions)
+
+- **Key Concept**: A POM encapsulates the interactions and state of application pages (`fury_flows-canvas` and `fury_mg-engine-admin`) in dedicated objects. Each Page Object represents a page or a significant UI component.
+- **Your Objectives When Applying It**:
+  - **Reusability**: Generate interaction logic and selectors so they are defined once and reused.
+  - **Maintainability**: If the UI changes and you're asked to update, focus on modifying the corresponding Page Object, minimizing impact on tests.
+  - **Readability**: In tests, use POMs to describe actions at a high level (e.g. `loginPage.submitCredentials('user', 'pass')`).
+
+### 2. Mandatory Structure of a Page Object
+
+When generating or editing a Page Object, ensure it complies with the following:
+
+- **Location**: All Page Objects must reside in the `e2e/pageObjects/` directory.
+- **Base Class**: They must extend `BasePage` (from `e2e/pageObjects/BasePage.ts`), which provides the Playwright `page` instance.
+
+  ```typescript
+  // Example structure you should follow:
+  import { Page } from '@playwright/test'
+  import { BasePage } from './BasePage'
+  import { URLS, SELECTORS } from '../constants' // Assumes centralized selectors and URLs
+
+  export class LoginPage extends BasePage {
+    constructor(page: Page) {
+      super(page)
+    }
+    // ...
+  }
+  ```
+
+- **Constructor**: Must accept the `page` instance and pass it to the `BasePage` constructor.
+- **Locators (Selectors)**:
+  - Define selectors for page elements as class properties (generally `private readonly`).
+  - **Selector Priority**: Use `data-testid` whenever possible. Consult and use selectors from `e2e/constants/selectors.ts`. If a new selector is needed and is common, suggest adding it there.
+  ```typescript
+  // Example of locator definition:
+  private readonly usernameInput = this.page.locator(SELECTORS.loginPage.usernameInput);
+  private readonly passwordInput = this.page.locator(SELECTORS.loginPage.passwordInput);
+  ```
+- **Action Methods**:
+  - Implement methods that encapsulate user actions on the page (filling forms, clicks, navigation).
+  - Names should be descriptive of the action.
+  ```typescript
+  // Example of action methods:
+  async fillUsername(username: string) {
+    await this.usernameInput.fill(username);
+  }
+  // ...other methods like login(), clickButton(), etc.
+  ```
+- **Navigation Methods**: If applicable, include a method to navigate directly to the page.
+  ```typescript
+  async navigate() {
+    await this.page.goto(URLS.loginPage); // Use constants from e2e/constants/urls.ts
+  }
+  ```
+- **Assertion/State Methods (Optional but Recommended)**:
+
+  - Implement methods that return page state or perform common assertions _within the POM only if they return a boolean or state_ (e.g. `isUserLoggedIn`).
+  - **Important**: Main assertions (`expect`) should be in test files (`fixtures`), not directly in POMs, unless it's a simple state verification (e.g. `isVisible()`).
+  - **PREFER CLASSIC ASSERTIONS**: In test files, use `expect(page.locator(selector)).toBeVisible()` instead of `expect(await pageObject.isElementVisible(selector)).toBe(true)`.
+
+  ```typescript
+  // ✅ Good: Page Object provides state query
+  async getErrorMessage(): Promise<string | null> {
+    return this.page.locator(SELECTORS.loginPage.errorMessage).textContent();
+  }
+  async isUserLoggedIn(): Promise<boolean> {
+    // ...
+  }
+
+  // ✅ Good: Test file uses classic assertion
+  // In test file:
+  // expect(await page.locator('[data-testid="error-message"]')).toBeVisible();
+  // expect(await page.locator('[data-testid="login-form"]')).toBeHidden();
+
+  // ❌ Avoid: Boolean assertions in tests
+  // expect(await pageObject.isElementVisible('[data-testid="error-message"]')).toBe(true);
+  ```
+
+### 3. Location and Naming
+
+- **Main Directory**: `e2e/pageObjects/`.
+- **Subdirectories**: If asked to organize, suggest or use subdirectories for distinct functional areas (e.g. `e2e/pageObjects/workflow/`).
+- **File Names**: PascalCase followed by `Page.ts` (e.g. `WorkflowEditorPage.ts`).
+- **Class Names**: PascalCase (e.g. `WorkflowEditorPage`).
+
+### 4. Usage in Tests (Fixtures) - How You Should Guide the User
+
+- When the user is writing tests (`.spec.ts` files):
+  - Guide them to import the necessary Page Objects.
+  - Indicate that they should instantiate Page Objects (generally in `test.beforeEach`).
+  - Ensure that Page Object methods are used to interact with the application.
+
+### 5. Your Guiding Principles When Working with POMs
+
+- **NO `expect` in POMs**: Reiterate to the user that assertions with `expect` go in test files. Methods in POMs should return state or data. The exception is simple methods like `isElementVisible()` that return a boolean.
+- **PREFER CLASSIC ASSERTIONS**: When writing tests, prefer the classic `expect().toBeVisible()` approach over boolean methods like `isElementVisible()`. Page Objects should provide action methods and state queries, but the actual assertions should use the standard `expect()` syntax in test files.
+- **Avoid Duplication**: If you identify shared components (headers, menus), suggest creating a Page Object for that component and composing it within larger POMs.
+- **Focus**: Each Page Object should represent a single page or a cohesive component. Don't mix responsibilities.
+- **Robust Selectors**: Insist on `data-testid`. Guide the user to consult `e2e/constants/selectors.ts` or add new reusable selectors there. Avoid fragile selectors.
+- **Cross References**: Remind the user to consult `e2e/README.md` and `CODING_GUIDELINES.md` (mentioned in `general.instructions.md`).
+
+AI Assistant, by following these guidelines, you will help me generate and maintain Page Objects that contribute to an efficient and high-quality E2E test suite for the Flows application.
