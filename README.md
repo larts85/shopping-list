@@ -1,6 +1,6 @@
-# Home Logistics
+# Shopping List
 
-A Next.js web application for managing household shopping logistics using Google Drive and Google Sheets as a backend database.
+A Next.js web application for managing shopping lists using Google Drive and Google Sheets as a backend database.
 
 ## 🎯 Features
 
