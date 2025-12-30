@@ -6,10 +6,6 @@ import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "../../../shared/components/ui/Card";
 import { Button, ButtonVariant } from "../../../shared";
 
-function isString(value: any): value is string {
-  return typeof value === "string";
-}
-
 export default function File() {
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);

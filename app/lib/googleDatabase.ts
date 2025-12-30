@@ -22,7 +22,7 @@ export const getSheetFileId = async () => {
 export const getCategoriesId = async () => {
   const sheetFileId = await getSheetFileId();
   const { session } = await googleSessionAuth();
-  if (!session) {
+  if (!session || !("accessToken" in session)) {
     throw new Error("No se pudo autenticar el usuario.");
   }
 
@@ -61,7 +61,8 @@ export const getCategoriesId = async () => {
 export const getproductsId = async () => {
   const sheetFileId = await getSheetFileId();
   const { session } = await googleSessionAuth();
-  if (!session) {
+  
+  if (!session || !("accessToken" in session)) {
     throw new Error("No se pudo autenticar el usuario.");
   }
 

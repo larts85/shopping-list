@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
-import { sendEmail } from "@/app/actions/googleDrive";
-import { shareFolder } from "@/app/actions/googleDrive";
-import { getFolderId } from "@/app/actions/googleDrive";
+import React, { useState } from "react";
+import { sendEmail } from "../../actions/googleDrive";
+import { shareFolder } from "../../actions/googleDrive";
+import { getFolderId } from "../../actions/googleDrive";
 
 interface RequestFileModalProps {
   isOpen: boolean;

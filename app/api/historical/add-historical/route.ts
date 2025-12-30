@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { addHistorical } from "@/app/actions/historical";
+import { addHistorical } from "../../../actions/historical";
 
 export async function POST(req: Request) {
   try {

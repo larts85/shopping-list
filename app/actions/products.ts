@@ -1,5 +1,5 @@
 "use server";
-import { GoogleSpreadsheet, GoogleSpreadsheetRow } from "google-spreadsheet";
+import { GoogleSpreadsheetRow } from "google-spreadsheet";
 import { sheetDoc } from "../lib/googleFileSheetConection";
 import { Product } from "../lib/types";
 import { ProductChecked } from "../lib/types";

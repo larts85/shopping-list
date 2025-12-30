@@ -1,20 +1,12 @@
-import tseslint from '@typescript-eslint/eslint-plugin'
-import tsparser from '@typescript-eslint/parser'
+import eslintPluginTypescript from '@typescript-eslint/eslint-plugin'
+import nextEslint from 'eslint-config-next'
 
 const eslintConfig = [
   {
     files: ['**/*.ts', '**/*.tsx'],
-    languageOptions: {
-      parser: tsparser,
-      parserOptions: {
-        project: './tsconfig.json',
-        ecmaFeatures: {
-          jsx: true,
-        },
-      },
-    },
     plugins: {
-      '@typescript-eslint': tseslint,
+      '@typescript-eslint': eslintPluginTypescript,
+      next: nextEslint,
     },
     rules: {
       'react/react-in-jsx-scope': 'off',
@@ -52,13 +44,7 @@ const eslintConfig = [
     },
   },
   {
-    ignores: [
-      '.next/**',
-      'node_modules/**',
-      'build/**',
-      'dist/**',
-      '*.min.js',
-    ],
+    ignores: ['.next/**', 'node_modules/**', 'build/**', 'dist/**', '*.min.js'],
   },
 ]
 
