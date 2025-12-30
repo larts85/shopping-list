@@ -170,7 +170,7 @@ export async function deleteShoppingList(): Promise<void> {
     }
 
     const rowsProducts = await sheetProducts.getRows();
-    for (let row of rowsProducts) {
+    for (const row of rowsProducts) {
       if (row.get("comprado") === "1") {
         await row.delete();
       }

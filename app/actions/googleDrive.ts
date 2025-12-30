@@ -3,9 +3,9 @@
 import { googleSessionAuth } from "../lib/googleSessionAuth";
 
 export const checkFolderExists = async (folderName: string) => {
-  const { accessToken } = await googleSessionAuth();
+  const { session, accessToken } = await googleSessionAuth();
 
-  if (!accessToken) {
+  if (!session || !("accessToken" in session)) {
     throw new Error("There are problems with user authentication");
   }
 
@@ -37,11 +37,11 @@ export const checkFolderExists = async (folderName: string) => {
 
 export async function getFolderId(folderName: string): Promise<string | null> {
   const { session } = await googleSessionAuth();
-  if (!session) {
+  if (!session || !("accessToken" in session)) {
     throw new Error("No se pudo autenticar el usuario.");
   }
 
-  const accessToken = session.accessToken;
+  const accessToken = session.accessToken as string;
   if (!accessToken) {
     throw new Error("No se pudo obtener el accessToken.");
   }
@@ -110,10 +110,11 @@ export async function shareFolder(
   emailToShare: string
 ) {
   const { session } = await googleSessionAuth();
-  if (!session) {
+  
+  if (!session || !("accessToken" in session)) {
     throw new Error("No se pudo autenticar el usuario.");
   }
-  const accessToken = session.accessToken;
+  const accessToken = session.accessToken as string;
   if (!accessToken) {
     throw new Error("No se pudo obtener el accessToken.");
   }
@@ -140,10 +141,10 @@ export async function shareFolder(
 
 export async function listFilesInSharedFolder(folderId: string) {
   const { session } = await googleSessionAuth();
-  if (!session) {
+  if (!session || !("accessToken" in session)) {
     throw new Error("No se pudo autenticar el usuario.");
   }
-  const accessToken = session.accessToken;
+  const accessToken = session.accessToken as string;
   if (!accessToken) {
     throw new Error("No se pudo obtener el accessToken.");
   }
@@ -166,10 +167,10 @@ export async function listFilesInSharedFolder(folderId: string) {
 
 export async function sendEmail(to: string, subject: string, message: string) {
   const { session } = await googleSessionAuth();
-  if (!session) {
+  if (!session || !("accessToken" in session)) {
     throw new Error("No se pudo autenticar el usuario.");
   }
-  const accessToken = session.accessToken;
+  const accessToken = session.accessToken as string;
   try {
     const email = [`To: ${to}`, `Subject: ${subject}`, "", message].join("\n");
 
@@ -211,13 +212,10 @@ export async function createFolderAndSheet(
   const folder = await checkFolderExists(folderName);
   if (!folder) {
     const { session } = await googleSessionAuth();
-    if (!session) {
-      throw new Error("No se pudo autenticar el usuario.");
+    if (!session || !("accessToken" in session)) {
+      throw new Error("There are problems with user authentication");
     }
-    const accessToken = session.accessToken;
-    if (!accessToken) {
-      throw new Error("No se pudo obtener el accessToken.");
-    }
+    const accessToken = session.accessToken as string;
 
     // Crear la carpeta en Google Drive
     const folderResponse = await fetch(

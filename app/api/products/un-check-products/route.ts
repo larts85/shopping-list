@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { unCheckProducts } from "@/app/actions/products";
+import { unCheckProducts } from "../../../actions/products";
 
 export async function PUT(req: Request) {
   try {
