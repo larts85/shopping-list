@@ -1,6 +1,12 @@
-
 import { doGoogleLogin } from "../actions/authenticate";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "../../shared/components/ui/Card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "../../shared/components/ui/Card";
 import { Button, ButtonVariant, ButtonType } from "../../shared";
 
 export function Authenticate() {
@@ -8,10 +14,10 @@ export function Authenticate() {
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl font-bold text-gray-900">
-          Shopping List
+          Tu hogar, organizado.
         </CardTitle>
         <CardDescription className="text-gray-600">
-          Gestiona tus compras de manera inteligente
+          Una lista clara. Compras más simples.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -20,7 +26,7 @@ export function Authenticate() {
         </p>
       </CardContent>
       <CardFooter className="flex justify-center">
-        <form action={doGoogleLogin}>
+        <form action={doGoogleLogin} className="w-full">
           <Button
             type={ButtonType.SUBMIT}
             variant={ButtonVariant.PRIMARY}

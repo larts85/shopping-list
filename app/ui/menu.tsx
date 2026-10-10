@@ -3,34 +3,57 @@ import { doGoogleLogout } from "../actions/authenticate";
 import { auth } from "../../auth";
 import Image from "next/image";
 import { redirect } from "next/navigation";
+import NavLinks from "./navLinks";
 
 export default async function Menu() {
   const session = await auth();
   if (!session?.user) redirect("/");
-
   return (
-    <div className="bg-gray-700 p-2  justify-around text-white">
-      <div className="flex justify-center sm:justify-end gap-3 text-xs sm:text-sm items-center">
-        <form action={doGoogleLogout}>
-          <button type="submit">Logout</button>
-        </form>
-        <p className="hidden sm:block">{session?.user?.name}</p>
-        {session?.user?.image && (
-          <Image
-            src={session.user.image}
-            alt={session.user.name || "User"}
-            width={32}
-            height={32}
-            className="rounded-full"
-          />
-        )}
+    <header className="border-b border-zinc-200 bg-white">
+      <div className="mx-auto max-w-6xl px-4 sm:px-8">
+        <div className="flex min-h-20 items-center justify-between gap-3">
+          <Link
+            href="/logistic"
+            className="flex items-center gap-3 font-semibold tracking-tight"
+          >
+            <span
+              aria-hidden="true"
+              className="flex size-10 items-center justify-center rounded-xl bg-zinc-900 text-lg text-white"
+            >
+              H
+            </span>
+            <span>
+              Hogar
+              <span className="hidden text-zinc-400 sm:inline">
+                {" "}
+                / Logística
+              </span>
+            </span>
+          </Link>
+          <div className="flex items-center gap-3">
+            <span className="hidden max-w-40 truncate text-sm text-zinc-500 md:block">
+              {session.user.name}
+            </span>
+            {session.user.image && (
+              <Image
+                src={session.user.image}
+                alt={session.user.name || "Perfil"}
+                width={32}
+                height={32}
+                className="rounded-full"
+              />
+            )}
+            <form action={doGoogleLogout}>
+              <button type="submit" className="btn-secondary">
+                Salir
+              </button>
+            </form>
+          </div>
+        </div>
+        <div className="pb-3 sm:max-w-lg">
+          <NavLinks />
+        </div>
       </div>
-      <div className="flex  justify-center gap-5 sm:gap-10 text-xs sm:text-sm">
-        <Link href="/logistic/">Lista</Link>
-        <Link href="/logistic/add">Agregar</Link>
-        <Link href="/logistic/admin">Admin</Link>
-        <Link href="/logistic/data">Datos</Link>
-      </div>
-    </div>
+    </header>
   );
 }
