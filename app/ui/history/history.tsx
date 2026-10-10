@@ -16,6 +16,21 @@ const currency = (value: string | number | null | undefined) => {
       }).format(number)
     : String(value);
 };
+function purchaseDate(item: Item) {
+  const legacy = item.purchase.fecha;
+  // Google Sheets exports dates as days since 1899-12-30.
+  const serial = typeof legacy === "number" ? legacy :
+    typeof legacy === "string" && /^\d+(\.\d+)?$/.test(legacy) ? Number(legacy) : null;
+  if (serial !== null && serial > 0 && serial < 100000) {
+    return new Intl.DateTimeFormat("es-AR", {
+      dateStyle: "long", timeZone: "UTC",
+    }).format(new Date(Date.UTC(1899, 11, 30) + Math.floor(serial) * 86400000));
+  }
+  if (legacy) return String(legacy);
+  return new Intl.DateTimeFormat("es-AR", {
+    dateStyle: "long", timeZone: "America/Argentina/Buenos_Aires",
+  }).format(new Date(item.purchasedAt));
+}
 export default function History() {
   const [items, setItems] = useState<Item[]>([]);
   const [page, setPage] = useState(0);
@@ -47,12 +62,7 @@ export default function History() {
   }, []);
   const groups = items.reduce(
     (acc, item) => {
-      const key = item.purchase.fecha
-        ? String(item.purchase.fecha)
-        : new Intl.DateTimeFormat("es-AR", {
-            dateStyle: "long",
-            timeZone: "America/Argentina/Buenos_Aires",
-          }).format(new Date(item.purchasedAt));
+      const key = purchaseDate(item);
       (acc[key] ||= []).push(item);
       return acc;
     },
