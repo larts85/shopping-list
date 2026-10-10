@@ -28,8 +28,11 @@ const BoughtListModal: React.FC<ListModalProps> = ({
   unitp,
   productUnit,
 }) => {
-  const [cantidad, setCantidad] = useState<number | string>(cantidadp);
-  const [unit, setUnit] = useState<Unit>(unitp);
+  const unitMatches = compatibleUnits(productUnit).includes(unitp);
+  const [cantidad, setCantidad] = useState<number | string>(
+    unitMatches ? cantidadp : "",
+  );
+  const [unit, setUnit] = useState<Unit>(unitMatches ? unitp : productUnit);
   const medida = 1;
   const [precio, setPrecio] = useState<number | string>("");
   const [isLoading, setIsLoading] = useState(false);
@@ -118,6 +121,12 @@ const BoughtListModal: React.FC<ListModalProps> = ({
           ✕
         </button>
       </div>
+      {!unitMatches && (
+        <p className="text-sm text-zinc-500 mb-4">
+          La unidad del catálogo cambió. Ingresa nuevamente la cantidad y el
+          precio por la unidad actual.
+        </p>
+      )}
       {error && (
         <p role="alert" className="error-notice mb-4">
           {error}

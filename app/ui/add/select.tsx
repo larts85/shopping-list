@@ -1,4 +1,5 @@
 "use client";
+import { unitLabels, type Unit } from "@/app/lib/units";
 import { useState, useEffect, useRef, SyntheticEvent } from "react";
 import { ClipLoader } from "react-spinners";
 import { useRouter } from "next/navigation";
@@ -56,6 +57,7 @@ export default function Select() {
     name: string;
     id_category: string;
     checked: boolean;
+    unit?: Unit;
   }
 
   async function fetchProducts() {
@@ -286,7 +288,12 @@ export default function Select() {
                     disabled={isUpdating}
                     checked={product.checked}
                   />
-                  <span className="break-words">{product.name}</span>
+                  <span className="break-words">
+                    {product.name}
+                    <span className="ml-2 text-xs text-zinc-500">
+                      {unitLabels[product.unit ?? "un"]}
+                    </span>
+                  </span>
                 </label>
               </li>
             ))}

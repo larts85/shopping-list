@@ -1,6 +1,7 @@
 "use server";
 import { withHousehold, text, requireRow, DataError } from "../lib/database";
-import { isUnit } from "../lib/units";
+import { isUnit, compatibleUnits } from "../lib/units";
+import { suggestProductUnit } from "../lib/productUnits";
 import type { Unit } from "../lib/units";
 import type { Product, ProductChecked, AddProduct } from "../lib/types";
 export interface EditProductParams {
@@ -23,9 +24,19 @@ export async function addProduct(p: AddProduct): Promise<void> {
   if (p.unit !== undefined && !isUnit(p.unit))
     throw new DataError("Unidad inválida");
   await withHousehold(async (db, h) => {
+    const category = await db.query(
+      "select name from categories where household_id=$1 and id=$2",
+      [h, text(p.idCategory)],
+    );
+    requireRow(category.rowCount);
     await db.query(
       "insert into products(household_id,name,id_category,unit) values($1,$2,$3,$4)",
-      [h, text(p.name), text(p.idCategory), p.unit ?? "un"],
+      [
+        h,
+        text(p.name),
+        text(p.idCategory),
+        p.unit ?? suggestProductUnit(text(p.name), category.rows[0].name),
+      ],
     );
   });
 }
@@ -50,6 +61,16 @@ export async function editNameProduct(p: EditProductParams): Promise<void> {
   if (p.unit !== undefined && !isUnit(p.unit))
     throw new DataError("Unidad inválida");
   await withHousehold(async (db, h) => {
+    const previous = await db.query(
+      "select unit from products where household_id=$1 and id=$2 for update",
+      [h, text(p.idProduct)],
+    );
+    requireRow(previous.rowCount);
+    if (p.unit !== undefined)
+      await db.query(
+        "update shopping_list set unit=$3 where household_id=$1 and id_product=$2 and unit is null",
+        [h, text(p.idProduct), previous.rows[0].unit],
+      );
     requireRow(
       (
         await db.query(
@@ -58,11 +79,18 @@ export async function editNameProduct(p: EditProductParams): Promise<void> {
         )
       ).rowCount,
     );
-    if (p.unit !== undefined)
+    if (p.unit !== undefined) {
+      // Keep a chosen g/ml unit on a rename or compatible default change.
+      // Changing the selling dimension cannot reinterpret an old item count.
       await db.query(
-        "update shopping_list set unit=$3 where household_id=$1 and id_product=$2 and not comprado",
+        "update shopping_list set unit=$3,cantidad=null,medida=null,precio=null where household_id=$1 and id_product=$2 and not comprado and not (unit=any($4::text[]))",
+        [h, p.idProduct, p.unit, compatibleUnits(p.unit)],
+      );
+      await db.query(
+        "update shopping_list set unit=$3 where household_id=$1 and id_product=$2 and not comprado and cantidad is null",
         [h, p.idProduct, p.unit],
       );
+    }
   });
 }
 export async function editCheckedProduct(p: ProductChecked): Promise<void> {
