@@ -1,4 +1,5 @@
 "use client";
+import Modal from "@/shared/components/ui/Modal";
 
 import React from "react";
 
@@ -30,31 +31,22 @@ const DeleteProductModal: React.FC<DeleteProductModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg p-8 max-w-lg w-full">
-        <h3 className="text-lg font-semibold p-8 flex items-center flex-col">
-          Confirma que desea eliminar la categoria:
-          <h2 className="text-2xl flex justify-center">"{nameProduct}"</h2>
-        </h3>
-        <form onSubmit={handleDeleteCategory} className="space-y-4">
-          <div className="flex justify-end space-x-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              Borrar
-            </button>
-          </div>
-        </form>
+    <Modal isOpen={isOpen} onClose={onClose} title="Eliminar producto">
+      <div className="mb-6 space-y-3 text-center">
+        Confirma que desea eliminar la categoria:
+        <h2 className="break-words text-2xl font-semibold">"{nameProduct}"</h2>
       </div>
-    </div>
+      <form onSubmit={handleDeleteCategory} className="space-y-4">
+        <div className="flex justify-end space-x-4">
+          <button type="button" onClick={onClose} className="btn-secondary">
+            Cancelar
+          </button>
+          <button type="submit" className="btn-primary">
+            Borrar
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 };
 export default DeleteProductModal;

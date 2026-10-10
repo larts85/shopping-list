@@ -1,4 +1,6 @@
-"use cliente";
+"use client";
+import Modal from "@/shared/components/ui/Modal";
+("use cliente");
 import { sendEmail } from "@/app/actions/googleDrive";
 
 import { useState } from "react";
@@ -15,7 +17,7 @@ const RequestFileModal: React.FC<RequestFileModalProps> = ({
   const [email, setEmail] = useState("");
   const [subject, setSubject] = useState("Solicitud de carpeta");
   const [message, setMessage] = useState(
-    "Hola, por favor me puedes compartir el archivo de datos de Home Logistic."
+    "Hola, por favor me puedes compartir el archivo de datos de Home Logistic.",
   );
 
   if (!isOpen) return null;
@@ -31,62 +33,65 @@ const RequestFileModal: React.FC<RequestFileModalProps> = ({
     }
   };
   return (
-    <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg p-8 max-w-lg w-full">
-        <h2 className="text-xl font-semibold mb-4">Solicitud de Datos</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Asunto
-            </label>
-            <input
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              required
-              className="mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Message
-            </label>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              required
-              className="mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          </div>
-          <div className="flex justify-end space-x-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-            >
-              Close
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              Send
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Modal isOpen={isOpen} onClose={onClose} title="Solicitar datos">
+      <h2 className="text-xl font-semibold mb-4">Solicitar datos</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label
+            htmlFor="requestFileModal-field-0"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Email
+          </label>
+          <input
+            id="requestFileModal-field-0"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="field mt-2"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="requestFileModal-field-1"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Asunto
+          </label>
+          <input
+            id="requestFileModal-field-1"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            required
+            className="field mt-2"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="requestFileModal-field-2"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Message
+          </label>
+          <textarea
+            id="requestFileModal-field-2"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            required
+            className="field mt-2"
+          />
+        </div>
+        <div className="flex justify-end space-x-4">
+          <button type="button" onClick={onClose} className="btn-secondary">
+            Close
+          </button>
+          <button type="submit" className="btn-primary">
+            Send
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 };
 
