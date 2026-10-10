@@ -168,19 +168,19 @@ export default function List() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-12">
+    <div className="max-w-5xl mx-auto px-4 py-6 sm:px-6">
       {error && <p role="alert">{error}</p>}
       {!isLoading && (
-        <div className="flex gap-4 mb-16">
+        <div className="flex gap-2 mb-6">
           <button
             onClick={clean}
-            className="px-8 py-3 text-base font-normal text-black bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
           >
             Limpiar
           </button>
           <button
             onClick={save}
-            className="px-8 py-3 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-black hover:opacity-80 transition-opacity"
           >
             Guardar
           </button>
@@ -189,9 +189,9 @@ export default function List() {
       {categories
         .filter((category) => list[category.id] && list[category.id].length > 0)
         .map((category) => (
-          <div key={category.id} className="mb-12">
+          <div key={category.id} className="mb-6">
             <h2
-              className="text-2xl font-normal text-black mb-6 cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-3"
+              className="text-lg font-medium text-black mb-3 cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-2"
               onClick={() => toggleCategoryVisibility(category.id)}
             >
               <span className="text-lg">
@@ -200,45 +200,59 @@ export default function List() {
               {category.name}
             </h2>
             {visibleCategories[category.id] && (
-              <div className="space-y-3">
+              <div>
                 {list[category.id]?.map((productList) => (
                   <div
-                    className="flex items-center gap-8 py-4 border-b border-gray-200"
+                    className="flex items-center gap-3 py-2 border-b border-gray-200"
                     key={productList.id}
                   >
-                    <div className="flex items-center gap-4">
-                      <input
-                        placeholder={productList.cantidad}
-                        className="w-20 px-3 py-2 text-base border border-gray-300 focus:outline-none focus:border-black"
-                        type="number"
-                        value={productList.cantidad}
-                        onChange={(e) =>
-                          handleInputChange(
-                            e,
-                            productList.id,
-                            category.id,
-                            "cantidad",
-                          )
-                        }
-                      />
-                      <input
-                        placeholder={productList.medida}
-                        className="w-24 px-3 py-2 text-base border border-gray-300 focus:outline-none focus:border-black"
-                        type="number"
-                        value={productList.medida}
-                        onChange={(e) =>
-                          handleInputChange(
-                            e,
-                            productList.id,
-                            category.id,
-                            "medida",
-                          )
-                        }
-                      />
+                    <div className="order-2 grid shrink-0 grid-cols-[3.5rem_4rem] gap-2">
+                      <label
+                        htmlFor={`quantity-${productList.id}`}
+                        className="grid gap-1 text-xs font-medium text-gray-600"
+                      >
+                        Cantidad
+                        <input
+                          id={`quantity-${productList.id}`}
+                          aria-label={`Cantidad de ${productList.name}`}
+                          className="h-10 min-w-0 w-full rounded-lg px-1.5 text-center text-base tabular-nums border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black sm:h-9 sm:text-sm"
+                          type="number"
+                          value={productList.cantidad}
+                          onChange={(e) =>
+                            handleInputChange(
+                              e,
+                              productList.id,
+                              category.id,
+                              "cantidad",
+                            )
+                          }
+                        />
+                      </label>
+                      <label
+                        htmlFor={`measure-${productList.id}`}
+                        className="grid gap-1 text-xs font-medium text-gray-600"
+                      >
+                        Medida
+                        <input
+                          id={`measure-${productList.id}`}
+                          aria-label={`Medida de ${productList.name}`}
+                          className="h-10 min-w-0 w-full rounded-lg px-1.5 text-center text-base tabular-nums border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black sm:h-9 sm:text-sm"
+                          type="number"
+                          value={productList.medida}
+                          onChange={(e) =>
+                            handleInputChange(
+                              e,
+                              productList.id,
+                              category.id,
+                              "medida",
+                            )
+                          }
+                        />
+                      </label>
                     </div>
                     <div
                       onClick={() => handleOpenModal(productList)}
-                      className={`flex-1 text-base cursor-pointer ${
+                      className={`order-1 min-w-0 flex-1 break-words text-sm cursor-pointer ${
                         productList.comprado === "1"
                           ? "line-through text-gray-400"
                           : "text-black"
