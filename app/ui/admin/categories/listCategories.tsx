@@ -5,8 +5,6 @@ import { RiDeleteBin6Line } from "react-icons/ri";
 import EditCategoryModal from "./editCategoryModal";
 import DeleteCategoryModal from "./deleteCategoryModal";
 
-
-
 interface Category {
   id: string;
   name: string;
@@ -15,8 +13,11 @@ interface Category {
 export default function ListCategories() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [editModalCategory, setEditModalCategory] = useState<Category | null>(null);
-  const [deleteModalCategory, setDeleteModalCategory] = useState<Category | null>(null);
+  const [editModalCategory, setEditModalCategory] = useState<Category | null>(
+    null,
+  );
+  const [deleteModalCategory, setDeleteModalCategory] =
+    useState<Category | null>(null);
 
   useEffect(() => {
     fetchCategories();
@@ -64,7 +65,9 @@ export default function ListCategories() {
         <div className="flex justify-center items-center py-16">
           <div className="flex items-center space-x-3">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-black"></div>
-            <span className="text-base text-gray-600">Cargando categorías...</span>
+            <span className="text-base text-gray-600">
+              Cargando categorías...
+            </span>
           </div>
         </div>
       </div>
@@ -73,10 +76,14 @@ export default function ListCategories() {
 
   return (
     <div>
-      <h3 className="text-4xl font-normal text-black mb-8">Lista de Categorías</h3>
+      <h3 className="text-4xl font-normal text-black mb-8">
+        Lista de Categorías
+      </h3>
       {categories.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-lg text-gray-600 mb-2">No hay categorías registradas</p>
+          <p className="text-lg text-gray-600 mb-2">
+            No hay categorías registradas
+          </p>
           <p className="text-base text-gray-600">
             Agrega tu primera categoría usando el formulario de arriba
           </p>
@@ -88,7 +95,9 @@ export default function ListCategories() {
               key={category.id}
               className="flex items-center justify-between py-5 border-b border-gray-200 hover:opacity-70 transition-opacity"
             >
-              <span className="text-base font-normal text-black">{category.name}</span>
+              <span className="text-base font-normal text-black">
+                {category.name}
+              </span>
 
               <div className="flex items-center space-x-2">
                 <button

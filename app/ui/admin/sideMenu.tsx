@@ -8,7 +8,9 @@ export default async function SideMenu() {
   return (
     <aside className="bg-white border-r border-gray-200 w-64 min-h-screen">
       <div className="flex flex-col gap-1 p-8">
-        <h2 className="text-sm font-normal text-gray-600 mb-6">Administración</h2>
+        <h2 className="text-sm font-normal text-gray-600 mb-6">
+          Administración
+        </h2>
         <Link
           href="/logistic/admin/categories"
           className="px-4 py-3 text-base font-normal text-black hover:opacity-70 transition-opacity"

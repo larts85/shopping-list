@@ -38,3 +38,7 @@ next-env.d.ts
 
 google-services.json
 client_secret_1099448758821-i6u0006oeffompr6fephtq4vmmffdlrl.apps.googleusercontent.com.json
+# Private continuation notes (verification evidence is in SUPABASE_VERIFICATION.md)
+SUPABASE_HANDOFF.md
+supabase/.temp/
+supabase/.branches/

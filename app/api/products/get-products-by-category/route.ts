@@ -1,3 +1,4 @@
+import { apiError } from '@/app/lib/apiError';
 import { NextResponse } from "next/server";
 import { getProductsByCategory } from "@/app/actions/products";
 
@@ -13,7 +14,6 @@ export async function POST(req: Request) {
     const products = await getProductsByCategory(id_category);
     return NextResponse.json(products);
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: error });
+    return apiError(error);
   }
 }

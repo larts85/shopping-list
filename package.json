@@ -4,26 +4,29 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 2020 --webpack",
+    "dev": "next dev -p 2021 --webpack",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "clean": "rm -rf .next && rm -rf node_modules/.cache",
-    "dev:clean": "yarn clean && lsof -ti:2020 | xargs kill -9 2>/dev/null || true && yarn dev",
+    "dev:clean": "yarn clean && yarn dev",
     "typecheck": "tsc --noEmit",
     "deps:install": "node scripts/check-dependencies.mjs && yarn install --frozen-lockfile --ignore-scripts --non-interactive",
-    "deps:check": "node scripts/check-dependencies.mjs"
+    "deps:check": "node scripts/check-dependencies.mjs",
+    "verify:supabase": "node --env-file=.env scripts/verify-supabase.mjs",
+    "verify:households": "node --env-file=.env scripts/verify-households.mjs",
+    "verify:import": "node --env-file=.env scripts/verify-import.mjs"
   },
   "dependencies": {
     "@tailwindcss/postcss": "4.3.3",
-    "google-auth-library": "11.2.0",
-    "google-spreadsheet": "5.3.0",
     "next": "16.4.0",
     "next-auth": "5.0.0-beta.32",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-icons": "5.7.0",
-    "react-spinners": "0.17.1"
+    "react-spinners": "0.17.1",
+    "pg": "8.16.3",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
@@ -38,7 +41,8 @@
     "postcss": "8.5.29",
     "prettier": "3.9.9",
     "tailwindcss": "4.3.3",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "@types/pg": "8.15.5"
   },
   "engines": {
     "node": ">=22.0.0"

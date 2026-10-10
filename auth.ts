@@ -1,9 +1,9 @@
-import NextAuth from 'next-auth'
-import Google from 'next-auth/providers/google'
+import NextAuth from "next-auth";
+import Google from "next-auth/providers/google";
 
 // Session configuration: enforce JWT sessions and a reasonable expiration
 // maxAge is in seconds. Here: half day (12 * 60 * 60)
-const halfDayInSeconds = 12 * 60 * 60
+const halfDayInSeconds = 12 * 60 * 60;
 
 export const {
   handlers: { GET, POST },
@@ -15,18 +15,17 @@ export const {
     Google({
       authorization: {
         params: {
-          prompt: 'consent',
-          access_type: 'offline',
-          response_type: 'code',
-          scope:
-            'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/gmail.send',
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code",
+          scope: "openid email profile",
         },
       },
     }),
   ],
 
   session: {
-    strategy: 'jwt',
+    strategy: "jwt",
     maxAge: halfDayInSeconds,
   },
   jwt: {
@@ -36,19 +35,25 @@ export const {
   secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
 
   callbacks: {
+    async signIn({ account, profile }) {
+      return (
+        account?.provider === "google" &&
+        Boolean((profile as { email_verified?: boolean })?.email_verified)
+      );
+    },
     async jwt({ token, account }) {
       if (account) {
-        token.accessToken = account.access_token as string | undefined
-        token.refreshToken = account.refresh_token as string | undefined
-        token.idToken = account.id_token as string | undefined
+        token.accessToken = account.access_token as string | undefined;
+        token.refreshToken = account.refresh_token as string | undefined;
+        token.idToken = account.id_token as string | undefined;
       }
-      return token
+      return token;
     },
     async session({ session, token }) {
-      session.accessToken = token.accessToken as string | undefined
-      session.idToken = token.idToken as string | undefined
+      session.accessToken = token.accessToken as string | undefined;
+      session.idToken = token.idToken as string | undefined;
 
-      return session
+      return session;
     },
   },
-})
+});

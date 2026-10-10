@@ -31,9 +31,13 @@ const BoughtListModal: React.FC<ListModalProps> = ({
 
   const handleClick = async () => {
     if (
-      !Number.isFinite(Number(cantidad)) || Number(cantidad) <= 0 ||
-      !Number.isFinite(Number(medida)) || Number(medida) <= 0 ||
-      precio === "" || !Number.isFinite(Number(precio)) || Number(precio) < 0
+      !Number.isFinite(Number(cantidad)) ||
+      Number(cantidad) <= 0 ||
+      !Number.isFinite(Number(medida)) ||
+      Number(medida) <= 0 ||
+      precio === "" ||
+      !Number.isFinite(Number(precio)) ||
+      Number(precio) < 0
     ) {
       alert("Por favor, ingresa valores numéricos válidos.");
       return;
@@ -79,7 +83,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white p-10 max-w-lg w-full">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-12">
@@ -89,21 +93,35 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         ) : (
           <div className="flex flex-col">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-3xl font-normal text-black">{nameProductList}</h2>
+              <h2 className="text-3xl font-normal text-black">
+                {nameProductList}
+              </h2>
               <button
                 className="text-gray-600 hover:text-black focus:outline-none p-1 transition-colors"
                 onClick={() => onClose(null)}
                 disabled={isLoading}
                 aria-label="Cerrar"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
             <div className="grid grid-cols-2 gap-6 mb-8">
               <div className="flex flex-col">
-                <label className="text-base font-normal text-black mb-3">Cantidad</label>
+                <label className="text-base font-normal text-black mb-3">
+                  Cantidad
+                </label>
                 <input
                   type="number"
                   value={cantidad}
@@ -113,7 +131,9 @@ const BoughtListModal: React.FC<ListModalProps> = ({
               </div>
 
               <div className="flex flex-col">
-                <label className="text-base font-normal text-black mb-3">Medida</label>
+                <label className="text-base font-normal text-black mb-3">
+                  Medida
+                </label>
                 <input
                   type="number"
                   value={medida}
@@ -123,7 +143,9 @@ const BoughtListModal: React.FC<ListModalProps> = ({
               </div>
 
               <div className="flex flex-col col-span-2">
-                <label className="text-base font-normal text-black mb-3">Precio</label>
+                <label className="text-base font-normal text-black mb-3">
+                  Precio
+                </label>
                 <input
                   placeholder="Ingrese el precio"
                   type="number"

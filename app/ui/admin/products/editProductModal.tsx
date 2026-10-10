@@ -26,13 +26,18 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       idProduct: idProduct,
       newNameProduct: newNameProduct,
     };
-    await fetch("/api/products/edit-name-product", {
+    const response = await fetch("/api/products/edit-name-product", {
       method: "PUT",
       body: JSON.stringify(product),
       headers: {
         "content-Type": "application/json",
       },
     });
+    if (!response.ok) {
+      const data = await response.json();
+      alert(data.error || "No se pudo completar la operación");
+      return;
+    }
     onClose();
   };
   const handleChange = (event: SyntheticEvent) => {
@@ -42,9 +47,11 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white p-10 max-w-lg w-full">
-        <h2 className="text-3xl font-normal text-black mb-8">Editar Producto</h2>
+        <h2 className="text-3xl font-normal text-black mb-8">
+          Editar Producto
+        </h2>
         <form onSubmit={handleEditProduct} className="space-y-8">
           <div>
             <label className="block text-base font-normal text-black mb-3">

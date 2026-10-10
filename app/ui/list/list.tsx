@@ -23,27 +23,30 @@ export default function List() {
 
   useEffect(() => {
     if (categories.length > 0) {
-      const initialVisibility = categories.reduce((acc, category) => {
-        acc[category.id] = true;
-        return acc;
-      }, {} as Record<string, boolean>);
+      const initialVisibility = categories.reduce(
+        (acc, category) => {
+          acc[category.id] = true;
+          return acc;
+        },
+        {} as Record<string, boolean>,
+      );
       setVisibleCategories(initialVisibility);
     }
   }, [categories]);
 
   async function fetchCategories() {
-      const categoriesRespone = await fetch("/api/categories/get-categories", {
-        method: "GET",
-        headers: {
-          "content-type": "application/json",
-        },
-      });
-      if (!categoriesRespone.ok) {
-        throw new Error("Error fetching categories");
-      }
-      const categoriesData = await categoriesRespone.json();
+    const categoriesRespone = await fetch("/api/categories/get-categories", {
+      method: "GET",
+      headers: {
+        "content-type": "application/json",
+      },
+    });
+    if (!categoriesRespone.ok) {
+      throw new Error("Error fetching categories");
+    }
+    const categoriesData = await categoriesRespone.json();
 
-      setCategories(categoriesData);
+    setCategories(categoriesData);
   }
 
   async function fetchList() {
@@ -54,7 +57,7 @@ export default function List() {
         headers: {
           "content-type": "application/json",
         },
-      }
+      },
     );
     if (!dataFechList.ok) {
       throw new Error("Error fetching List");
@@ -94,14 +97,14 @@ export default function List() {
     setIsLoading(true);
     setError("");
     try {
-    const response = await fetch("/api/historical/add-historical", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-    });
-    if (!response.ok) throw new Error("No se pudo archivar la compra");
-    await fetchList();
+      const response = await fetch("/api/historical/add-historical", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+      });
+      if (!response.ok) throw new Error("No se pudo archivar la compra");
+      await fetchList();
     } catch {
       setError("No se pudo limpiar la lista. Intentá nuevamente.");
     } finally {
@@ -113,14 +116,14 @@ export default function List() {
     e: React.ChangeEvent<HTMLInputElement>,
     productId: string,
     categoryId: string,
-    field: string
+    field: string,
   ) => {
     const { value } = e.target;
 
     setList((prevList) => {
       const updatedList = { ...prevList };
       updatedList[categoryId] = prevList[categoryId].map((product) =>
-        product.id === productId ? { ...product, [field]: value } : product
+        product.id === productId ? { ...product, [field]: value } : product,
       );
       return updatedList;
     });
@@ -136,7 +139,7 @@ export default function List() {
         id: product.id,
         cantidad: parseFloat(product.cantidad),
         medida: parseFloat(product.medida),
-        precio: parseFloat(product.precio),
+        precio: 0,
       }));
 
     // Filtrar los productos que tengan valores en los campos 'cantidad' y 'medida'
@@ -145,8 +148,8 @@ export default function List() {
     });
 
     // Llamar a la función updateMultipleProducts con los productos cambiados
-      try {
-        if (changedProducts.length > 0) {
+    try {
+      if (changedProducts.length > 0) {
         const response = await fetch("/api/list/update-multiple-products", {
           method: "PUT",
           body: JSON.stringify(changedProducts),
@@ -155,28 +158,29 @@ export default function List() {
           },
         });
         if (!response.ok) throw new Error("No se pudo guardar la lista");
-        }
-      } catch {
-        setError("No se pudo guardar la lista. Intentá nuevamente.");
-      } finally {
-        setIsLoading(false);
+        await fetchList();
       }
+    } catch {
+      setError("No se pudo guardar la lista. Intentá nuevamente.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-12">
+    <div className="max-w-5xl mx-auto px-4 py-6 sm:px-6">
       {error && <p role="alert">{error}</p>}
       {!isLoading && (
-        <div className="flex gap-4 mb-16">
+        <div className="flex gap-2 mb-6">
           <button
             onClick={clean}
-            className="px-8 py-3 text-base font-normal text-black bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
           >
             Limpiar
           </button>
           <button
             onClick={save}
-            className="px-8 py-3 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-black hover:opacity-80 transition-opacity"
           >
             Guardar
           </button>
@@ -185,54 +189,70 @@ export default function List() {
       {categories
         .filter((category) => list[category.id] && list[category.id].length > 0)
         .map((category) => (
-          <div key={category.id} className="mb-12">
+          <div key={category.id} className="mb-6">
             <h2
-              className="text-2xl font-normal text-black mb-6 cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-3"
+              className="text-lg font-medium text-black mb-3 cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-2"
               onClick={() => toggleCategoryVisibility(category.id)}
             >
-              <span className="text-lg">{visibleCategories[category.id] ? "▼" : "▶"}</span>
+              <span className="text-lg">
+                {visibleCategories[category.id] ? "▼" : "▶"}
+              </span>
               {category.name}
             </h2>
             {visibleCategories[category.id] && (
-              <div className="space-y-3">
+              <div>
                 {list[category.id]?.map((productList) => (
                   <div
-                    className="flex items-center gap-8 py-4 border-b border-gray-200"
+                    className="flex items-center gap-3 py-2 border-b border-gray-200"
                     key={productList.id}
                   >
-                    <div className="flex items-center gap-4">
-                      <input
-                        placeholder={productList.cantidad}
-                        className="w-20 px-3 py-2 text-base border border-gray-300 focus:outline-none focus:border-black"
-                        type="number"
-                        value={productList.cantidad}
-                        onChange={(e) =>
-                          handleInputChange(
-                            e,
-                            productList.id,
-                            category.id,
-                            "cantidad"
-                          )
-                        }
-                      />
-                      <input
-                        placeholder={productList.medida}
-                        className="w-24 px-3 py-2 text-base border border-gray-300 focus:outline-none focus:border-black"
-                        type="number"
-                        value={productList.medida}
-                        onChange={(e) =>
-                          handleInputChange(
-                            e,
-                            productList.id,
-                            category.id,
-                            "medida"
-                          )
-                        }
-                      />
+                    <div className="order-2 grid shrink-0 grid-cols-[3.5rem_4rem] gap-2">
+                      <label
+                        htmlFor={`quantity-${productList.id}`}
+                        className="grid gap-1 text-xs font-medium text-gray-600"
+                      >
+                        Cantidad
+                        <input
+                          id={`quantity-${productList.id}`}
+                          aria-label={`Cantidad de ${productList.name}`}
+                          className="h-10 min-w-0 w-full rounded-lg px-1.5 text-center text-base tabular-nums border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black sm:h-9 sm:text-sm"
+                          type="number"
+                          value={productList.cantidad}
+                          onChange={(e) =>
+                            handleInputChange(
+                              e,
+                              productList.id,
+                              category.id,
+                              "cantidad",
+                            )
+                          }
+                        />
+                      </label>
+                      <label
+                        htmlFor={`measure-${productList.id}`}
+                        className="grid gap-1 text-xs font-medium text-gray-600"
+                      >
+                        Medida
+                        <input
+                          id={`measure-${productList.id}`}
+                          aria-label={`Medida de ${productList.name}`}
+                          className="h-10 min-w-0 w-full rounded-lg px-1.5 text-center text-base tabular-nums border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black sm:h-9 sm:text-sm"
+                          type="number"
+                          value={productList.medida}
+                          onChange={(e) =>
+                            handleInputChange(
+                              e,
+                              productList.id,
+                              category.id,
+                              "medida",
+                            )
+                          }
+                        />
+                      </label>
                     </div>
                     <div
                       onClick={() => handleOpenModal(productList)}
-                      className={`flex-1 text-base cursor-pointer ${
+                      className={`order-1 min-w-0 flex-1 break-words text-sm cursor-pointer ${
                         productList.comprado === "1"
                           ? "line-through text-gray-400"
                           : "text-black"
