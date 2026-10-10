@@ -52,8 +52,8 @@ export default function SharedData() {
   }
   const owner = data?.email === data?.household.owner_email;
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-8">
-      <h1 className="text-3xl">Datos del hogar</h1>
+    <div className="panel mx-auto max-w-2xl space-y-6">
+      <h1 className="text-xl font-semibold">Datos del hogar</h1>
       {error && (
         <p role="alert" className="text-red-700">
           {error}

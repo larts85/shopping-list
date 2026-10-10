@@ -1,8 +1,14 @@
-import SharedData from "@/app/ui/data/sharedData";
-export default function Data() {
+import SharedData from "../../ui/data/sharedData";
+export default function Page() {
   return (
-    <main className="w-full min-h-screen bg-white">
-      <SharedData />
+    <main>
+      <h1 className="page-heading">Datos compartidos</h1>
+      <p className="page-description">
+        Organiza las compras junto a las personas de tu hogar.
+      </p>
+      <div className="mt-8 space-y-6">
+        <SharedData />
+      </div>
     </main>
   );
 }

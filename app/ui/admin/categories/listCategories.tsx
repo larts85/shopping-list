@@ -4,6 +4,12 @@ import { BiEditAlt } from "react-icons/bi";
 import { RiDeleteBin6Line } from "react-icons/ri";
 import EditCategoryModal from "./editCategoryModal";
 import DeleteCategoryModal from "./deleteCategoryModal";
+import {
+  Card,
+  CardHeader,
+  CardContent,
+} from "../../../../shared/components/ui/Card";
+import { Button, ButtonVariant } from "../../../../shared";
 
 interface Category {
   id: string;
@@ -13,6 +19,7 @@ interface Category {
 export default function ListCategories() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const [editModalCategory, setEditModalCategory] = useState<Category | null>(
     null,
   );
@@ -24,6 +31,7 @@ export default function ListCategories() {
   }, []);
 
   const fetchCategories = async () => {
+    setError("");
     try {
       const categoriesResponse = await fetch("/api/categories/get-categories", {
         method: "GET",
@@ -37,6 +45,7 @@ export default function ListCategories() {
       setIsLoading(false);
     } catch (error) {
       console.error("Error fetching categories:", error);
+      setError("No pudimos cargar las categorías. Intenta nuevamente.");
       setIsLoading(false);
     }
   };
@@ -61,65 +70,83 @@ export default function ListCategories() {
 
   if (isLoading) {
     return (
-      <div className="w-full">
-        <div className="flex justify-center items-center py-16">
-          <div className="flex items-center space-x-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-black"></div>
-            <span className="text-base text-gray-600">
-              Cargando categorías...
-            </span>
+      <Card className="w-full">
+        <CardContent className="flex justify-center items-center py-8">
+          <div className="flex shrink-0 items-center space-x-2">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-600"></div>
+            <span className="text-gray-600">Cargando categorías...</span>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div>
-      <h3 className="text-4xl font-normal text-black mb-8">
-        Lista de Categorías
-      </h3>
-      {categories.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-lg text-gray-600 mb-2">
-            No hay categorías registradas
-          </p>
-          <p className="text-base text-gray-600">
-            Agrega tu primera categoría usando el formulario de arriba
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-1">
-          {categories.map((category) => (
-            <div
-              key={category.id}
-              className="flex items-center justify-between py-5 border-b border-gray-200 hover:opacity-70 transition-opacity"
-            >
-              <span className="text-base font-normal text-black">
-                {category.name}
-              </span>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleOpenEditModal(category)}
-                  className="p-2 text-gray-600 hover:text-black transition-colors"
-                  title="Editar categoría"
-                >
-                  <BiEditAlt size={20} />
-                </button>
-
-                <button
-                  onClick={() => handleOpenDeleteModal(category)}
-                  className="p-2 text-gray-600 hover:text-red-600 transition-colors"
-                  title="Eliminar categoría"
-                >
-                  <RiDeleteBin6Line size={20} />
-                </button>
-              </div>
+    <div className="space-y-6">
+      <Card className="w-full">
+        <CardHeader>
+          <h2 className="text-xl font-semibold text-gray-900">
+            Lista de Categorías
+          </h2>
+        </CardHeader>
+        <CardContent>
+          {error ? (
+            <div className="error-notice" role="alert">
+              <p>{error}</p>
+              <button className="btn-secondary mt-3" onClick={fetchCategories}>
+                Reintentar
+              </button>
             </div>
-          ))}
-        </div>
-      )}
+          ) : categories.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500 text-lg">
+                No hay categorías registradas
+              </p>
+              <p className="text-gray-500 text-sm mt-2">
+                Agrega tu primera categoría usando el formulario de arriba
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {categories.map((category) => (
+                <div
+                  key={category.id}
+                  className="flex items-center justify-between gap-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="w-3 h-3 shrink-0 bg-zinc-400 rounded-full"></div>
+                    <span className="min-w-0 break-words text-gray-900 font-medium">
+                      {category.name}
+                    </span>
+                  </div>
+
+                  <div className="flex shrink-0 items-center space-x-2">
+                    <Button
+                      variant={ButtonVariant.GHOST}
+                      onClick={() => handleOpenEditModal(category)}
+                      className="p-2 min-h-11 w-11 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
+                      aria-label={`Editar ${category.name}`}
+                      title="Editar categoría"
+                    >
+                      <BiEditAlt size={16} />
+                    </Button>
+
+                    <Button
+                      variant={ButtonVariant.GHOST}
+                      onClick={() => handleOpenDeleteModal(category)}
+                      className="p-2 min-h-11 w-11 text-red-600 hover:text-red-800 hover:bg-red-50"
+                      aria-label={`Eliminar ${category.name}`}
+                      title="Eliminar categoría"
+                    >
+                      <RiDeleteBin6Line size={16} />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Edit Modal */}
       {editModalCategory && (

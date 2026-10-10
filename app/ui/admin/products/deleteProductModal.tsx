@@ -1,6 +1,7 @@
 "use client";
+import Modal from "@/shared/components/ui/Modal";
 
-import React from "react";
+import React, { useState } from "react";
 
 interface DeleteProductModalProps {
   isOpen: boolean;
@@ -15,53 +16,60 @@ const DeleteProductModal: React.FC<DeleteProductModalProps> = ({
   idProduct,
   nameProduct,
 }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
   if (!isOpen) return null;
 
   const handleDeleteCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    const response = await fetch("/api/products/delete-product-by-id", {
-      method: "DELETE",
-      body: JSON.stringify(idProduct),
-      headers: {
-        "content-Type": "application/json",
-      },
-    });
-    if (!response.ok) {
-      const data = await response.json();
-      alert(data.error || "No se pudo completar la operación");
-      return;
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setError("");
+    try {
+      const response = await fetch("/api/products/delete-product-by-id", {
+        method: "DELETE",
+        body: JSON.stringify(idProduct),
+        headers: {
+          "content-Type": "application/json",
+        },
+      });
+      if (!response.ok) throw new Error("Request failed");
+      onClose();
+    } catch {
+      setError("No pudimos completar el cambio. Intenta nuevamente.");
+    } finally {
+      setIsSubmitting(false);
     }
-    onClose();
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white p-10 max-w-lg w-full">
-        <h3 className="text-2xl font-normal text-black mb-4">
-          ¿Confirma que desea eliminar el producto?
-        </h3>
-        <h2 className="text-3xl font-normal text-black mb-8">
-          "{nameProduct}"
-        </h2>
-        <form onSubmit={handleDeleteCategory} className="space-y-4">
-          <div className="flex justify-end gap-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-8 py-3 text-base font-normal text-black bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-8 py-3 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity"
-            >
-              Eliminar
-            </button>
-          </div>
-        </form>
+    <Modal isOpen={isOpen} onClose={onClose} title="Eliminar producto">
+      <div className="mb-6 space-y-3 text-center">
+        ¿Eliminar este producto?
+        <h2 className="break-words text-2xl font-semibold">"{nameProduct}"</h2>
       </div>
-    </div>
+      {error && (
+        <p role="alert" className="error-notice mb-4">
+          {error}
+        </p>
+      )}
+      <form onSubmit={handleDeleteCategory} className="space-y-4">
+        <div className="flex justify-end space-x-4">
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={onClose}
+            className="btn-secondary"
+          >
+            Cancelar
+          </button>
+          <button type="submit" disabled={isSubmitting} className="btn-danger">
+            {isSubmitting ? "Eliminando…" : "Eliminar"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 };
 export default DeleteProductModal;

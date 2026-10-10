@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, SyntheticEvent } from "react";
+import { useState, useEffect, useRef, SyntheticEvent } from "react";
 import { ClipLoader } from "react-spinners";
 import { capitalize } from "../../utils/capitalize";
 import { RiDeleteBin6Line } from "react-icons/ri";
@@ -26,6 +26,8 @@ export interface NewProduct {
 export default function AddProduct() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const productRequest = useRef(0);
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -42,7 +44,10 @@ export default function AddProduct() {
   }, []);
 
   useEffect(() => {
-    void fetchProducts();
+    if (!selectedCategory) return;
+    setIsLoading(true);
+    setProducts([]);
+    fetchProducts();
   }, [selectedCategory]);
 
   async function fetchCategories() {
@@ -64,45 +69,33 @@ export default function AddProduct() {
       }
       setIsLoading(false);
     } catch (error) {
+      console.error("Error fetching categories:", error);
       setError(
-        error instanceof Error
-          ? error.message
-          : "No se pudieron cargar las categorías",
+        "No pudimos cargar las categorías. Recarga la página para intentar nuevamente.",
       );
-    } finally {
       setIsLoading(false);
     }
   }
   async function fetchProducts() {
+    if (!selectedCategory) return;
+    const requestId = ++productRequest.current;
     setError("");
     try {
-      if (selectedCategory) {
-        setIsLoading(true);
-        const productsResponse = await fetch(
-          "/api/products/get-products-by-category",
-          {
-            method: "POST",
-            headers: {
-              "Content-type": "application/json",
-            },
-            body: JSON.stringify({ id_category: selectedCategory }),
-          },
-        );
-        if (!productsResponse.ok) {
-          throw new Error("Error fetching productos by categories");
-        }
-        const productsData = await productsResponse.json();
-
-        setProducts(productsData);
-        setIsLoading(false);
-      } else {
-        setProducts([]);
-        setIsLoading(false);
-      }
+      const response = await fetch("/api/products/get-products-by-category", {
+        method: "POST",
+        headers: { "Content-type": "application/json" },
+        body: JSON.stringify({ id_category: selectedCategory }),
+      });
+      if (!response.ok) throw new Error("Error fetching products");
+      const data = await response.json();
+      if (requestId === productRequest.current) setProducts(data);
     } catch {
-      setError("No se pudieron cargar los productos. Intenta nuevamente.");
+      if (requestId === productRequest.current)
+        setError(
+          "No pudimos cargar los productos. Selecciona otra categoría o recarga la página.",
+        );
     } finally {
-      setIsLoading(false);
+      if (requestId === productRequest.current) setIsLoading(false);
     }
   }
 
@@ -114,6 +107,9 @@ export default function AddProduct() {
 
   const handleSubmit = async (event: React.ChangeEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting || !selectedCategory || !newProductName.trim()) return;
+    setIsSubmitting(true);
+    setError("");
     const product: NewProduct = {
       name: newProductName,
       idCategory: selectedCategory,
@@ -135,11 +131,10 @@ export default function AddProduct() {
 
       await fetchProducts();
     } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "No se pudo agregar el producto",
-      );
+      console.error("Error submitting form:", error);
+      setError("No pudimos agregar el producto. Intenta nuevamente.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -148,8 +143,8 @@ export default function AddProduct() {
   };
 
   const handleCloseEditModal = async () => {
-    await fetchProducts();
     setEditModalProduct(null);
+    await fetchProducts();
   };
 
   const handleOpenDeleteModal = (product: Product) => {
@@ -157,120 +152,133 @@ export default function AddProduct() {
   };
 
   const handleCloseDeleteModal = async () => {
-    await fetchProducts();
     deleteEditModalProduct(null);
+    await fetchProducts();
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-12">
-      {error && <p role="alert">{error}</p>}
-      <h1 className="text-4xl font-normal text-black mb-12">
-        Gestionar Productos
-      </h1>
-
-      <div className="mb-12 space-y-6">
-        <div>
-          <label className="block text-base font-normal text-black mb-3">
-            Categoría
-          </label>
+    <div className="space-y-6">
+      {error && (
+        <p role="alert" className="error-notice">
+          {error}
+        </p>
+      )}
+      <form onSubmit={handleSubmit} className="panel grid gap-4 lg:grid-cols-2">
+        <label className="text-sm font-medium">
+          Categoría
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategoy(e.target.value)}
-            className="w-full max-w-xs px-4 py-3 text-base border border-gray-300 focus:outline-none focus:border-black bg-white"
+            className="field mt-2"
+            disabled={isSubmitting}
+            required
           >
-            {selectedCategory ? null : (
-              <option value="">Seleccione una Categoría</option>
-            )}
+            <option value="" disabled>
+              Selecciona una categoría
+            </option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
               </option>
             ))}
           </select>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex gap-4 items-end">
-          <div className="flex-1 max-w-md">
-            <label className="block text-base font-normal text-black mb-3">
-              Nuevo Producto
-            </label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={newProductName}
-              onChange={handleChange}
-              placeholder="Nombre del producto"
-              className="w-full px-4 py-3 text-base border border-gray-300 focus:outline-none focus:border-black"
-            />
-          </div>
-
+        </label>
+        <label className="text-sm font-medium">
+          Nombre del producto
+          <input
+            type="text"
+            name="name"
+            value={newProductName}
+            onChange={handleChange}
+            placeholder="Ej.: Arroz, leche, jabón…"
+            className="field mt-2"
+            disabled={isSubmitting}
+            required
+          />
+        </label>
+        <div className="lg:col-span-2">
           <button
             type="submit"
-            disabled={!selectedCategory || !newProductName.trim()}
-            className="px-8 py-3 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity"
+            disabled={
+              isSubmitting || !selectedCategory || !newProductName.trim()
+            }
+            className="btn-primary"
           >
-            Agregar
+            {isSubmitting ? "Agregando…" : "Agregar producto"}
           </button>
-        </form>
-      </div>
-
-      <div className="space-y-1">
-        {products.length === 0 && selectedCategory ? (
-          <div className="text-center py-16">
-            <p className="text-lg text-gray-600">
-              No hay productos en esta categoría
-            </p>
-          </div>
-        ) : (
-          products.map((product) => (
-            <div
-              key={product.id}
-              className="flex items-center justify-between py-5 border-b border-gray-200 hover:opacity-70 transition-opacity"
-            >
-              <span className="text-base font-normal text-black">
-                {product.name}
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleOpenEditModal(product)}
-                  className="p-2 text-gray-600 hover:text-black transition-colors"
-                  title="Editar producto"
-                >
-                  <BiEditAlt size={20} />
-                </button>
-                {editModalProduct?.id === product.id && (
-                  <EditProductModal
-                    isOpen={!!editModalProduct}
-                    onClose={handleCloseEditModal}
-                    idProduct={product.id}
-                    nameProduct={product.name}
-                  />
-                )}
-                <button
-                  onClick={() => handleOpenDeleteModal(product)}
-                  className="p-2 text-gray-600 hover:text-red-600 transition-colors"
-                  title="Eliminar producto"
-                >
-                  <RiDeleteBin6Line size={20} />
-                </button>
-                {deleteModalProduct?.id === product.id && (
-                  <DeleteProductModal
-                    isOpen={!!deleteModalProduct}
-                    onClose={handleCloseDeleteModal}
-                    idProduct={product.id}
-                    nameProduct={product.name}
-                  />
-                )}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
+        </div>
+      </form>
+      {!isLoading && !error && !selectedCategory && (
+        <div className="empty-state">
+          Elige una categoría para consultar y editar sus productos.
+        </div>
+      )}
+      {!isLoading && !error && selectedCategory && products.length === 0 && (
+        <div className="empty-state">
+          Esta categoría todavía no tiene productos. Agrega el primero con el
+          formulario.
+        </div>
+      )}
+      {!isLoading && products.length > 0 && (
+        <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+          <h2 className="border-b border-zinc-100 px-5 py-4 font-semibold">
+            Productos{" "}
+            <span className="ml-2 text-sm font-normal text-zinc-400">
+              {products.length}
+            </span>
+          </h2>
+          <ul className="divide-y divide-zinc-100">
+            {products.map((product) => (
+              <li
+                key={product.id}
+                className="flex items-center justify-between gap-3 px-5 py-3"
+              >
+                <span className="min-w-0 break-words text-sm font-medium">
+                  {product.name}
+                </span>
+                <div className="flex shrink-0 gap-1">
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label={`Editar ${product.name}`}
+                    onClick={() => handleOpenEditModal(product)}
+                  >
+                    <BiEditAlt size={20} />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button hover:bg-red-50 hover:text-red-700"
+                    aria-label={`Eliminar ${product.name}`}
+                    onClick={() => handleOpenDeleteModal(product)}
+                  >
+                    <RiDeleteBin6Line size={18} />
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {editModalProduct && (
+        <EditProductModal
+          isOpen={!!editModalProduct}
+          onClose={handleCloseEditModal}
+          idProduct={editModalProduct.id}
+          nameProduct={editModalProduct.name}
+        />
+      )}
+      {deleteModalProduct && (
+        <DeleteProductModal
+          isOpen={!!deleteModalProduct}
+          onClose={handleCloseDeleteModal}
+          idProduct={deleteModalProduct.id}
+          nameProduct={deleteModalProduct.name}
+        />
+      )}
       {isLoading && (
-        <div className="flex justify-center items-center h-64">
-          <ClipLoader size={50} color={"#000000"} loading={isLoading} />
+        <div role="status" className="loading-state">
+          <ClipLoader size={24} color="#3f3f46" loading={isLoading} />
+          <span>Cargando productos…</span>
         </div>
       )}
     </div>

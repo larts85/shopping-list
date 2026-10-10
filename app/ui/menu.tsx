@@ -3,64 +3,57 @@ import { doGoogleLogout } from "../actions/authenticate";
 import { auth } from "../../auth";
 import Image from "next/image";
 import { redirect } from "next/navigation";
+import NavLinks from "./navLinks";
 
 export default async function Menu() {
   const session = await auth();
   if (!session?.user) redirect("/");
-
   return (
-    <nav className="bg-white">
-      <div className="max-w-7xl mx-auto px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
-          <div className="flex items-center gap-8">
-            <Link
-              href="/logistic/"
-              className="text-base font-normal text-black hover:opacity-70 transition-opacity"
+    <header className="border-b border-zinc-200 bg-white">
+      <div className="mx-auto max-w-6xl px-4 sm:px-8">
+        <div className="flex min-h-20 items-center justify-between gap-3">
+          <Link
+            href="/logistic"
+            className="flex items-center gap-3 font-semibold tracking-tight"
+          >
+            <span
+              aria-hidden="true"
+              className="flex size-10 items-center justify-center rounded-xl bg-zinc-900 text-lg text-white"
             >
-              Lista
-            </Link>
-            <Link
-              href="/logistic/add"
-              className="text-base font-normal text-black hover:opacity-70 transition-opacity"
-            >
-              Agregar
-            </Link>
-            <Link
-              href="/logistic/admin"
-              className="text-base font-normal text-black hover:opacity-70 transition-opacity"
-            >
-              Admin
-            </Link>
-            <Link
-              href="/logistic/data"
-              className="text-base font-normal text-black hover:opacity-70 transition-opacity"
-            >
-              Datos
-            </Link>
-          </div>
-          <div className="flex items-center gap-6">
-            <p className="hidden sm:block text-base text-gray-600">{session?.user?.name}</p>
-            {session?.user?.image && (
+              H
+            </span>
+            <span>
+              Hogar
+              <span className="hidden text-zinc-400 sm:inline">
+                {" "}
+                / Logística
+              </span>
+            </span>
+          </Link>
+          <div className="flex items-center gap-3">
+            <span className="hidden max-w-40 truncate text-sm text-zinc-500 md:block">
+              {session.user.name}
+            </span>
+            {session.user.image && (
               <Image
                 src={session.user.image}
-                alt={session.user.name || "User"}
-                loading="eager"
-                width={36}
-                height={36}
+                alt={session.user.name || "Perfil"}
+                width={32}
+                height={32}
                 className="rounded-full"
               />
             )}
             <form action={doGoogleLogout}>
-              <button
-                type="submit"
-                className="text-base font-normal text-black hover:opacity-70 transition-opacity"
-              >
-                Logout
+              <button type="submit" className="btn-secondary">
+                Salir
               </button>
             </form>
           </div>
         </div>
+        <div className="pb-3 sm:max-w-lg">
+          <NavLinks />
+        </div>
       </div>
-    </nav>
+    </header>
   );
 }

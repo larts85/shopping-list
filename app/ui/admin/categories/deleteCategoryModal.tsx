@@ -1,4 +1,5 @@
 "use client";
+import Modal from "@/shared/components/ui/Modal";
 
 import React, { useState } from "react";
 
@@ -15,11 +16,15 @@ const DeleteCategoryModal: React.FC<DeleteCategoryModalProps> = ({
   idCategory,
   nameCategory,
 }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+
   if (!isOpen) return null;
 
   const handleDeleteCategory = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setError("");
     try {
       const response = await fetch("/api/categories/delete-category", {
@@ -29,43 +34,42 @@ const DeleteCategoryModal: React.FC<DeleteCategoryModalProps> = ({
           "content-Type": "application/json",
         },
       });
-      if (!response.ok) throw new Error("No se pudo eliminar la categoría");
+      if (!response.ok) throw new Error("Request failed");
       onClose();
-      window.location.reload();
     } catch {
-      setError("No se pudo eliminar la categoría. Intenta nuevamente.");
+      setError("No pudimos completar el cambio. Intenta nuevamente.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white p-10 max-w-lg w-full">
-        <h3 className="text-2xl font-normal text-black mb-4">
-          ¿Confirma que desea eliminar la categoría?
-        </h3>
-        <h2 className="text-3xl font-normal text-black mb-8">
-          "{nameCategory}"
-        </h2>
-        <form onSubmit={handleDeleteCategory} className="space-y-4">
-          {error && <p role="alert">{error}</p>}
-          <div className="flex justify-end gap-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-8 py-3 text-base font-normal text-black bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-8 py-3 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity"
-            >
-              Eliminar
-            </button>
-          </div>
-        </form>
+    <Modal isOpen={isOpen} onClose={onClose} title="Eliminar categoría">
+      <div className="mb-6 space-y-3 text-center">
+        ¿Eliminar esta categoría?
+        <h2 className="break-words text-2xl font-semibold">"{nameCategory}"</h2>
       </div>
-    </div>
+      {error && (
+        <p role="alert" className="error-notice mb-4">
+          {error}
+        </p>
+      )}
+      <form onSubmit={handleDeleteCategory} className="space-y-4">
+        <div className="flex justify-end space-x-4">
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={onClose}
+            className="btn-secondary"
+          >
+            Cancelar
+          </button>
+          <button type="submit" disabled={isSubmitting} className="btn-danger">
+            {isSubmitting ? "Eliminando…" : "Eliminar"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 };
 export default DeleteCategoryModal;

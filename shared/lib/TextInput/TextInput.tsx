@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, useId } from 'react'
 
 export type TextInputSize = 'sm' | 'md' | 'lg'
 export type TextInputVariant = 'default' | 'minimal'
@@ -34,10 +34,11 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
     },
     ref
   ) => {
-    const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`
+    const generatedId = useId()
+    const inputId = id || generatedId
 
     const baseClasses =
-      'w-full border transition-all duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed bg-white '
+      'w-full border rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed bg-white '
 
     const sizeClasses: Record<TextInputSize, string> = {
       sm: 'px-3 py-2 text-sm',
@@ -46,13 +47,13 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
     }
 
     const variantClasses: Record<TextInputVariant, string> = {
-      default: 'border-gray-300 focus:border-black',
+      default: 'border-gray-300 focus:border-zinc-600 focus:ring-zinc-200',
       minimal:
-        'border-0 border-b-2 border-gray-300 rounded-none focus:border-black px-0',
+        'border-0 border-b-2 border-gray-300 rounded-none focus:border-black focus:ring-0 px-0',
     }
 
     const errorClasses = error
-      ? 'border-red-500 focus:border-red-500'
+      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
       : ''
 
     const combinedClasses = `
@@ -70,14 +71,12 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="block text-base font-normal text-black mb-3"
+            className="block text-sm font-medium text-gray-700 mb-2"
           >
             {label}{' '}
-            {required && (
-              <span className="text-gray-600 font-normal">
-                (requerido)
-              </span>
-            )}
+            <span className="text-gray-500 font-normal">
+              {required ? '(requerido)' : '(opcional)'}
+            </span>
           </label>
         )}
 
@@ -96,19 +95,19 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
           className={combinedClasses}
           aria-invalid={error ? 'true' : 'false'}
           aria-describedby={
-            error ? 'error-message' : helperText ? 'helper-text' : undefined
+            error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined
           }
           {...props}
         />
 
         {error && (
-          <p id="error-message" className="mt-1 text-sm text-red-600">
+          <p id={`${inputId}-error`} className="mt-1 text-sm text-red-600">
             {error}
           </p>
         )}
 
         {helperText && !error && (
-          <p id="helper-text" className="mt-2 text-base text-gray-600">
+          <p id={`${inputId}-helper`} className="mt-1 text-sm text-gray-500">
             {helperText}
           </p>
         )}
