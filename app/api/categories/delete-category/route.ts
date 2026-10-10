@@ -7,12 +7,16 @@ export async function DELETE(req: Request) {
     if (!idCategory) {
       return NextResponse.json(
         { error: "Category id is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
     await deleteCategoryById(idCategory);
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: error });
+    return NextResponse.json(
+      { error: "Failed to delete category" },
+      { status: 500 },
+    );
   }
 }

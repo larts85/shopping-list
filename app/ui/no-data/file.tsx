@@ -3,8 +3,8 @@ import { createFolderAndSheet } from "../../actions/googleDrive";
 import React, { useState, useRef } from "react";
 import RequestFileModal from "./requestFileModal";
 import Link from "next/link";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "../../../shared/components/ui/Card";
-import { Button, ButtonVariant } from "../../../shared";
+
+
 
 export default function File() {
   const [isLoading, setIsLoading] = useState(false);
@@ -48,59 +48,51 @@ export default function File() {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold text-gray-900">
+    <div className="w-full max-w-lg mx-auto">
+      <div className="text-center mb-12">
+        <h1 className="text-5xl font-normal text-black mb-6 tracking-tight">
           Configuración Inicial
-        </CardTitle>
-        <CardDescription className="text-gray-600">
+        </h1>
+        <p className="text-lg text-gray-600 leading-relaxed max-w-md mx-auto mb-4">
           Actualmente no tienes ningún archivo de datos configurado.
           Selecciona una de las siguientes opciones para comenzar.
-        </CardDescription>
-      </CardHeader>
+        </p>
+        <p className="text-base text-gray-600">
+          Elige cómo deseas configurar tu sistema de listas de compras
+        </p>
+      </div>
 
-      <CardContent className="space-y-4">
-        <div className="text-center">
-          <p className="text-sm text-gray-600 mb-4">
-            Elige cómo deseas configurar tu sistema de listas de compras:
-          </p>
-        </div>
-      </CardContent>
-
-      <CardFooter className="flex flex-col space-y-3">
-        <Button
+      <div className="flex flex-col space-y-4 mb-8">
+        <button
           onClick={createFile}
           disabled={isLoading}
-          isLoading={isLoading}
-          variant={ButtonVariant.PRIMARY}
-          className="w-full"
+          className="w-full px-8 py-4 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? "Creando archivos..." : "Crear Archivo"}
-        </Button>
+        </button>
 
-        <Button
+        <button
           onClick={handleOpenModal}
-          variant={ButtonVariant.SECONDARY}
-          className="w-full"
+          className="w-full px-8 py-4 text-base font-normal text-black bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
         >
           Solicitar Archivo
-        </Button>
+        </button>
+      </div>
 
-        <div className="flex justify-center pt-2">
-          <Link
-            href="/"
-            className="text-sm text-gray-600 hover:text-gray-900 underline"
-          >
-            Volver al inicio
-          </Link>
-        </div>
+      <div className="flex justify-center">
+        <Link
+          href="/"
+          className="text-base text-gray-600 hover:text-black underline transition-colors"
+        >
+          Volver al inicio
+        </Link>
+      </div>
 
-        <Link href="/logistic" ref={linkRef} className="hidden" />
-      </CardFooter>
+      <Link href="/logistic" ref={linkRef} className="hidden" />
 
       {isModalOpen && (
         <RequestFileModal isOpen={isModalOpen} onClose={handleClose} />
       )}
-    </Card>
+    </div>
   );
 }

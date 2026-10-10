@@ -195,7 +195,8 @@ export async function sendEmail(to: string, subject: string, message: string) {
     );
 
     const data = await response.json();
-    console.log("Correo enviado:", data);
+    if (!response.ok) throw new Error("No se pudo enviar el correo");
+    console.info("Correo enviado:", data);
   } catch (error) {
     console.error("Error al enviar correo:", error);
   }
@@ -345,7 +346,7 @@ export async function createFolderAndSheet(
 
     const sheetsData = await createSheetsResponse.json();
     const sheetsMap: Record<string, number> = {};
-    sheetsData.replies.forEach((reply: any) => {
+    sheetsData.replies.forEach((reply: { addSheet: { properties: { title: string; sheetId: number } } }) => {
       const sheet = reply.addSheet.properties;
       sheetsMap[sheet.title] = sheet.sheetId;
     });
@@ -493,7 +494,10 @@ export async function createFolderAndSheet(
       }
     );
 
+    if (!deleteSheetResponse.ok) {
+      throw new Error("No se pudo eliminar la pestaña inicial");
+    }
     return { folderId, sheetId };
   }
-  return console.log("La carpeta ya existe");
+  return "La carpeta ya existe";
 }

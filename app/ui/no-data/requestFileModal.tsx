@@ -1,4 +1,4 @@
-"use cliente";
+"use client";
 import { sendEmail } from "@/app/actions/googleDrive";
 
 import { useState } from "react";
@@ -31,12 +31,12 @@ const RequestFileModal: React.FC<RequestFileModalProps> = ({
     }
   };
   return (
-    <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg p-8 max-w-lg w-full">
-        <h2 className="text-xl font-semibold mb-4">Solicitud de Datos</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white p-10 max-w-lg w-full">
+        <h2 className="text-3xl font-normal text-black mb-8">Solicitud de Datos</h2>
+        <form onSubmit={handleSubmit} className="space-y-8">
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-base font-normal text-black mb-3">
               Email
             </label>
             <input
@@ -44,44 +44,45 @@ const RequestFileModal: React.FC<RequestFileModalProps> = ({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="w-full px-4 py-3 text-base border border-gray-300 focus:outline-none focus:border-black"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-base font-normal text-black mb-3">
               Asunto
             </label>
             <input
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               required
-              className="mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="w-full px-4 py-3 text-base border border-gray-300 focus:outline-none focus:border-black"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Message
+            <label className="block text-base font-normal text-black mb-3">
+              Mensaje
             </label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               required
-              className="mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              rows={4}
+              className="w-full px-4 py-3 text-base border border-gray-300 focus:outline-none focus:border-black resize-none"
             />
           </div>
-          <div className="flex justify-end space-x-4">
+          <div className="flex justify-end gap-4">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              className="px-8 py-3 text-base font-normal text-black bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
             >
-              Close
+              Cancelar
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="px-8 py-3 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity"
             >
-              Send
+              Enviar
             </button>
           </div>
         </form>

@@ -1,13 +1,11 @@
+import typescriptParser from '@typescript-eslint/parser'
 import eslintPluginTypescript from '@typescript-eslint/eslint-plugin'
-import nextEslint from 'eslint-config-next'
 
 const eslintConfig = [
   {
     files: ['**/*.ts', '**/*.tsx'],
-    plugins: {
-      '@typescript-eslint': eslintPluginTypescript,
-      next: nextEslint,
-    },
+    languageOptions: { parser: typescriptParser },
+    plugins: { '@typescript-eslint': eslintPluginTypescript },
     rules: {
       'react/react-in-jsx-scope': 'off',
       '@typescript-eslint/no-unused-vars': [
@@ -44,7 +42,7 @@ const eslintConfig = [
     },
   },
   {
-    ignores: ['.next/**', 'node_modules/**', 'build/**', 'dist/**', '*.min.js'],
+    ignores: ['.next/**', 'node_modules/**', 'build/**', 'dist/**', '*.min.js', 'next-env.d.ts', '.playwright-mcp/**'],
   },
 ]
 

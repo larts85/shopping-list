@@ -38,7 +38,7 @@ export async function addCategory(nameCategory: string): Promise<void> {
           maxId = currentId;
         }
       } else {
-        console.log("No ID found in row:", row);
+        console.debug("No ID found in row:", row);
       }
     });
     const newId = maxId + 1;

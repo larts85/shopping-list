@@ -9,7 +9,7 @@ export default function Select() {
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [allChecked, setAllChecked] = useState(false);
+  const allChecked = products.length > 0 && products.every((product) => product.checked);
 
   useEffect(() => {
     fetchCategories();
@@ -44,7 +44,7 @@ export default function Select() {
     id: string;
     name: string;
     id_category: string;
-    checked: any;
+    checked: boolean;
   }
 
   async function fetchProducts() {
@@ -63,9 +63,9 @@ export default function Select() {
         throw new Error("Error fetching productos by categories");
       }
       const productsData = await productsResponse.json();
-      const productsDataChecked = productsData.map((product: Product) => ({
+      const productsDataChecked = productsData.map((product: Omit<Product, "checked"> & { checked: string | boolean }) => ({
         ...product,
-        checked: product.checked === "1" ? true : false,
+        checked: product.checked === "1" || product.checked === true,
       }));
 
       setProducts(productsDataChecked);
@@ -89,7 +89,6 @@ export default function Select() {
     }));
 
     setProducts(allcheckedProducts);
-    setAllChecked(checked);
 
     const productsResponse = await fetch(
       "/api/products/edit-checked-products",
@@ -151,16 +150,17 @@ export default function Select() {
   };
 
   return (
-    <div className="p-4 text-xs sm:text-sm">
-      <div className=" flex gap-2  items-start">
-        <div className="flex gap-2">
+    <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="mb-12">
+        <h1 className="text-4xl font-normal text-black mb-8">Agregar Productos</h1>
+        <div className="flex gap-4 items-start mb-12">
           <select
             value={selectedCategory}
             onChange={handleSelectChange}
-            className="border border-gray-100 rounded p-2"
+            className="flex-1 max-w-xs px-4 py-3 text-base border border-gray-300 focus:outline-none focus:border-black bg-white"
           >
             {selectedCategory ? null : (
-              <option value=""> Seleccione una Categoria </option>
+              <option value="">Seleccione una Categoría</option>
             )}
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
@@ -170,51 +170,60 @@ export default function Select() {
           </select>
           <button
             onClick={createList}
-            className="px-3 py-1 bg-gray-700 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            className="px-8 py-3 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity"
           >
             Agregar a la lista
           </button>
         </div>
       </div>
-      <div className="flex flex-col">
+
+      <div className="space-y-6">
         {products.length > 0 ? (
-          <div className="mt-5 mb-5">
-            <label>
+          <div className="mb-8 pb-6 border-b border-gray-200">
+            <label className="flex items-center gap-4 cursor-pointer">
               <input
-                className="mr-1"
+                className="w-5 h-5 border-gray-300 focus:ring-black cursor-pointer"
                 type="checkbox"
                 checked={allChecked}
                 onChange={handleAllChecked}
               />
-              Todo
+              <span className="text-base font-normal text-black">
+                Seleccionar Todo
+              </span>
             </label>
           </div>
         ) : (
-          ""
+          selectedCategory && (
+            <div className="text-center py-16">
+              <p className="text-lg text-gray-600">No hay productos en esta categoría</p>
+            </div>
+          )
         )}
 
-        {products.map((product) => (
-          <div key={product.id}>
-            <label key={product.id}>
-              <input
-                className="mr-1"
-                id={product.id}
-                type="checkbox"
-                onChange={handleCheckboxChange}
-                checked={product.checked}
-              />
-              {product.name}
-            </label>
-          </div>
-        ))}
+        <div className="space-y-3">
+          {products.map((product) => (
+            <div key={product.id} className="py-4 border-b border-gray-200">
+              <label className="flex items-center gap-4 cursor-pointer">
+                <input
+                  className="w-5 h-5 border-gray-300 focus:ring-black cursor-pointer"
+                  id={product.id}
+                  type="checkbox"
+                  onChange={handleCheckboxChange}
+                  checked={product.checked}
+                />
+                <span className={`text-base ${product.checked ? 'text-gray-400 line-through' : 'text-black'}`}>
+                  {product.name}
+                </span>
+              </label>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center items-center h-screen">
-          <ClipLoader size={50} color={"#123abc"} loading={isLoading} />{" "}
+      {isLoading && (
+        <div className="flex justify-center items-center h-64">
+          <ClipLoader size={50} color={"#000000"} loading={isLoading} />
         </div>
-      ) : (
-        ""
       )}
     </div>
   );

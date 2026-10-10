@@ -37,7 +37,7 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
     const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`
 
     const baseClasses =
-      'w-full border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed bg-white '
+      'w-full border transition-all duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed bg-white '
 
     const sizeClasses: Record<TextInputSize, string> = {
       sm: 'px-3 py-2 text-sm',
@@ -46,13 +46,13 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
     }
 
     const variantClasses: Record<TextInputVariant, string> = {
-      default: 'border-gray-300 focus:border-blue-500 focus:ring-blue-500/20',
+      default: 'border-gray-300 focus:border-black',
       minimal:
-        'border-0 border-b-2 border-gray-300 rounded-none focus:border-black focus:ring-0 px-0',
+        'border-0 border-b-2 border-gray-300 rounded-none focus:border-black px-0',
     }
 
     const errorClasses = error
-      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+      ? 'border-red-500 focus:border-red-500'
       : ''
 
     const combinedClasses = `
@@ -70,12 +70,14 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="block text-sm font-medium text-gray-700 mb-2"
+            className="block text-base font-normal text-black mb-3"
           >
             {label}{' '}
-            <span className="text-gray-500 font-normal">
-              {required ? '(requerido)' : '(opcional)'}
-            </span>
+            {required && (
+              <span className="text-gray-600 font-normal">
+                (requerido)
+              </span>
+            )}
           </label>
         )}
 
@@ -106,7 +108,7 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
         )}
 
         {helperText && !error && (
-          <p id="helper-text" className="mt-1 text-sm text-gray-500">
+          <p id="helper-text" className="mt-2 text-base text-gray-600">
             {helperText}
           </p>
         )}

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { unCheckProducts } from "../../../actions/products";
 
-export async function PUT(req: Request) {
+export async function PUT(_req: Request) {
   try {
     await unCheckProducts();
     return NextResponse.json(

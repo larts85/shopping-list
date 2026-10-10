@@ -47,7 +47,7 @@ export const getCategoriesId = async () => {
 
   const sheetMetadata = await sheetMetadataResponse.json();
   const categorySheet = sheetMetadata.sheets.find(
-    (sheet: any) => sheet.properties.title === "categories"
+    (sheet: { properties: { title: string; sheetId: number } }) => sheet.properties.title === "categories"
   );
 
   if (!categorySheet) {
@@ -87,7 +87,7 @@ export const getproductsId = async () => {
 
   const sheetMetadata = await sheetMetadataResponse.json();
   const categorySheet = sheetMetadata.sheets.find(
-    (sheet: any) => sheet.properties.title === "products"
+    (sheet: { properties: { title: string; sheetId: number } }) => sheet.properties.title === "products"
   );
 
   if (!categorySheet) {
