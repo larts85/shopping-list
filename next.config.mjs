@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  outputFileTracingIncludes: { "/*": ["./supabase/certs/prod-ca-2021.crt"] },
   env: {
     NEXT_PUBLIC_BASE_URL: process.env.VERCEL_URL
       ? `https://${process.env.VERCEL_URL}`

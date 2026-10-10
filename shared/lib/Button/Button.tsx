@@ -33,21 +33,21 @@ const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const baseClasses =
-    'inline-flex items-center justify-center px-6 py-3 text-sm font-medium rounded-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
+    'inline-flex items-center justify-center px-8 py-3 text-base font-normal transition-all duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed'
 
   const variantClasses = {
     [Variant.PRIMARY]:
-      'bg-black text-white hover:bg-gray-800 focus:ring-gray-500',
+      'bg-black text-white hover:opacity-80',
     [Variant.SECONDARY]:
-      'bg-white text-black border border-black hover:bg-gray-50 focus:ring-gray-500',
+      'bg-white text-black border border-gray-300 hover:bg-gray-50',
     [Variant.TERTIARY]:
-      'bg-gray-100 text-black hover:bg-gray-200 focus:ring-gray-500',
+      'bg-gray-100 text-black hover:bg-gray-200',
     [Variant.OUTLINE]:
-      'border border-gray-300 text-gray-700 bg-transparent hover:bg-gray-50 focus:ring-gray-500',
+      'border border-gray-300 text-black bg-transparent hover:bg-gray-50',
     [Variant.GHOST]:
-      'text-gray-700 bg-transparent hover:bg-gray-100 focus:ring-gray-500',
+      'text-black bg-transparent hover:opacity-70',
     [Variant.LINK]:
-      'text-black underline hover:text-gray-700 p-0 focus:ring-gray-500',
+      'text-black underline hover:opacity-70 p-0',
   }
 
   const combinedClasses =

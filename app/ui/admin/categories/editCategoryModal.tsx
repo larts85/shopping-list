@@ -25,47 +25,54 @@ const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
       idCategory: idCategory,
       newNameCategory: newNameCategory,
     };
-    await fetch("/api/categories/edit-category", {
+    const response = await fetch("/api/categories/edit-category", {
       method: "PUT",
       body: JSON.stringify(category),
       headers: {
         "content-Type": "application/json",
       },
     });
+    if (!response.ok) {
+      const data = await response.json();
+      alert(data.error || "No se pudo completar la operación");
+      return;
+    }
     onClose();
     window.location.reload();
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg p-8 max-w-lg w-full">
-        <h2 className="text-xl font-semibold mb-4">Editar Categoria</h2>
-        <form onSubmit={handleEditCategory} className="space-y-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white p-10 max-w-lg w-full">
+        <h2 className="text-3xl font-normal text-black mb-8">
+          Editar Categoría
+        </h2>
+        <form onSubmit={handleEditCategory} className="space-y-8">
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Categoria
+            <label className="block text-base font-normal text-black mb-3">
+              Nombre de la categoría
             </label>
             <input
               type="text"
               value={newNameCategory}
               onChange={(e) => setNewNameCategory(e.target.value)}
               required
-              className="mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="w-full px-4 py-3 text-base border border-gray-300 focus:outline-none focus:border-black"
             />
           </div>
-          <div className="flex justify-end space-x-4">
+          <div className="flex justify-end gap-4">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              className="px-8 py-3 text-base font-normal text-black bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="px-8 py-3 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity"
             >
-              Editar
+              Guardar
             </button>
           </div>
         </form>

@@ -1,7 +1,8 @@
+import { apiError } from '@/app/lib/apiError';
 import { NextResponse } from "next/server";
 import { unCheckProducts } from "../../../actions/products";
 
-export async function PUT(req: Request) {
+export async function PUT() {
   try {
     await unCheckProducts();
     return NextResponse.json(
@@ -9,7 +10,6 @@ export async function PUT(req: Request) {
       { status: 200 }
     );
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: error });
+    return apiError(error);
   }
 }

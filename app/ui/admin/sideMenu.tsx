@@ -6,21 +6,24 @@ export default async function SideMenu() {
   const session = await auth();
   if (!session?.user) redirect("/");
   return (
-    <div className="bg-gray-500 text-white justify-start  h-full">
-      <div className="flex flex-col items-center justify-end gap-5 p-3 text-xs sm:text-sm">
+    <aside className="bg-white border-r border-gray-200 w-64 min-h-screen">
+      <div className="flex flex-col gap-1 p-8">
+        <h2 className="text-sm font-normal text-gray-600 mb-6">
+          Administración
+        </h2>
         <Link
           href="/logistic/admin/categories"
-          className=" p-1 text-xl rounded-xl focus:outline-none focus:bg-slate-200 focus:text-slate-800"
+          className="px-4 py-3 text-base font-normal text-black hover:opacity-70 transition-opacity"
         >
-          Categorias
+          Categorías
         </Link>
         <Link
           href="/logistic/admin/products"
-          className=" p-1 text-xl rounded-xl focus:outline-none focus:bg-slate-200 focus:text-slate-800"
+          className="px-4 py-3 text-base font-normal text-black hover:opacity-70 transition-opacity"
         >
           Productos
         </Link>
       </div>
-    </div>
+    </aside>
   );
 }

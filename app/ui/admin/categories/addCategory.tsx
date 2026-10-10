@@ -2,7 +2,6 @@
 
 import { useState, SyntheticEvent } from "react";
 import { capitalize } from "../../utils/capitalize";
-import { TextInput, Button, ButtonVariant, ButtonType } from "../../../../shared";
 
 export default function AddCategory() {
   const [formData, setFormData] = useState<string>("");
@@ -44,32 +43,39 @@ export default function AddCategory() {
   };
 
   return (
-    <div className="mb-8">
-      <h2 className="text-xl font-semibold text-gray-900 mb-4">Agregar Nueva Categoría</h2>
+    <div className="mb-16">
+      <h2 className="text-4xl font-normal text-black mb-8">
+        Agregar Nueva Categoría
+      </h2>
 
-      <form onSubmit={handleSubmit} className="flex gap-4 items-end max-w-md">
+      <form onSubmit={handleSubmit} className="flex gap-4 items-end max-w-2xl">
         <div className="flex-1">
-          <TextInput
+          <label
+            htmlFor="category-name"
+            className="block text-base font-normal text-black mb-2"
+          >
+            Nombre de la categoría
+          </label>
+          <input
             type="text"
             id="category-name"
             name="name"
             value={formData}
             onChange={handleChange}
             placeholder="Ej: Verduras, Frutas, Lácteos..."
-            label="Nombre de la categoría"
             required
             disabled={isSubmitting}
+            className="w-full px-4 py-3 text-base border border-gray-300 focus:outline-none focus:border-black"
           />
         </div>
 
-        <Button
-          type={ButtonType.SUBMIT}
-          variant={ButtonVariant.PRIMARY}
+        <button
+          type="submit"
           disabled={isSubmitting || !formData.trim()}
-          isLoading={isSubmitting}
+          className="px-8 py-3 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? "Agregando..." : "Agregar"}
-        </Button>
+        </button>
       </form>
     </div>
   );
