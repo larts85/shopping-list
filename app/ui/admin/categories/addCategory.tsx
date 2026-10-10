@@ -3,7 +3,6 @@
 import { useState, SyntheticEvent } from "react";
 import { capitalize } from "../../utils/capitalize";
 
-
 export default function AddCategory() {
   const [formData, setFormData] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,11 +44,16 @@ export default function AddCategory() {
 
   return (
     <div className="mb-16">
-      <h2 className="text-4xl font-normal text-black mb-8">Agregar Nueva Categoría</h2>
+      <h2 className="text-4xl font-normal text-black mb-8">
+        Agregar Nueva Categoría
+      </h2>
 
       <form onSubmit={handleSubmit} className="flex gap-4 items-end max-w-2xl">
         <div className="flex-1">
-          <label htmlFor="category-name" className="block text-base font-normal text-black mb-2">
+          <label
+            htmlFor="category-name"
+            className="block text-base font-normal text-black mb-2"
+          >
             Nombre de la categoría
           </label>
           <input

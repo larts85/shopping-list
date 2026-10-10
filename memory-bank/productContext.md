@@ -1,3 +1,5 @@
+> Actualización 10 octubre 2026: este documento conserva contexto histórico. La arquitectura vigente utiliza Supabase Postgres, autenticación Google con scopes básicos y hogares compartidos dentro de la aplicación. Sheets/Drive solo se leen durante la importación opcional; no hay Gmail ni almacenamiento operativo en Drive. Ver README.md y SUPABASE_VERIFICATION.md para estado y verificaciones actuales.
+
 # Product Context: Home Logistics
 
 ## Why This Project Exists

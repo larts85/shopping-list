@@ -1,3 +1,4 @@
+import { apiError } from '@/app/lib/apiError';
 import { NextResponse } from "next/server";
 import { updateMultipleProducts } from "@/app/actions/list";
 
@@ -14,7 +15,6 @@ export async function PUT(req: Request) {
     await updateMultipleProducts(changedProducts);
     return NextResponse.json({ message: "Success save data" }, { status: 200 });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "No se pudo actualizar la lista" }, { status: 500 });
+    return apiError(error);
   }
 }

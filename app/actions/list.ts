@@ -1,218 +1,113 @@
 "use server";
-import { GoogleSpreadsheetRow } from "google-spreadsheet";
-import { sheetDoc } from "../lib/googleFileSheetConection";
-import { getProductsChecked } from "./products";
-import { IList } from "../lib/types";
-import { normalizeSheetNumber } from "@/utils/normalizeSheetNumber";
-
+import {
+  withHousehold,
+  text,
+  positive,
+  requireRow,
+  DataError,
+} from "../lib/database";
+import type { IList } from "../lib/types";
 export async function addList(): Promise<void> {
-  const doc = await sheetDoc();
-  await doc.loadInfo();
-  const sheetList = doc.sheetsByTitle["list"];
-
-  if (sheetList) {
-    const rowsList = await sheetList.getRows();
-    let maxId = 0;
-
-    rowsList.forEach((row: GoogleSpreadsheetRow) => {
-      const rawId = row.get("id") as string;
-      if (rawId) {
-        const currentId = parseInt(rawId, 10);
-        if (!isNaN(currentId) && currentId > maxId) {
-          maxId = currentId;
-        }
-      } else {
-        console.debug("No ID found in row:", row);
-      }
-    });
-
-    const existingProducts = rowsList.map((row) => row.get("id_product"));
-
-    const productChecked = await getProductsChecked();
-
-    const productsToAdd = productChecked.filter(
-      (product) => !existingProducts.includes(product.id)
+  await withHousehold(async (db, h) => {
+    await db.query(
+      "insert into shopping_list(household_id,id_product) select household_id,id from products where household_id=$1 and checked on conflict(household_id,id_product) do nothing",
+      [h],
     );
-
-    for (const item of productsToAdd) {
-      const newId = ++maxId;
-      const id = newId.toString();
-
-      const data = {
-        id: id,
-        id_product: item.id,
-        name: item.name,
-        id_category: item.id_category,
-        cantidad: "",
-        medida: "",
-        precio: "",
-        total: "",
-        comprado: "",
-      };
-
-      await sheetList.addRow(data);
-    }
-  } else {
-    throw new Error('Sheet named "list" not found');
-  }
+  });
 }
-
 export async function getList(): Promise<IList[]> {
-  const doc = await sheetDoc();
-  await doc.loadInfo();
-  const sheetList = doc.sheetsByTitle["list"];
-
-  if (sheetList) {
-    const rowsList = await sheetList.getRows();
-    const productList: IList[] = rowsList.map((row) => ({
-      id: row.get("id") || "",
-      id_product: row.get("id_product") || "",
-      name: row.get("name") || "",
-      id_category: row.get("id_category") || "",
-      cantidad: normalizeSheetNumber(row.get("cantidad"), doc.locale),
-      medida: normalizeSheetNumber(row.get("medida"), doc.locale),
-      precio: row.get("precio") || "",
-      precioTotal: row.get("precio_total") || "",
-      precioKg: row.get("precio_kg") || "",
-      kgTotal: normalizeSheetNumber(row.get("kg_total"), doc.locale),
-      comprado: row.get("comprado") || "",
+  return withHousehold(async (db, h) => {
+    const { rows } = await db.query(
+      `select l.*,p.name,p.id_category from shopping_list l join products p on p.id=l.id_product and p.household_id=l.household_id where l.household_id=$1 order by p.name,l.id`,
+      [h],
+    );
+    const currency = (n: number) =>
+      new Intl.NumberFormat("es-AR", {
+        style: "currency",
+        currency: "ARS",
+      }).format(n);
+    return rows.map((r) => ({
+      id: r.id,
+      id_product: r.id_product,
+      name: r.name,
+      id_category: r.id_category,
+      cantidad: r.cantidad ?? "",
+      medida: r.medida ?? "",
+      precio: r.precio == null ? "" : currency(Number(r.precio)),
+      precioTotal:
+        r.precio == null || r.cantidad == null
+          ? ""
+          : currency(Number(r.precio) * Number(r.cantidad)),
+      precioKg:
+        r.precio == null || r.medida == null
+          ? ""
+          : currency(Number(r.precio) / Number(r.medida)),
+      kgTotal:
+        r.cantidad == null || r.medida == null
+          ? ""
+          : String(Number(r.cantidad) * Number(r.medida)),
+      comprado: r.comprado ? "1" : "",
     }));
-
-    return productList;
-  } else {
-    throw new Error('No se encontró la hoja "list" en Google Sheets');
-  }
+  });
 }
-
 export async function setBought(
   id: string,
   cantidad: number,
   medida: number,
-  precio: number
+  precio: number,
 ): Promise<void> {
-  const doc = await sheetDoc();
-  await doc.loadInfo();
-  const sheetList = doc.sheetsByTitle["list"];
-
-  if (sheetList) {
-    const rowsList = await sheetList.getRows();
-
-    const rowToUpdate = rowsList.find((row) => row.get("id") === id);
-
-    if (rowToUpdate) {
-      const precioKg = precio / medida;
-      const total = cantidad * precio;
-      const kgTotal = cantidad * medida;
-
-      const currencyFormatter = new Intl.NumberFormat("es-AR", {
-        style: "currency",
-        currency: "ARS",
-      });
-
-      rowToUpdate.set("cantidad", cantidad);
-      rowToUpdate.set("medida", medida);
-      rowToUpdate.set("precio", currencyFormatter.format(precio));
-      rowToUpdate.set("precio_total", currencyFormatter.format(total));
-      rowToUpdate.set("precio_kg", currencyFormatter.format(precioKg));
-      rowToUpdate.set("kg_total", kgTotal);
-      rowToUpdate.set("comprado", "1");
-
-      await rowToUpdate.save();
-    } else {
-      throw new Error(`No se encontró la fila con el ID: ${id}`);
-    }
-  } else {
-    throw new Error('No se encontró la hoja "list" en Google Sheets');
-  }
+  await withHousehold(async (db, h) => {
+    requireRow(
+      (
+        await db.query(
+          "update shopping_list set cantidad=$3,medida=$4,precio=$5,comprado=true where household_id=$1 and id=$2",
+          [
+            h,
+            text(id),
+            positive(cantidad),
+            positive(medida),
+            positive(precio, true),
+          ],
+        )
+      ).rowCount,
+    );
+  });
 }
-
-export async function getListProductsByCategories() {
-  const productsList = await getList();
-  if (!productsList) {
-    throw new Error(`Could not get shopping list`);
-  }
-  const productListByCategories = productsList.reduce((acc, productList) => {
-    if (!acc[productList.id_category]) {
-      acc[productList.id_category] = [];
-    }
-    acc[productList.id_category].push(productList);
-    return acc;
-  }, {} as Record<string, IList[]>);
-
-  const filteredProductListByCategories = Object.fromEntries(
-    Object.entries(productListByCategories).filter(
-      ([, products]) => products.length > 0
-    )
+export async function getListProductsByCategories(): Promise<
+  Record<string, IList[]>
+> {
+  return (await getList()).reduce(
+    (a, p) => {
+      (a[p.id_category] ||= []).push(p);
+      return a;
+    },
+    {} as Record<string, IList[]>,
   );
-
-  return filteredProductListByCategories;
 }
-
-export async function shoppingList() {
-  const list = await getList();
-  if (!list) {
-    throw new Error('No se encontró la hoja "list" en Google Sheets');
-  }
-
-  const shoppingList = list.filter(
-    (productList) => productList.comprado === "1"
-  );
-  return shoppingList;
+export async function shoppingList(): Promise<IList[]> {
+  return (await getList()).filter((p) => p.comprado === "1");
 }
-
 export async function deleteShoppingList(): Promise<void> {
-  try {
-    const doc = await sheetDoc();
-    await doc.loadInfo();
-
-    const sheetProducts = doc.sheetsByTitle["list"];
-    if (!sheetProducts) {
-      throw new Error('Sheet "Products" not found');
-    }
-
-    const rowsProducts = await sheetProducts.getRows();
-    for (const row of rowsProducts) {
-      if (row.get("comprado") === "1") {
-        await row.delete();
-      }
-    }
-  } catch (error) {
-    console.error("Error eliminando productos comprados:", error);
-  }
+  await withHousehold(async (db, h) => {
+    await db.query(
+      "delete from shopping_list where household_id=$1 and comprado",
+      [h],
+    );
+  });
 }
-
 export async function updateMultipleProducts(
-  products: {
-    id: string;
-    cantidad: number;
-    medida: number;
-    precio: number;
-  }[]
+  products: { id: string; cantidad: number; medida: number; precio: number }[],
 ): Promise<void> {
-  const doc = await sheetDoc();
-  await doc.loadInfo();
-  const sheetList = doc.sheetsByTitle["list"];
-
-  if (sheetList) {
-    const rowsList = await sheetList.getRows();
-
-
-    for (const product of products) {
-      const rowToUpdate = rowsList.find((row) => row.get("id") === product.id);
-
-      if (rowToUpdate) {
-        const kgTotal = product.cantidad * product.medida;
-
-        rowToUpdate.set("cantidad", product.cantidad);
-        rowToUpdate.set("medida", product.medida);
-        rowToUpdate.set("kg_total", kgTotal);
-
-        await rowToUpdate.save();
-      } else {
-        console.warn(`No se encontró la fila con el ID: ${product.id}`);
-      }
-    }
-  } else {
-    throw new Error('No se encontró la hoja "list" en Google Sheets');
-  }
+  if (!Array.isArray(products)) throw new DataError("Lista inválida");
+  await withHousehold(async (db, h) => {
+    for (const p of products)
+      requireRow(
+        (
+          await db.query(
+            "update shopping_list set cantidad=$3,medida=$4 where household_id=$1 and id=$2",
+            [h, text(p.id), positive(p.cantidad), positive(p.medida)],
+          )
+        ).rowCount,
+      );
+  });
 }

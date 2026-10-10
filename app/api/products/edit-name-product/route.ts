@@ -1,3 +1,4 @@
+import { apiError } from '@/app/lib/apiError';
 import { NextResponse } from "next/server";
 import { editNameProduct, EditProductParams } from "@/app/actions/products";
 
@@ -10,7 +11,6 @@ export async function PUT(req: Request) {
     await editNameProduct(product);
     return NextResponse.json({ message: "Success save data" }, { status: 200 });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: error });
+    return apiError(error);
   }
 }

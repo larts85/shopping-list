@@ -1,6 +1,12 @@
 import Menu from "../ui/menu";
-
-export default function Layout({ children }: { children: React.ReactNode }) {
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
+export default async function Layout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  if (!(await auth())?.user?.email) redirect("/");
   return (
     <div
       className="grid grid-rows-2"

@@ -6,18 +6,19 @@ import { Category } from "@/app/lib/types";
 
 export default function Select() {
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const allChecked = products.length > 0 && products.every((product) => product.checked);
+  const allChecked =
+    products.length > 0 && products.every((product) => product.checked);
 
   useEffect(() => {
     fetchCategories();
   }, []);
 
   useEffect(() => {
-    fetchProducts();
-    setIsLoading(true);
+    void fetchProducts();
   }, [selectedCategory]);
 
   const router = useRouter();
@@ -37,7 +38,13 @@ export default function Select() {
       setCategories(categoriesData);
       setIsLoading(false);
     } catch (error) {
-      console.error("Error fetching categories:", error);
+      setError(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron cargar las categorías",
+      );
+    } finally {
+      setIsLoading(false);
     }
   }
   interface Product {
@@ -48,27 +55,42 @@ export default function Select() {
   }
 
   async function fetchProducts() {
-    if (selectedCategory) {
-      const productsResponse = await fetch(
-        "/api/products/get-products-by-category",
-        {
-          method: "POST",
-          headers: {
-            "Content-type": "application/json",
+    setError("");
+    try {
+      if (selectedCategory) {
+        setIsLoading(true);
+        const productsResponse = await fetch(
+          "/api/products/get-products-by-category",
+          {
+            method: "POST",
+            headers: {
+              "Content-type": "application/json",
+            },
+            body: JSON.stringify({ id_category: selectedCategory }),
           },
-          body: JSON.stringify({ id_category: selectedCategory }),
+        );
+        if (!productsResponse.ok) {
+          throw new Error("Error fetching productos by categories");
         }
-      );
-      if (!productsResponse.ok) {
-        throw new Error("Error fetching productos by categories");
-      }
-      const productsData = await productsResponse.json();
-      const productsDataChecked = productsData.map((product: Omit<Product, "checked"> & { checked: string | boolean }) => ({
-        ...product,
-        checked: product.checked === "1" || product.checked === true,
-      }));
+        const productsData = await productsResponse.json();
+        const productsDataChecked = productsData.map(
+          (
+            product: Omit<Product, "checked"> & { checked: string | boolean },
+          ) => ({
+            ...product,
+            checked: product.checked === "1" || product.checked === true,
+          }),
+        );
 
-      setProducts(productsDataChecked);
+        setProducts(productsDataChecked);
+        setIsLoading(false);
+      } else {
+        setProducts([]);
+        setIsLoading(false);
+      }
+    } catch {
+      setError("No se pudieron cargar los productos. Intenta nuevamente.");
+    } finally {
       setIsLoading(false);
     }
   }
@@ -79,7 +101,7 @@ export default function Select() {
   };
 
   const handleAllChecked = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const checked = event.target.checked;
 
@@ -90,23 +112,29 @@ export default function Select() {
 
     setProducts(allcheckedProducts);
 
-    const productsResponse = await fetch(
-      "/api/products/edit-checked-products",
-      {
-        method: "PUT",
-        headers: {
-          "Content-type": "application/json",
+    setError("");
+    try {
+      const productsResponse = await fetch(
+        "/api/products/edit-checked-products",
+        {
+          method: "PUT",
+          headers: {
+            "Content-type": "application/json",
+          },
+          body: JSON.stringify(allcheckedProducts),
         },
-        body: JSON.stringify(allcheckedProducts),
+      );
+      if (!productsResponse.ok) {
+        throw new Error("Error when changing the checked of the product");
       }
-    );
-    if (!productsResponse.ok) {
-      throw new Error("Error when changing the checked of the product");
+    } catch {
+      await fetchProducts();
+      setError("No se pudo guardar la selección. Intenta nuevamente.");
     }
   };
 
   const handleCheckboxChange = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const productId = event.target.id;
     const isChecked = event.target.checked;
@@ -115,8 +143,8 @@ export default function Select() {
       prevProducts.map((product) =>
         String(product.id) === productId
           ? { ...product, checked: isChecked }
-          : product
-      )
+          : product,
+      ),
     );
 
     const productChecked = {
@@ -124,35 +152,48 @@ export default function Select() {
       checked: event.target.checked,
     };
 
-    const productsResponse = await fetch("/api/products/edit-checked-product", {
-      method: "PUT",
-      headers: {
-        "Content-type": "application/json",
-      },
-      body: JSON.stringify(productChecked),
-    });
-    if (!productsResponse.ok) {
-      throw new Error("Error when changing the checked of the product");
+    setError("");
+    try {
+      const productsResponse = await fetch(
+        "/api/products/edit-checked-product",
+        {
+          method: "PUT",
+          headers: {
+            "Content-type": "application/json",
+          },
+          body: JSON.stringify(productChecked),
+        },
+      );
+      if (!productsResponse.ok) {
+        throw new Error("Error when changing the checked of the product");
+      }
+    } catch {
+      await fetchProducts();
+      setError("No se pudo guardar la selección. Intenta nuevamente.");
     }
   };
 
   const createList = async () => {
     setIsLoading(true);
-    await fetch("/api/list/add-list", {
-      method: "POST",
-      headers: {
-        "Content-type": "application/json",
-      },
-    });
-
-    setIsLoading(false);
-    router.push("/logistic");
+    setError("");
+    try {
+      const response = await fetch("/api/list/add-list", { method: "POST" });
+      if (!response.ok) throw new Error("No se pudo crear la lista");
+      router.push("/logistic");
+    } catch {
+      setError("No se pudo crear la lista. Intenta nuevamente.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-12">
+      {error && <p role="alert">{error}</p>}
       <div className="mb-12">
-        <h1 className="text-4xl font-normal text-black mb-8">Agregar Productos</h1>
+        <h1 className="text-4xl font-normal text-black mb-8">
+          Agregar Productos
+        </h1>
         <div className="flex gap-4 items-start mb-12">
           <select
             value={selectedCategory}
@@ -169,6 +210,7 @@ export default function Select() {
             ))}
           </select>
           <button
+            disabled={isLoading}
             onClick={createList}
             className="px-8 py-3 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity"
           >
@@ -195,7 +237,9 @@ export default function Select() {
         ) : (
           selectedCategory && (
             <div className="text-center py-16">
-              <p className="text-lg text-gray-600">No hay productos en esta categoría</p>
+              <p className="text-lg text-gray-600">
+                No hay productos en esta categoría
+              </p>
             </div>
           )
         )}
@@ -211,7 +255,9 @@ export default function Select() {
                   onChange={handleCheckboxChange}
                   checked={product.checked}
                 />
-                <span className={`text-base ${product.checked ? 'text-gray-400 line-through' : 'text-black'}`}>
+                <span
+                  className={`text-base ${product.checked ? "text-gray-400 line-through" : "text-black"}`}
+                >
                   {product.name}
                 </span>
               </label>
