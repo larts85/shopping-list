@@ -6,7 +6,8 @@ import { RiDeleteBin6Line } from "react-icons/ri";
 import DeleteProductModal from "./deleteProductModal";
 import { BiEditAlt } from "react-icons/bi";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
-import type { Unit } from "@/app/lib/units";
+import { unitLabels, type Unit } from "@/app/lib/units";
+import { suggestProductUnit } from "@/app/lib/productUnits";
 import EditProductModal from "./editProductModal";
 interface Category {
   id: string;
@@ -36,6 +37,7 @@ export default function AddProduct() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [unit, setUnit] = useState<Unit>("un");
+  const [unitChosen, setUnitChosen] = useState(false);
   const [newProductName, setNewProductName] = useState<string>("");
   const [editModalProduct, setEditModalProduct] = useState<Product | null>(
     null,
@@ -108,6 +110,13 @@ export default function AddProduct() {
     const target = event.target as HTMLInputElement;
     const nameCategory = capitalize(target.value);
     setNewProductName(nameCategory);
+    if (!unitChosen)
+      setUnit(
+        suggestProductUnit(
+          nameCategory,
+          categories.find((c) => c.id === selectedCategory)?.name,
+        ),
+      );
   };
 
   const handleSubmit = async (event: React.ChangeEvent<HTMLFormElement>) => {
@@ -134,6 +143,8 @@ export default function AddProduct() {
       }
 
       setNewProductName("");
+      setUnit("un");
+      setUnitChosen(false);
 
       await fetchProducts();
     } catch (error) {
@@ -174,7 +185,16 @@ export default function AddProduct() {
           Categoría
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategoy(e.target.value)}
+            onChange={(e) => {
+              setSelectedCategoy(e.target.value);
+              if (!unitChosen)
+                setUnit(
+                  suggestProductUnit(
+                    newProductName,
+                    categories.find((c) => c.id === e.target.value)?.name,
+                  ),
+                );
+            }}
             className="field mt-2"
             disabled={isSubmitting}
             required
@@ -204,8 +224,21 @@ export default function AddProduct() {
         </label>
         <label className="text-sm font-medium">
           Unidad de medida
-          <UnitSelect value={unit} onChange={setUnit} disabled={isSubmitting} />
+          <UnitSelect
+            value={unit}
+            onChange={(value) => {
+              setUnit(value);
+              setUnitChosen(true);
+            }}
+            disabled={isSubmitting}
+          />
         </label>
+        <p className="text-sm text-zinc-500 lg:col-span-2">
+          Sugerimos la unidad según el producto. Usa kg/g para productos al
+          peso, litros/ml para volumen y unidades para envases o paquetes. Ej.:
+          queso sardo → kg; leche → litros; leche (caja 1 l) → unidades. Puedes
+          cambiarla antes de guardar.
+        </p>
         <div className="lg:col-span-2">
           <button
             type="submit"
@@ -245,6 +278,9 @@ export default function AddProduct() {
               >
                 <span className="min-w-0 break-words text-sm font-medium">
                   {product.name}
+                  <span className="ml-2 text-xs font-normal text-zinc-500">
+                    {unitLabels[product.unit ?? "un"]}
+                  </span>
                 </span>
                 <div className="flex shrink-0 gap-1">
                   <button

@@ -197,6 +197,78 @@ try {
     (await request("/api/list/get-list", "GET", undefined, other)).length,
     0,
   );
+  // Defaults are inferred server-side, while explicit user choices win.
+  await request("/api/products/add-product", "POST", {
+    name: "Banana 🍌",
+    idCategory: category.id,
+  });
+  await request("/api/products/add-product", "POST", {
+    name: "Leche (caja 1 l)",
+    idCategory: category.id,
+  });
+  await request("/api/products/add-product", "POST", {
+    name: "Leche",
+    idCategory: category.id,
+    unit: "un",
+  });
+  const inferred = await request("/api/products/get-products");
+  assert.equal(inferred.find((p) => p.name === "Banana 🍌").unit, "kg");
+  assert.equal(inferred.find((p) => p.name === "Leche (caja 1 l)").unit, "un");
+  const milk = inferred.find((p) => p.name === "Leche");
+  assert.equal(milk.unit, "un");
+  // Renaming a kg product must preserve a pending quantity entered in g.
+  await request("/api/products/edit-name-product", "PUT", {
+    idProduct: product.id,
+    newNameProduct: "Renombrado",
+    unit: "kg",
+  });
+  const renamed = (await request("/api/list/get-list")).find(
+    (p) => p.id === newItem.id,
+  );
+  assert.equal(renamed.unit, "g");
+  assert.equal(renamed.cantidad, "500");
+  // Preserve a bought legacy count when its default later changes to volume.
+  await request("/api/products/edit-checked-product", "PUT", {
+    idProduct: milk.id,
+    checked: true,
+  });
+  await request("/api/list/add-list", "POST");
+  const milkItem = (await request("/api/list/get-list")).find(
+    (p) => p.id_product === milk.id,
+  );
+  await request("/api/list/set-bought", "PUT", {
+    idList: milkItem.id,
+    cantidad: 2,
+    medida: 1,
+    precio: 100,
+    unit: "un",
+  });
+  await pool.query(
+    "update shopping_list set unit=null where household_id=$1 and id=$2",
+    [h, milkItem.id],
+  );
+  await request("/api/products/edit-name-product", "PUT", {
+    idProduct: milk.id,
+    newNameProduct: "Leche",
+    unit: "lt",
+  });
+  const snapshot = (await request("/api/list/get-list")).find(
+    (p) => p.id === milkItem.id,
+  );
+  assert.equal(snapshot.unit, "un");
+  assert.equal(snapshot.productUnit, "lt");
+  assert.equal(snapshot.cantidad, "2");
+  // An incompatible pending count must be re-entered, rather than relabeled kg.
+  await request("/api/products/edit-name-product", "PUT", {
+    idProduct: product.id,
+    newNameProduct: "Renombrado",
+    unit: "lt",
+  });
+  const reset = (await request("/api/list/get-list")).find(
+    (p) => p.id === newItem.id,
+  );
+  assert.equal(reset.unit, "lt");
+  assert.equal(reset.cantidad, "");
   console.info(
     `PASS: ${checks} shopping API checks (positive quantities, compatible units, snapshots, pagination, shared list access/revocation).`,
   );

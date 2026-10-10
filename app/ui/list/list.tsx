@@ -384,7 +384,11 @@ export default function List() {
                         compact
                         label={`Unidad de ${product.name}`}
                         value={product.unit ?? "un"}
-                        options={compatibleUnits(product.productUnit ?? "un")}
+                        options={
+                          product.comprado === "1"
+                            ? [product.unit ?? "un"]
+                            : compatibleUnits(product.productUnit ?? "un")
+                        }
                         disabled={product.comprado === "1"}
                         onChange={(unit: Unit) => {
                           revision.current++;
