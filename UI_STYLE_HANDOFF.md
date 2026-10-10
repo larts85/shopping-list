@@ -27,8 +27,30 @@ Se reutilizó `node_modules` del checkout principal mediante un enlace local ign
 
 ## Integración y continuación
 
-Los handlers de datos de lista, selector y productos se conservaron. No se cambiaron API routes, acciones, autenticación, archivos de entorno ni persistencia. La pantalla de datos retiró el botón de depuración `prueba` del flujo visible.
+Los endpoints y payloads de datos se conservaron. La revisión posterior añadió manejo de errores, estados de carga y prevención de envíos duplicados en la interfaz. No se cambiaron API routes, acciones, autenticación, archivos de entorno ni persistencia. La pantalla de datos retiró el botón de depuración `prueba` del flujo visible.
 
 Integrar los commits en orden. Si la migración a Supabase o la actualización técnica cambió los mismos componentes, conservar sus cambios en handlers e imports de datos y trasladar el JSX y los estilos de esta rama. `AGENTS.md` fue generado por Next y se conserva según las instrucciones del proyecto.
 
 Este registro permite continuar en otra sesión sin releer toda la conversación. No existe una medición disponible del porcentaje de contexto para garantizar un máximo del 50% por sesión.
+
+
+## Revisión posterior en el navegador de Codex
+
+Se revisaron todas las pantallas modificadas: login, configuración inicial, lista, agregar, inicio de administración, categorías, productos y datos. Se utilizó la sesión existente de Google para consultar datos reales. La lista real estaba vacía; las API de categorías y productos respondieron 200. No se agregaron, editaron, compraron o eliminaron datos reales ni se enviaron correos o permisos.
+
+Correcciones aplicadas:
+
+- Jerarquía de encabezados y textos de diálogos en español; eliminación de producto ahora identifica correctamente el producto.
+- Nombres accesibles específicos en botones de categorías y disposición resistente a nombres largos sin espacios.
+- Acciones de lista vacía deshabilitadas; confirmación visible de guardado y errores recuperables, sin espera indefinida ni falso éxito ante HTTP 500.
+- Selección global derivada de los productos, con estado mixto. Si la API falla, la selección se revierte y los controles vuelven a estar disponibles.
+- Respuestas de productos fuera de orden no reemplazan la categoría más reciente; se evita mostrar productos de la categoría anterior durante la carga.
+- Formularios y diálogos previenen envíos duplicados y muestran fallos; los diálogos se mantienen abiertos ante fallos HTTP. El registro de compra admite Enter, valores decimales y validación de cantidad, medida y precio.
+- Recuperación visible ante errores de carga de categorías y productos, en lugar de un catálogo vacío engañoso.
+- Estado accesible de carga en el botón compartido y acento rojo para confirmar eliminación.
+
+Verificación: escritorio y móvil a 320 px, nombres largos sin desbordamiento horizontal, foco y Escape en diálogos, diálogo de solicitud con scroll interno a 320 × 400 px. Una vista temporal con fetch simulado comprobó guardado correcto, HTTP 500 de carga y escritura, reversión de selección, estado mixto, edición, eliminación y registro de compra sin acceder a datos reales; se eliminó antes de compilar.
+
+Build de producción y TypeScript aprobados. ESLint sobre todos los TSX modificados: cero errores y cero advertencias con la configuración de la sesión de dependencias. Se conserva la advertencia anterior de deprecación de middleware. El envío real de correos, la creación de archivos y las escrituras en la base de datos no se ejecutaron durante esta revisión.
+
+Servidor local dejado encendido: `http://localhost:2035`, desde este worktree. Pestaña del navegador de Codex conservada para revisión del usuario.

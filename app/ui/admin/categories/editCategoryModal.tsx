@@ -18,35 +18,52 @@ const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
 }) => {
   const [newNameCategory, setNewNameCategory] = useState(nameCategory);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
   if (!isOpen) return null;
 
   const handleEditCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    const category = {
-      idCategory: idCategory,
-      newNameCategory: newNameCategory,
-    };
-    await fetch("/api/categories/edit-category", {
-      method: "PUT",
-      body: JSON.stringify(category),
-      headers: {
-        "content-Type": "application/json",
-      },
-    });
-    onClose();
-    window.location.reload();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setError("");
+    try {
+      const category = {
+        idCategory: idCategory,
+        newNameCategory: newNameCategory,
+      };
+      const response = await fetch("/api/categories/edit-category", {
+        method: "PUT",
+        body: JSON.stringify(category),
+        headers: {
+          "content-Type": "application/json",
+        },
+      });
+      if (!response.ok) throw new Error("Request failed");
+      onClose();
+    } catch {
+      setError("No pudimos completar el cambio. Intenta nuevamente.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Editar categoría">
       <h2 className="text-xl font-semibold mb-4">Editar categoría</h2>
+      {error && (
+        <p role="alert" className="error-notice mb-4">
+          {error}
+        </p>
+      )}
       <form onSubmit={handleEditCategory} className="space-y-4">
         <div>
           <label
             htmlFor="editCategoryModal-field-0"
             className="block text-sm font-medium text-gray-700"
           >
-            Categoria
+            Categoría
           </label>
           <input
             id="editCategoryModal-field-0"
@@ -58,11 +75,16 @@ const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
           />
         </div>
         <div className="flex justify-end space-x-4">
-          <button type="button" onClick={onClose} className="btn-secondary">
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={onClose}
+            className="btn-secondary"
+          >
             Cancelar
           </button>
-          <button type="submit" className="btn-primary">
-            Editar
+          <button type="submit" disabled={isSubmitting} className="btn-primary">
+            {isSubmitting ? "Guardando…" : "Guardar cambios"}
           </button>
         </div>
       </form>

@@ -19,22 +19,35 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
 }) => {
   const [newNameProduct, setNewNameProduct] = useState(nameProduct);
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
   if (!isOpen) return null;
 
   const handleEditProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const product = {
-      idProduct: idProduct,
-      newNameProduct: newNameProduct,
-    };
-    await fetch("/api/products/edit-name-product", {
-      method: "PUT",
-      body: JSON.stringify(product),
-      headers: {
-        "content-Type": "application/json",
-      },
-    });
-    onClose();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setError("");
+    try {
+      const product = {
+        idProduct: idProduct,
+        newNameProduct: newNameProduct,
+      };
+      const response = await fetch("/api/products/edit-name-product", {
+        method: "PUT",
+        body: JSON.stringify(product),
+        headers: {
+          "content-Type": "application/json",
+        },
+      });
+      if (!response.ok) throw new Error("Request failed");
+      onClose();
+    } catch {
+      setError("No pudimos completar el cambio. Intenta nuevamente.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   const handleChange = (event: SyntheticEvent) => {
     const target = event.target as HTMLInputElement;
@@ -45,6 +58,11 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Editar producto">
       <h2 className="text-xl font-semibold mb-4">Editar producto</h2>
+      {error && (
+        <p role="alert" className="error-notice mb-4">
+          {error}
+        </p>
+      )}
       <form onSubmit={handleEditProduct} className="space-y-4">
         <div>
           <label
@@ -63,11 +81,16 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
           />
         </div>
         <div className="flex justify-end space-x-4">
-          <button type="button" onClick={onClose} className="btn-secondary">
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={onClose}
+            className="btn-secondary"
+          >
             Cancelar
           </button>
-          <button type="submit" className="btn-primary">
-            Editar
+          <button type="submit" disabled={isSubmitting} className="btn-primary">
+            {isSubmitting ? "Guardando…" : "Guardar cambios"}
           </button>
         </div>
       </form>

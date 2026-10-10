@@ -28,19 +28,27 @@ const BoughtListModal: React.FC<ListModalProps> = ({
   const [medida, setMedida] = useState<number | string>(medidap);
   const [precio, setPrecio] = useState<number | string>("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   if (!isOpen) return null;
 
   const handleClick = async () => {
     if (
-      isNaN(Number(cantidad)) ||
-      isNaN(Number(medida)) ||
-      isNaN(Number(precio))
+      !Number.isFinite(Number(cantidad)) ||
+      Number(cantidad) <= 0 ||
+      !Number.isFinite(Number(medida)) ||
+      Number(medida) <= 0 ||
+      !Number.isFinite(Number(precio)) ||
+      Number(precio) < 0 ||
+      precio === ""
     ) {
-      alert("Por favor, ingresa valores numéricos válidos.");
+      setError(
+        "Completa cantidad y medida mayores que cero y un precio válido.",
+      );
       return;
     }
     setIsLoading(true);
+    setError("");
 
     try {
       const propsBought = {
@@ -49,7 +57,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         medida: Number(medida),
         precio: Number(precio),
       };
-      await fetch("/api/list/set-bought", {
+      const response = await fetch("/api/list/set-bought", {
         method: "PUT",
         body: JSON.stringify(propsBought),
         headers: {
@@ -57,6 +65,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         },
       });
 
+      if (!response.ok) throw new Error("Error registering purchase");
       const updateList = {
         id: idList,
         id_product: idProduct,
@@ -73,7 +82,9 @@ const BoughtListModal: React.FC<ListModalProps> = ({
       setIsLoading(false);
       onClose(updateList);
     } catch (error) {
-      alert("Hubo un error al intentar guardar los datos");
+      setError("No pudimos registrar la compra. Intenta nuevamente.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -101,52 +112,70 @@ const BoughtListModal: React.FC<ListModalProps> = ({
           ✕
         </button>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <label className="text-sm font-medium">
-          Cantidad
-          <input
-            type="number"
-            className="field mt-2"
-            value={cantidad}
-            onChange={(e) => setCantidad(Number(e.target.value))}
-          />
-        </label>
-        <label className="text-sm font-medium">
-          Medida
-          <input
-            type="number"
-            className="field mt-2"
-            value={medida}
-            onChange={(e) => setMedida(e.target.value)}
-          />
-        </label>
-        <label className="col-span-2 text-sm font-medium">
-          Precio
-          <input
-            type="number"
-            className="field mt-2"
-            placeholder="Precio"
-            value={precio}
-            onChange={(e) => setPrecio(e.target.value)}
-          />
-        </label>
-      </div>
-      <div className="mt-6 flex justify-end gap-3">
-        <button
-          className="btn-secondary"
-          onClick={() => onClose(null)}
-          disabled={isLoading}
-        >
-          Cancelar
-        </button>
-        <button
-          className="btn-primary"
-          onClick={handleClick}
-          disabled={isLoading}
-        >
-          {isLoading ? "Guardando…" : "Marcar comprado"}
-        </button>
-      </div>
+      {error && (
+        <p role="alert" className="error-notice mb-4">
+          {error}
+        </p>
+      )}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          handleClick();
+        }}
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <label className="text-sm font-medium">
+            Cantidad
+            <input
+              type="number"
+              required
+              min="0"
+              step="any"
+              className="field mt-2"
+              value={cantidad}
+              onChange={(e) => setCantidad(Number(e.target.value))}
+            />
+          </label>
+          <label className="text-sm font-medium">
+            Medida
+            <input
+              type="number"
+              required
+              min="0"
+              step="any"
+              className="field mt-2"
+              value={medida}
+              onChange={(e) => setMedida(e.target.value)}
+            />
+          </label>
+          <label className="col-span-2 text-sm font-medium">
+            Precio
+            <input
+              type="number"
+              required
+              min="0"
+              step="any"
+              className="field mt-2"
+              placeholder="Precio"
+              value={precio}
+              onChange={(e) => setPrecio(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            className="btn-secondary"
+            type="button"
+            onClick={() => onClose(null)}
+            disabled={isLoading}
+          >
+            Cancelar
+          </button>
+          <button className="btn-primary" type="submit" disabled={isLoading}>
+            {isLoading ? "Guardando…" : "Marcar comprado"}
+          </button>
+        </div>
+      </form>
     </Modal>
   );
 };

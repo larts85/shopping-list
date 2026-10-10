@@ -3,7 +3,13 @@ import { createFolderAndSheet } from "../../actions/googleDrive";
 import React, { useState, useRef } from "react";
 import RequestFileModal from "./requestFileModal";
 import Link from "next/link";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "../../../shared/components/ui/Card";
+import {
+  Card,
+  CardHeader,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "../../../shared/components/ui/Card";
 import { Button, ButtonVariant } from "../../../shared";
 
 export default function File() {
@@ -18,7 +24,7 @@ export default function File() {
     try {
       const create = await createFolderAndSheet(
         "homeLogistic",
-        "homeLogisticSheet"
+        "homeLogisticSheet",
       );
 
       if (!create) {
@@ -50,12 +56,12 @@ export default function File() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold text-gray-900">
+        <h1 className="text-2xl font-semibold leading-tight tracking-tight text-gray-900">
           Configuración Inicial
-        </CardTitle>
+        </h1>
         <CardDescription className="text-gray-600">
-          Actualmente no tienes ningún archivo de datos configurado.
-          Selecciona una de las siguientes opciones para comenzar.
+          Actualmente no tienes ningún archivo de datos configurado. Selecciona
+          una de las siguientes opciones para comenzar.
         </CardDescription>
       </CardHeader>
 

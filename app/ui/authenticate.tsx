@@ -2,7 +2,6 @@ import { doGoogleLogin } from "../actions/authenticate";
 import {
   Card,
   CardHeader,
-  CardTitle,
   CardDescription,
   CardContent,
   CardFooter,
@@ -13,9 +12,9 @@ export function Authenticate() {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold text-gray-900">
+        <h1 className="text-2xl font-semibold leading-tight tracking-tight text-gray-900">
           Tu hogar, organizado.
-        </CardTitle>
+        </h1>
         <CardDescription className="text-gray-600">
           Una lista clara. Compras más simples.
         </CardDescription>
