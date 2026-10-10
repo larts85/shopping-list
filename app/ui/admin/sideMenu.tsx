@@ -1,26 +1,11 @@
-import { auth } from "../../../auth";
-import { redirect } from "next/navigation";
-import Link from "next/link";
-
-export default async function SideMenu() {
-  const session = await auth();
-  if (!session?.user) redirect("/");
+import NavLinks from "../navLinks";
+export default function SideMenu() {
   return (
-    <div className="bg-gray-500 text-white justify-start  h-full">
-      <div className="flex flex-col items-center justify-end gap-5 p-3 text-xs sm:text-sm">
-        <Link
-          href="/logistic/admin/categories"
-          className=" p-1 text-xl rounded-xl focus:outline-none focus:bg-slate-200 focus:text-slate-800"
-        >
-          Categorias
-        </Link>
-        <Link
-          href="/logistic/admin/products"
-          className=" p-1 text-xl rounded-xl focus:outline-none focus:bg-slate-200 focus:text-slate-800"
-        >
-          Productos
-        </Link>
-      </div>
-    </div>
+    <aside className="shrink-0 sm:w-44">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-400">
+        Catálogo
+      </p>
+      <NavLinks admin />
+    </aside>
   );
 }

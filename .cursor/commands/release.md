@@ -9,7 +9,7 @@ First, check for existing release branches for the current date. The format shou
 **Action:**
 
 - Get current date (YYYY/MM/DD).
-- List remote branches: `git branch -r | grep 'release/YYYY/MM/DD'`
+- List remote branches: `git branch -r | rg 'release/YYYY/MM/DD'`
 - If branches exist, increment the version (e.g., `release/2025/10/18-v2`). Otherwise, use `release/YYYY/MM/DD`.
 
 ## 2. Create Release Branch
@@ -22,14 +22,14 @@ The release branch must be created from `develop`.
 - Pull latest changes: `git pull origin develop`
 - Create new release branch: `git checkout -b <release-branch-name>`
 
-## 3. Create Pull Request (PR) to Master
+## 3. Create Pull Request (PR) to Main
 
-Create a pull request from the newly created release branch to `master`.
+Create a pull request from the newly created release branch to `main`.
 
 **Action:**
 
 - Push the release branch to remote: `git push -u origin <release-branch-name>`
-- Open a PR on GitHub from `<release-branch-name>` to `master`.
+- Open a PR on GitHub from `<release-branch-name>` to `main`.
 - The PR description should include:
   - A list of all PRs included in this release.
   - A summarized list of instructions/steps to test the functionalities and/or fixes to be deployed.
@@ -40,7 +40,7 @@ After creating the PR, the agent will monitor the pipeline until completion. Thi
 
 **Action:**
 
-- Use `cd /Users/imadev/Dev/repos/dyarti && gh run watch $(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')` to monitor the pipeline status for the release PR.
+- Use `gh run watch $(gh run list --limit 1 --json databaseId --jq '.[0].databaseId')` to monitor the pipeline status for the release PR.
 - Continuously monitor until all checks pass (build, tests, deployment).
 
 ## 5. Handle Errors (Fix Branches and Recursive Monitoring)
@@ -56,7 +56,7 @@ In case of any pipeline errors in the release PR, a fix branch and PR must be cr
 
 **Example Flow on Error:**
 
-1. `release/2025/10/18` -> `master` PR is created.
+1. `release/2025/10/18` -> `main` PR is created.
 2. Pipeline fails on `release/2025/10/18` PR.
 3. Create `fix/database-connection` branch from `release/2025/10/18`.
 4. Create PR from `fix/database-connection` to `release/2025/10/18`.

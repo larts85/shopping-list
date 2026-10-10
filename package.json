@@ -4,39 +4,48 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 2020 --webpack",
+    "dev": "next dev -p 2021 --webpack",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "clean": "rm -rf .next && rm -rf node_modules/.cache",
-    "dev:clean": "yarn clean && lsof -ti:2020 | xargs kill -9 2>/dev/null || true && yarn dev"
+    "dev:clean": "yarn clean && yarn dev",
+    "typecheck": "tsc --noEmit",
+    "deps:install": "node scripts/check-dependencies.mjs && yarn install --frozen-lockfile --ignore-scripts --non-interactive",
+    "deps:check": "node scripts/check-dependencies.mjs",
+    "verify:supabase": "node --env-file=.env scripts/verify-supabase.mjs",
+    "verify:households": "node --env-file=.env scripts/verify-households.mjs",
+    "verify:import": "node --env-file=.env scripts/verify-import.mjs"
   },
   "dependencies": {
-    "@tailwindcss/postcss": "^4.1.18",
-    "dotenv": "^17.2.3",
-    "google-auth-library": "9.10.0",
-    "google-spreadsheet": "4.1.2",
-    "googleapis": "137.1.0",
-    "next": "^16.0.0",
-    "next-auth": "^5.0.0-beta.29",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-icons": "^5.5.0",
-    "react-spinners": "^0.17.0"
+    "@tailwindcss/postcss": "4.3.3",
+    "next": "16.4.0",
+    "next-auth": "5.0.0-beta.32",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-icons": "5.7.0",
+    "react-spinners": "0.17.1",
+    "pg": "8.16.3",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "3",
-    "@types/google-spreadsheet": "4.0.0",
-    "@types/node": "20",
-    "@types/react": "18",
-    "@types/react-dom": "18",
-    "eslint": "9",
-    "eslint-config-next": "^16.0.0",
-    "eslint-config-prettier": "10.1.1",
-    "eslint-plugin-prettier": "5.2.4",
-    "postcss": "8.5.3",
-    "prettier": "^3.7.4",
-    "tailwindcss": "^4.0.0",
-    "typescript": "5"
-  }
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@typescript-eslint/eslint-plugin": "8.71.1",
+    "@typescript-eslint/parser": "8.71.1",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-prettier": "5.5.6",
+    "postcss": "8.5.29",
+    "prettier": "3.9.9",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "@types/pg": "8.15.5"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "packageManager": "yarn@1.22.22"
 }

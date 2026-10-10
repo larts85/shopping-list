@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, useId } from 'react'
 
 export type TextInputSize = 'sm' | 'md' | 'lg'
 export type TextInputVariant = 'default' | 'minimal'
@@ -34,10 +34,11 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
     },
     ref
   ) => {
-    const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`
+    const generatedId = useId()
+    const inputId = id || generatedId
 
     const baseClasses =
-      'w-full border rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed bg-white '
+      'w-full border rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed bg-white '
 
     const sizeClasses: Record<TextInputSize, string> = {
       sm: 'px-3 py-2 text-sm',
@@ -46,7 +47,7 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
     }
 
     const variantClasses: Record<TextInputVariant, string> = {
-      default: 'border-gray-300 focus:border-blue-500 focus:ring-blue-500/20',
+      default: 'border-gray-300 focus:border-zinc-600 focus:ring-zinc-200',
       minimal:
         'border-0 border-b-2 border-gray-300 rounded-none focus:border-black focus:ring-0 px-0',
     }
@@ -94,19 +95,19 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(
           className={combinedClasses}
           aria-invalid={error ? 'true' : 'false'}
           aria-describedby={
-            error ? 'error-message' : helperText ? 'helper-text' : undefined
+            error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined
           }
           {...props}
         />
 
         {error && (
-          <p id="error-message" className="mt-1 text-sm text-red-600">
+          <p id={`${inputId}-error`} className="mt-1 text-sm text-red-600">
             {error}
           </p>
         )}
 
         {helperText && !error && (
-          <p id="helper-text" className="mt-1 text-sm text-gray-500">
+          <p id={`${inputId}-helper`} className="mt-1 text-sm text-gray-500">
             {helperText}
           </p>
         )}
