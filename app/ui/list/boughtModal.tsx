@@ -23,18 +23,17 @@ const BoughtListModal: React.FC<ListModalProps> = ({
   cantidadp,
   medidap,
 }) => {
-  if (!isOpen) return null;
-
   const [cantidad, setCantidad] = useState<number | string>(cantidadp);
   const [medida, setMedida] = useState<number | string>(medidap);
   const [precio, setPrecio] = useState<number | string>("");
   const [isLoading, setIsLoading] = useState(false);
+  if (!isOpen) return null;
 
   const handleClick = async () => {
     if (
-      isNaN(Number(cantidad)) ||
-      isNaN(Number(medida)) ||
-      isNaN(Number(precio))
+      !Number.isFinite(Number(cantidad)) || Number(cantidad) <= 0 ||
+      !Number.isFinite(Number(medida)) || Number(medida) <= 0 ||
+      precio === "" || !Number.isFinite(Number(precio)) || Number(precio) < 0
     ) {
       alert("Por favor, ingresa valores numéricos válidos.");
       return;
@@ -48,13 +47,14 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         medida: Number(medida),
         precio: Number(precio),
       };
-      await fetch("/api/list/set-bought", {
+      const response = await fetch("/api/list/set-bought", {
         method: "PUT",
         body: JSON.stringify(propsBought),
         headers: {
           "content-Type": "application/json",
         },
       });
+      if (!response.ok) throw new Error("No se pudo guardar la compra");
 
       const updateList = {
         id: idList,
@@ -71,69 +71,84 @@ const BoughtListModal: React.FC<ListModalProps> = ({
       };
       setIsLoading(false);
       onClose(updateList);
-    } catch (error) {
+    } catch {
       alert("Hubo un error al intentar guardar los datos");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg p-6 max-w-xs w-full">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white p-10 max-w-lg w-full">
         {isLoading ? (
-          <h2 className="flex text-lg justify-center">Cargando ...</h2>
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mb-4"></div>
+            <h2 className="text-lg text-black">Cargando...</h2>
+          </div>
         ) : (
-          <div className="flex flex-col items-center justify-start ">
-            <div className="flex items-center justify-start p-3 gap-3">
-              <h2 className="text-lg">{nameProductList}</h2>
+          <div className="flex flex-col">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-3xl font-normal text-black">{nameProductList}</h2>
               <button
-                className="px-3 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                className="text-gray-600 hover:text-black focus:outline-none p-1 transition-colors"
                 onClick={() => onClose(null)}
                 disabled={isLoading}
+                aria-label="Cerrar"
               >
-                X
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
-            <div className="flex gap-3 p-4">
-              <div className="flex flex-col items-center">
-                <label>Cant</label>
+            <div className="grid grid-cols-2 gap-6 mb-8">
+              <div className="flex flex-col">
+                <label className="text-base font-normal text-black mb-3">Cantidad</label>
                 <input
                   type="number"
                   value={cantidad}
                   onChange={(e) => setCantidad(Number(e.target.value))}
-                  className="mt-1 p-2 block border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-slate-700  focus:border-slate-700  sm:text-sm w-12"
-                ></input>
+                  className="px-4 py-3 text-base border border-gray-300 focus:outline-none focus:border-black"
+                />
               </div>
 
-              <div className="flex flex-col items-center">
-                <label>Medida</label>
+              <div className="flex flex-col">
+                <label className="text-base font-normal text-black mb-3">Medida</label>
                 <input
                   type="number"
                   value={medida}
                   onChange={(e) => setMedida(e.target.value)}
-                  className="mt-1 p-2 block border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-slate-700  focus:border-slate-700  sm:text-sm w-[85px]"
-                ></input>
+                  className="px-4 py-3 text-base border border-gray-300 focus:outline-none focus:border-black"
+                />
               </div>
 
-              <div className="flex flex-col items-center">
-                <label>Precio</label>
+              <div className="flex flex-col col-span-2">
+                <label className="text-base font-normal text-black mb-3">Precio</label>
                 <input
-                  placeholder="Precio"
+                  placeholder="Ingrese el precio"
                   type="number"
                   value={precio}
                   onChange={(e) => setPrecio(e.target.value)}
-                  className="mt-1 p-2 block border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm w-20"
-                ></input>
+                  className="px-4 py-3 text-base border border-gray-300 focus:outline-none focus:border-black"
+                />
               </div>
+            </div>
 
-              <div className="flex items-end">
-                <button
-                  className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  onClick={handleClick}
-                  disabled={isLoading}
-                >
-                  Ok
-                </button>
-              </div>
+            <div className="flex justify-end gap-4">
+              <button
+                className="px-8 py-3 text-base font-normal text-black bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
+                onClick={() => onClose(null)}
+                disabled={isLoading}
+              >
+                Cancelar
+              </button>
+              <button
+                className="px-8 py-3 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity"
+                onClick={handleClick}
+                disabled={isLoading}
+              >
+                Guardar
+              </button>
             </div>
           </div>
         )}

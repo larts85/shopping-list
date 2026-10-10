@@ -17,8 +17,8 @@ A Next.js web application for managing shopping lists using Google Drive and Goo
 
 ### Prerequisites
 
-- Node.js >= 18.0.0
-- npm or yarn
+- Node.js >= 22.0.0
+- Yarn 1.22.22
 - Google account
 - Google Cloud Project with OAuth 2.0 credentials
 
@@ -34,7 +34,7 @@ A Next.js web application for managing shopping lists using Google Drive and Goo
 2. **Install dependencies**
 
    ```bash
-   npm install
+   yarn deps:install
    ```
 
 3. **Set up environment variables**
@@ -72,7 +72,7 @@ A Next.js web application for managing shopping lists using Google Drive and Goo
 
 ## 🏗️ Tech Stack
 
-- **Framework**: [Next.js 14](https://nextjs.org/) (App Router, Server Components)
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Router, Server Components)
 - **Language**: TypeScript
 - **Authentication**: [NextAuth.js v5](https://next-auth.js.org/)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)

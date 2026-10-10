@@ -48,16 +48,6 @@ export const {
       session.accessToken = token.accessToken as string | undefined
       session.idToken = token.idToken as string | undefined
 
-      // Ensure session.expires is set and respects maxAge
-      try {
-        // Assign ISO string to expires using a safe cast to avoid TS type mismatch
-        ;(session as any).expires = new Date(
-          Date.now() + halfDayInSeconds * 1000
-        ).toISOString()
-      } catch (e) {
-        console.warn('Could not set session.expires', e)
-      }
-
       return session
     },
   },

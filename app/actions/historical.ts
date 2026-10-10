@@ -11,6 +11,23 @@ export async function addHistorical(): Promise<void> {
   const sheethistorical = doc.sheetsByTitle["historical"];
 
   if (sheethistorical) {
+    // Older sheets contain two date columns. Preserve the extra column and its
+    // contents, but give it a unique name so row-based reads remain valid.
+    const [headers] = await sheethistorical.getCellsInRange(`A1:${sheethistorical.lastColumnLetter}1`);
+    if (headers?.filter((header) => header === "fecha").length === 2) {
+      let seenDate = false;
+      const repairedHeaders = headers.map((header) => {
+        if (header !== "fecha") return String(header);
+        if (!seenDate) {
+          seenDate = true;
+          return "fecha";
+        }
+        return "fecha_legacy";
+      });
+      if (!headers.includes("fecha_legacy")) {
+        await sheethistorical.setHeaderRow(repairedHeaders);
+      }
+    }
     const rowshistorical = await sheethistorical.getRows();
 
     let maxId = 0;
@@ -23,7 +40,7 @@ export async function addHistorical(): Promise<void> {
           maxId = currentId;
         }
       } else {
-        console.log("No ID found in row:", row);
+        console.debug("No ID found in row:", row);
       }
     });
 

@@ -3,6 +3,7 @@ import { GoogleSpreadsheetRow } from "google-spreadsheet";
 import { sheetDoc } from "../lib/googleFileSheetConection";
 import { getProductsChecked } from "./products";
 import { IList } from "../lib/types";
+import { normalizeSheetNumber } from "@/utils/normalizeSheetNumber";
 
 export async function addList(): Promise<void> {
   const doc = await sheetDoc();
@@ -21,7 +22,7 @@ export async function addList(): Promise<void> {
           maxId = currentId;
         }
       } else {
-        console.log("No ID found in row:", row);
+        console.debug("No ID found in row:", row);
       }
     });
 
@@ -68,12 +69,12 @@ export async function getList(): Promise<IList[]> {
       id_product: row.get("id_product") || "",
       name: row.get("name") || "",
       id_category: row.get("id_category") || "",
-      cantidad: row.get("cantidad") || "",
-      medida: row.get("medida") || "",
+      cantidad: normalizeSheetNumber(row.get("cantidad"), doc.locale),
+      medida: normalizeSheetNumber(row.get("medida"), doc.locale),
       precio: row.get("precio") || "",
       precioTotal: row.get("precio_total") || "",
       precioKg: row.get("precio_kg") || "",
-      kgTotal: row.get("kg_total") || "",
+      kgTotal: normalizeSheetNumber(row.get("kg_total"), doc.locale),
       comprado: row.get("comprado") || "",
     }));
 
@@ -140,7 +141,7 @@ export async function getListProductsByCategories() {
 
   const filteredProductListByCategories = Object.fromEntries(
     Object.entries(productListByCategories).filter(
-      ([key, products]) => products.length > 0
+      ([, products]) => products.length > 0
     )
   );
 
@@ -195,17 +196,11 @@ export async function updateMultipleProducts(
   if (sheetList) {
     const rowsList = await sheetList.getRows();
 
-    const currencyFormatter = new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    });
 
     for (const product of products) {
       const rowToUpdate = rowsList.find((row) => row.get("id") === product.id);
 
       if (rowToUpdate) {
-        const precioKg = product.precio / product.medida;
-        const total = product.cantidad * product.precio;
         const kgTotal = product.cantidad * product.medida;
 
         rowToUpdate.set("cantidad", product.cantidad);

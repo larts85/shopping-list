@@ -1,7 +1,6 @@
 'use client'
 import { useState } from 'react'
 import SharedDataModal from './sharedDataModal'
-import { getCategories } from '../../actions/categories'
 
 export default function SharedData() {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -14,14 +13,11 @@ export default function SharedData() {
     setIsModalOpen(false)
   }
 
-  const prueba = async () => {
-    const categories = await getCategories()
-  }
 
   return (
-    <div className="flex flex-col gap-6 pl-3 justify-center items-center h-[30vh]">
+    <div className="flex flex-col gap-6 justify-center items-center min-h-[50vh] p-6">
       <button
-        className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 w-40"
+        className="px-8 py-3 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity"
         onClick={handleOpenModal}
       >
         Compartir Datos
@@ -30,7 +26,6 @@ export default function SharedData() {
       {isModalOpen && (
         <SharedDataModal isOpen={isModalOpen} onClose={handleCloseModal} />
       )}
-      <button onClick={prueba}>prueba</button>
     </div>
   )
 }

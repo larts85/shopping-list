@@ -9,28 +9,58 @@ export default async function Menu() {
   if (!session?.user) redirect("/");
 
   return (
-    <div className="bg-gray-700 p-2  justify-around text-white">
-      <div className="flex justify-center sm:justify-end gap-3 text-xs sm:text-sm items-center">
-        <form action={doGoogleLogout}>
-          <button type="submit">Logout</button>
-        </form>
-        <p className="hidden sm:block">{session?.user?.name}</p>
-        {session?.user?.image && (
-          <Image
-            src={session.user.image}
-            alt={session.user.name || "User"}
-            width={32}
-            height={32}
-            className="rounded-full"
-          />
-        )}
+    <nav className="bg-white">
+      <div className="max-w-7xl mx-auto px-6 lg:px-8">
+        <div className="flex justify-between items-center h-20">
+          <div className="flex items-center gap-8">
+            <Link
+              href="/logistic/"
+              className="text-base font-normal text-black hover:opacity-70 transition-opacity"
+            >
+              Lista
+            </Link>
+            <Link
+              href="/logistic/add"
+              className="text-base font-normal text-black hover:opacity-70 transition-opacity"
+            >
+              Agregar
+            </Link>
+            <Link
+              href="/logistic/admin"
+              className="text-base font-normal text-black hover:opacity-70 transition-opacity"
+            >
+              Admin
+            </Link>
+            <Link
+              href="/logistic/data"
+              className="text-base font-normal text-black hover:opacity-70 transition-opacity"
+            >
+              Datos
+            </Link>
+          </div>
+          <div className="flex items-center gap-6">
+            <p className="hidden sm:block text-base text-gray-600">{session?.user?.name}</p>
+            {session?.user?.image && (
+              <Image
+                src={session.user.image}
+                alt={session.user.name || "User"}
+                loading="eager"
+                width={36}
+                height={36}
+                className="rounded-full"
+              />
+            )}
+            <form action={doGoogleLogout}>
+              <button
+                type="submit"
+                className="text-base font-normal text-black hover:opacity-70 transition-opacity"
+              >
+                Logout
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
-      <div className="flex  justify-center gap-5 sm:gap-10 text-xs sm:text-sm">
-        <Link href="/logistic/">Lista</Link>
-        <Link href="/logistic/add">Agregar</Link>
-        <Link href="/logistic/admin">Admin</Link>
-        <Link href="/logistic/data">Datos</Link>
-      </div>
-    </div>
+    </nav>
   );
 }

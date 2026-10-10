@@ -22,7 +22,7 @@ export async function addProduct(product: AddProduct): Promise<void> {
           maxId = currentId;
         }
       } else {
-        console.log("No ID found in row:", row);
+        console.debug("No ID found in row:", row);
       }
     });
     const newId = maxId + 1;
@@ -88,6 +88,7 @@ export async function getProductsByCategories() {
     acc[product.id_category].push(product);
     return acc;
   }, {} as Record<string, Product[]>);
+  return productsByCategories;
 }
 
 export async function getProductsChecked(): Promise<Product[]> {
