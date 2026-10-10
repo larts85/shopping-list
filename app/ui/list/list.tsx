@@ -160,94 +160,136 @@ export default function List() {
     }
   };
 
+  const products = Object.values(list).flat();
+  const boughtCount = products.filter(
+    (product) => product.comprado === "1",
+  ).length;
   return (
-    <div className="m-3">
+    <div className="space-y-6">
       {!isLoading && (
-        <div className="flex gap-3">
-          <button
-            onClick={clean}
-            className="px-3 py-1 bg-gray-700 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 w-20"
-          >
-            Limpiar
-          </button>
-          <button
-            onClick={save}
-            className="px-3 py-1 bg-gray-700 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 w-20"
-          >
-            Save
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <p className="text-sm text-zinc-500">
+            <span className="font-semibold text-zinc-900">
+              {products.length}
+            </span>{" "}
+            productos · {boughtCount} comprados
+          </p>
+          <div className="flex gap-2">
+            <button onClick={clean} className="btn-secondary">
+              Limpiar lista
+            </button>
+            <button onClick={save} className="btn-primary">
+              Guardar cambios
+            </button>
+          </div>
+        </div>
+      )}
+      {!isLoading && products.length === 0 && (
+        <div className="empty-state">
+          <p className="text-lg font-semibold text-zinc-900">
+            Tu lista está lista para empezar.
+          </p>
+          <p className="mt-2">
+            Agrega los productos que necesitas para tu próxima compra.
+          </p>
+          <a href="/logistic/add" className="btn-primary mt-6">
+            Agregar productos
+          </a>
         </div>
       )}
       {categories
-        .filter((category) => list[category.id] && list[category.id].length > 0)
+        .filter((category) => list[category.id]?.length > 0)
         .map((category) => (
-          <div key={category.id}>
-            <h2
-              className=" text-xl pl-3 bg-slate-300  m-1"
-              onClick={() => toggleCategoryVisibility(category.id)}
-            >
-              {`${visibleCategories[category.id] ? "ᐃ" : "ᐁ"}  ${
-                category.name
-              } `}
+          <section
+            key={category.id}
+            className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
+          >
+            <h2>
+              <button
+                className="flex min-h-16 w-full items-center justify-between gap-3 px-4 py-4 text-left transition-colors hover:bg-zinc-50 sm:px-6"
+                onClick={() => toggleCategoryVisibility(category.id)}
+                aria-expanded={!!visibleCategories[category.id]}
+                aria-controls={`category-${category.id}`}
+              >
+                <span className="font-semibold">
+                  {category.name}
+                  <span className="ml-3 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-500">
+                    {list[category.id].length}
+                  </span>
+                </span>
+                <span aria-hidden="true" className="text-zinc-400">
+                  {visibleCategories[category.id] ? "−" : "+"}
+                </span>
+              </button>
             </h2>
-            <div className="ml-5 flex gap-10">
-              <label className="font-bold">Cant</label>
-              <label className="font-bold">Medida</label>
-              <label className="font-bold">Producto</label>
-            </div>
             {visibleCategories[category.id] && (
-              <ul>
-                {list[category.id]?.map((productList) => (
-                  <li
-                    className="flex ml-4 bg-slate-100 m-1 items-center gap-10"
-                    key={productList.id}
-                  >
-                    <div className="flex gap-6">
-                      <input
-                        placeholder={productList.cantidad}
-                        className="border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-slate-700 focus:border-slate-700  sm:text-sm w-12 text-center"
-                        type="number"
-                        value={productList.cantidad}
-                        onChange={(e) =>
-                          handleInputChange(
-                            e,
-                            productList.id,
-                            category.id,
-                            "cantidad"
-                          )
-                        }
-                      />
-
-                      <input
-                        placeholder={productList.medida}
-                        className="border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-slate-700 focus:border-slate-700  sm:text-sm w-20 text-center"
-                        type="number"
-                        value={productList.medida}
-                        onChange={(e) =>
-                          handleInputChange(
-                            e,
-                            productList.id,
-                            category.id,
-                            "medida"
-                          )
-                        }
-                      />
-                    </div>
-                    <div
-                      onClick={() => handleOpenModal(productList)}
-                      className={`${
-                        productList.comprado === "1"
-                          ? "line-through"
-                          : "no-underline"
-                      } `}
+              <div id={`category-${category.id}`}>
+                <div className="grid grid-cols-[minmax(0,1fr)_4rem_4.5rem] gap-2 border-y border-zinc-100 bg-zinc-50 px-4 py-3 text-xs font-medium text-zinc-500 sm:grid-cols-[minmax(0,1fr)_5rem_6rem] sm:gap-4 sm:px-6">
+                  <span>Producto</span>
+                  <span className="text-center">Cant.</span>
+                  <span className="text-center">Medida</span>
+                </div>
+                <ul className="divide-y divide-zinc-100">
+                  {list[category.id].map((product) => (
+                    <li
+                      key={product.id}
+                      className="grid grid-cols-[minmax(0,1fr)_4rem_4.5rem] items-center gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_5rem_6rem] sm:gap-4 sm:px-6"
                     >
-                      {productList.name}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                      <button
+                        onClick={() => handleOpenModal(product)}
+                        className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg text-left text-sm hover:text-zinc-500 sm:gap-3"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${product.comprado === "1" ? "border-zinc-900 bg-zinc-900 text-xs text-white" : "border-zinc-300"}`}
+                        >
+                          {product.comprado === "1" ? "✓" : ""}
+                        </span>
+                        <span
+                          className={`break-words ${product.comprado === "1" ? "text-zinc-400 line-through" : "font-medium"}`}
+                        >
+                          {product.name}
+                        </span>
+                        <span className="sr-only">
+                          {product.comprado === "1"
+                            ? ", comprado"
+                            : ", registrar compra"}
+                        </span>
+                      </button>
+                      <input
+                        aria-label={`Cantidad de ${product.name}`}
+                        className="field px-1 text-center tabular-nums"
+                        type="number"
+                        value={product.cantidad}
+                        onChange={(e) =>
+                          handleInputChange(
+                            e,
+                            product.id,
+                            category.id,
+                            "cantidad",
+                          )
+                        }
+                      />
+                      <input
+                        aria-label={`Medida de ${product.name}`}
+                        className="field px-1 text-center tabular-nums"
+                        type="number"
+                        value={product.medida}
+                        onChange={(e) =>
+                          handleInputChange(
+                            e,
+                            product.id,
+                            category.id,
+                            "medida",
+                          )
+                        }
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
-          </div>
+          </section>
         ))}
       {listModal && (
         <BoughtListModal
@@ -261,10 +303,10 @@ export default function List() {
           medidap={listModal.medida}
         />
       )}
-
       {isLoading && (
-        <div className="flex justify-center items-center h-screen">
-          <ClipLoader size={50} color={"#123abc"} loading={isLoading} />
+        <div role="status" className="loading-state">
+          <ClipLoader size={24} color="#3f3f46" loading={isLoading} />
+          <span>Cargando tu lista…</span>
         </div>
       )}
     </div>

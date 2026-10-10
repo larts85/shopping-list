@@ -151,70 +151,89 @@ export default function Select() {
   };
 
   return (
-    <div className="p-4 text-xs sm:text-sm">
-      <div className=" flex gap-2  items-start">
-        <div className="flex gap-2">
+    <div className="space-y-6">
+      <div className="panel flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <label className="w-full text-sm font-medium sm:max-w-sm">
+          Categoría
           <select
             value={selectedCategory}
             onChange={handleSelectChange}
-            className="border border-gray-100 rounded p-2"
+            className="field mt-2"
           >
-            {selectedCategory ? null : (
-              <option value=""> Seleccione una Categoria </option>
-            )}
+            <option value="" disabled>
+              Selecciona una categoría
+            </option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
               </option>
             ))}
           </select>
-          <button
-            onClick={createList}
-            className="px-3 py-1 bg-gray-700 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            Agregar a la lista
-          </button>
-        </div>
+        </label>
+        <button
+          onClick={createList}
+          disabled={isLoading}
+          className="btn-primary"
+        >
+          Agregar a mi lista
+        </button>
       </div>
-      <div className="flex flex-col">
-        {products.length > 0 ? (
-          <div className="mt-5 mb-5">
-            <label>
+      {!selectedCategory && !isLoading && (
+        <div className="empty-state">
+          <p className="font-semibold text-zinc-900">
+            Empecemos por una categoría.
+          </p>
+          <p className="mt-2">
+            Selecciona una opción para ver tus productos habituales.
+          </p>
+        </div>
+      )}
+      {products.length > 0 && (
+        <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-4">
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
               <input
-                className="mr-1"
                 type="checkbox"
                 checked={allChecked}
                 onChange={handleAllChecked}
               />
-              Todo
+              Seleccionar todos
             </label>
+            <span className="text-xs text-zinc-500">
+              {products.filter((product) => product.checked).length}{" "}
+              seleccionados
+            </span>
           </div>
-        ) : (
-          ""
-        )}
-
-        {products.map((product) => (
-          <div key={product.id}>
-            <label key={product.id}>
-              <input
-                className="mr-1"
-                id={product.id}
-                type="checkbox"
-                onChange={handleCheckboxChange}
-                checked={product.checked}
-              />
-              {product.name}
-            </label>
-          </div>
-        ))}
-      </div>
-
-      {isLoading ? (
-        <div className="flex justify-center items-center h-screen">
-          <ClipLoader size={50} color={"#123abc"} loading={isLoading} />{" "}
+          <ul className="divide-y divide-zinc-100">
+            {products.map((product) => (
+              <li key={product.id}>
+                <label
+                  className={`flex min-h-16 cursor-pointer items-center gap-3 px-5 py-4 text-sm transition-colors hover:bg-zinc-50 ${product.checked ? "bg-zinc-50 font-medium" : ""}`}
+                >
+                  <input
+                    id={product.id}
+                    type="checkbox"
+                    onChange={handleCheckboxChange}
+                    checked={product.checked}
+                  />
+                  <span className="break-words">{product.name}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {selectedCategory && !isLoading && products.length === 0 && (
+        <div className="empty-state">
+          Todavía no hay productos en esta categoría. Puedes agregarlos desde
+          Administración.
         </div>
-      ) : (
-        ""
+      )}
+      {isLoading && (
+        <div role="status" className="loading-state">
+          <ClipLoader size={24} color="#3f3f46" loading={isLoading} />
+          <span>Cargando productos…</span>
+        </div>
       )}
     </div>
   );

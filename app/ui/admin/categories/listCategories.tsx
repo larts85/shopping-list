@@ -4,7 +4,12 @@ import { BiEditAlt } from "react-icons/bi";
 import { RiDeleteBin6Line } from "react-icons/ri";
 import EditCategoryModal from "./editCategoryModal";
 import DeleteCategoryModal from "./deleteCategoryModal";
-import { Card, CardHeader, CardTitle, CardContent } from "../../../../shared/components/ui/Card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "../../../../shared/components/ui/Card";
 import { Button, ButtonVariant } from "../../../../shared";
 
 interface Category {
@@ -15,8 +20,11 @@ interface Category {
 export default function ListCategories() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [editModalCategory, setEditModalCategory] = useState<Category | null>(null);
-  const [deleteModalCategory, setDeleteModalCategory] = useState<Category | null>(null);
+  const [editModalCategory, setEditModalCategory] = useState<Category | null>(
+    null,
+  );
+  const [deleteModalCategory, setDeleteModalCategory] =
+    useState<Category | null>(null);
 
   useEffect(() => {
     fetchCategories();
@@ -63,7 +71,7 @@ export default function ListCategories() {
       <Card className="w-full">
         <CardContent className="flex justify-center items-center py-8">
           <div className="flex items-center space-x-2">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-600"></div>
             <span className="text-gray-600">Cargando categorías...</span>
           </div>
         </CardContent>
@@ -82,7 +90,9 @@ export default function ListCategories() {
         <CardContent>
           {categories.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500 text-lg">No hay categorías registradas</p>
+              <p className="text-gray-500 text-lg">
+                No hay categorías registradas
+              </p>
               <p className="text-gray-400 text-sm mt-2">
                 Agrega tu primera categoría usando el formulario de arriba
               </p>
@@ -95,15 +105,17 @@ export default function ListCategories() {
                   className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   <div className="flex items-center space-x-3">
-                    <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-                    <span className="text-gray-900 font-medium">{category.name}</span>
+                    <div className="w-3 h-3 bg-zinc-400 rounded-full"></div>
+                    <span className="text-gray-900 font-medium">
+                      {category.name}
+                    </span>
                   </div>
 
                   <div className="flex items-center space-x-2">
                     <Button
                       variant={ButtonVariant.GHOST}
                       onClick={() => handleOpenEditModal(category)}
-                      className="p-2 h-8 w-8 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                      className="p-2 min-h-11 w-11 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
                       title="Editar categoría"
                     >
                       <BiEditAlt size={16} />
@@ -112,7 +124,7 @@ export default function ListCategories() {
                     <Button
                       variant={ButtonVariant.GHOST}
                       onClick={() => handleOpenDeleteModal(category)}
-                      className="p-2 h-8 w-8 text-red-600 hover:text-red-800 hover:bg-red-50"
+                      className="p-2 min-h-11 w-11 text-red-600 hover:text-red-800 hover:bg-red-50"
                       title="Eliminar categoría"
                     >
                       <RiDeleteBin6Line size={16} />
