@@ -57,6 +57,7 @@ const Button: React.FC<ButtonProps> = ({
     <button
       type={type}
       disabled={disabled || isLoading}
+      aria-busy={isLoading}
       className={combinedClasses}
       {...props}
     >

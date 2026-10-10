@@ -7,7 +7,6 @@ import DeleteCategoryModal from "./deleteCategoryModal";
 import {
   Card,
   CardHeader,
-  CardTitle,
   CardContent,
 } from "../../../../shared/components/ui/Card";
 import { Button, ButtonVariant } from "../../../../shared";
@@ -20,6 +19,7 @@ interface Category {
 export default function ListCategories() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const [editModalCategory, setEditModalCategory] = useState<Category | null>(
     null,
   );
@@ -31,6 +31,7 @@ export default function ListCategories() {
   }, []);
 
   const fetchCategories = async () => {
+    setError("");
     try {
       const categoriesResponse = await fetch("/api/categories/get-categories", {
         method: "GET",
@@ -44,6 +45,7 @@ export default function ListCategories() {
       setIsLoading(false);
     } catch (error) {
       console.error("Error fetching categories:", error);
+      setError("No pudimos cargar las categorías. Intenta nuevamente.");
       setIsLoading(false);
     }
   };
@@ -70,7 +72,7 @@ export default function ListCategories() {
     return (
       <Card className="w-full">
         <CardContent className="flex justify-center items-center py-8">
-          <div className="flex items-center space-x-2">
+          <div className="flex shrink-0 items-center space-x-2">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-zinc-600"></div>
             <span className="text-gray-600">Cargando categorías...</span>
           </div>
@@ -83,17 +85,24 @@ export default function ListCategories() {
     <div className="space-y-6">
       <Card className="w-full">
         <CardHeader>
-          <CardTitle className="text-xl font-semibold text-gray-900">
+          <h2 className="text-xl font-semibold text-gray-900">
             Lista de Categorías
-          </CardTitle>
+          </h2>
         </CardHeader>
         <CardContent>
-          {categories.length === 0 ? (
+          {error ? (
+            <div className="error-notice" role="alert">
+              <p>{error}</p>
+              <button className="btn-secondary mt-3" onClick={fetchCategories}>
+                Reintentar
+              </button>
+            </div>
+          ) : categories.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500 text-lg">
                 No hay categorías registradas
               </p>
-              <p className="text-gray-400 text-sm mt-2">
+              <p className="text-gray-500 text-sm mt-2">
                 Agrega tu primera categoría usando el formulario de arriba
               </p>
             </div>
@@ -102,20 +111,21 @@ export default function ListCategories() {
               {categories.map((category) => (
                 <div
                   key={category.id}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="flex items-center justify-between gap-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-3 h-3 bg-zinc-400 rounded-full"></div>
-                    <span className="text-gray-900 font-medium">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="w-3 h-3 shrink-0 bg-zinc-400 rounded-full"></div>
+                    <span className="min-w-0 break-words text-gray-900 font-medium">
                       {category.name}
                     </span>
                   </div>
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex shrink-0 items-center space-x-2">
                     <Button
                       variant={ButtonVariant.GHOST}
                       onClick={() => handleOpenEditModal(category)}
                       className="p-2 min-h-11 w-11 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
+                      aria-label={`Editar ${category.name}`}
                       title="Editar categoría"
                     >
                       <BiEditAlt size={16} />
@@ -125,6 +135,7 @@ export default function ListCategories() {
                       variant={ButtonVariant.GHOST}
                       onClick={() => handleOpenDeleteModal(category)}
                       className="p-2 min-h-11 w-11 text-red-600 hover:text-red-800 hover:bg-red-50"
+                      aria-label={`Eliminar ${category.name}`}
                       title="Eliminar categoría"
                     >
                       <RiDeleteBin6Line size={16} />

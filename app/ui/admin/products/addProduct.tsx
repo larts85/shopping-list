@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, SyntheticEvent } from "react";
+import { useState, useEffect, useRef, SyntheticEvent } from "react";
 import { ClipLoader } from "react-spinners";
 import { capitalize } from "../../utils/capitalize";
 import { RiDeleteBin6Line } from "react-icons/ri";
@@ -25,15 +25,18 @@ export interface NewProduct {
 
 export default function AddProduct() {
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const productRequest = useRef(0);
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [newProductName, setNewProductName] = useState<string>("");
   const [editModalProduct, setEditModalProduct] = useState<Product | null>(
-    null
+    null,
   );
   const [deleteModalProduct, deleteEditModalProduct] = useState<Product | null>(
-    null
+    null,
   );
 
   useEffect(() => {
@@ -41,8 +44,10 @@ export default function AddProduct() {
   }, []);
 
   useEffect(() => {
-    fetchProducts();
+    if (!selectedCategory) return;
     setIsLoading(true);
+    setProducts([]);
+    fetchProducts();
   }, [selectedCategory]);
 
   async function fetchCategories() {
@@ -65,27 +70,32 @@ export default function AddProduct() {
       setIsLoading(false);
     } catch (error) {
       console.error("Error fetching categories:", error);
+      setError(
+        "No pudimos cargar las categorías. Recarga la página para intentar nuevamente.",
+      );
+      setIsLoading(false);
     }
   }
   async function fetchProducts() {
-    if (selectedCategory) {
-      const productsResponse = await fetch(
-        "/api/products/get-products-by-category",
-        {
-          method: "POST",
-          headers: {
-            "Content-type": "application/json",
-          },
-          body: JSON.stringify({ id_category: selectedCategory }),
-        }
-      );
-      if (!productsResponse.ok) {
-        throw new Error("Error fetching productos by categories");
-      }
-      const productsData = await productsResponse.json();
-
-      setProducts(productsData);
-      setIsLoading(false);
+    if (!selectedCategory) return;
+    const requestId = ++productRequest.current;
+    setError("");
+    try {
+      const response = await fetch("/api/products/get-products-by-category", {
+        method: "POST",
+        headers: { "Content-type": "application/json" },
+        body: JSON.stringify({ id_category: selectedCategory }),
+      });
+      if (!response.ok) throw new Error("Error fetching products");
+      const data = await response.json();
+      if (requestId === productRequest.current) setProducts(data);
+    } catch {
+      if (requestId === productRequest.current)
+        setError(
+          "No pudimos cargar los productos. Selecciona otra categoría o recarga la página.",
+        );
+    } finally {
+      if (requestId === productRequest.current) setIsLoading(false);
     }
   }
 
@@ -97,6 +107,9 @@ export default function AddProduct() {
 
   const handleSubmit = async (event: React.ChangeEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting || !selectedCategory || !newProductName.trim()) return;
+    setIsSubmitting(true);
+    setError("");
     const product: NewProduct = {
       name: newProductName,
       idCategory: selectedCategory,
@@ -119,6 +132,9 @@ export default function AddProduct() {
       await fetchProducts();
     } catch (error) {
       console.error("Error submitting form:", error);
+      setError("No pudimos agregar el producto. Intenta nuevamente.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -127,8 +143,8 @@ export default function AddProduct() {
   };
 
   const handleCloseEditModal = async () => {
-    await fetchProducts();
     setEditModalProduct(null);
+    await fetchProducts();
   };
 
   const handleOpenDeleteModal = (product: Product) => {
@@ -136,12 +152,17 @@ export default function AddProduct() {
   };
 
   const handleCloseDeleteModal = async () => {
-    await fetchProducts();
     deleteEditModalProduct(null);
+    await fetchProducts();
   };
 
   return (
     <div className="space-y-6">
+      {error && (
+        <p role="alert" className="error-notice">
+          {error}
+        </p>
+      )}
       <form onSubmit={handleSubmit} className="panel grid gap-4 lg:grid-cols-2">
         <label className="text-sm font-medium">
           Categoría
@@ -149,6 +170,7 @@ export default function AddProduct() {
             value={selectedCategory}
             onChange={(e) => setSelectedCategoy(e.target.value)}
             className="field mt-2"
+            disabled={isSubmitting}
             required
           >
             <option value="" disabled>
@@ -170,31 +192,34 @@ export default function AddProduct() {
             onChange={handleChange}
             placeholder="Ej.: Arroz, leche, jabón…"
             className="field mt-2"
+            disabled={isSubmitting}
             required
           />
         </label>
         <div className="lg:col-span-2">
           <button
             type="submit"
-            disabled={!selectedCategory || !newProductName.trim()}
+            disabled={
+              isSubmitting || !selectedCategory || !newProductName.trim()
+            }
             className="btn-primary"
           >
-            Agregar producto
+            {isSubmitting ? "Agregando…" : "Agregar producto"}
           </button>
         </div>
       </form>
-      {!isLoading && !selectedCategory && (
+      {!isLoading && !error && !selectedCategory && (
         <div className="empty-state">
           Elige una categoría para consultar y editar sus productos.
         </div>
       )}
-      {!isLoading && selectedCategory && products.length === 0 && (
+      {!isLoading && !error && selectedCategory && products.length === 0 && (
         <div className="empty-state">
           Esta categoría todavía no tiene productos. Agrega el primero con el
           formulario.
         </div>
       )}
-      {products.length > 0 && (
+      {!isLoading && products.length > 0 && (
         <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
           <h2 className="border-b border-zinc-100 px-5 py-4 font-semibold">
             Productos{" "}
@@ -208,7 +233,7 @@ export default function AddProduct() {
                 key={product.id}
                 className="flex items-center justify-between gap-3 px-5 py-3"
               >
-                <span className="break-words text-sm font-medium">
+                <span className="min-w-0 break-words text-sm font-medium">
                   {product.name}
                 </span>
                 <div className="flex shrink-0 gap-1">

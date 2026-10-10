@@ -12,6 +12,7 @@ import {
 export default function AddCategory() {
   const [formData, setFormData] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   const handleChange = (event: SyntheticEvent) => {
     const target = event.target as HTMLInputElement;
@@ -24,6 +25,7 @@ export default function AddCategory() {
     if (!formData.trim()) return;
 
     setIsSubmitting(true);
+    setError("");
     try {
       const response = await fetch("/api/categories/add-category", {
         method: "POST",
@@ -42,7 +44,7 @@ export default function AddCategory() {
       window.location.reload();
     } catch (error) {
       console.error("Error submitting form:", error);
-      // Aquí podríamos mostrar un mensaje de error al usuario
+      setError("No pudimos agregar la categoría. Intenta nuevamente.");
     } finally {
       setIsSubmitting(false);
     }
@@ -54,6 +56,11 @@ export default function AddCategory() {
         Agregar Nueva Categoría
       </h2>
 
+      {error && (
+        <p role="alert" className="error-notice mb-4">
+          {error}
+        </p>
+      )}
       <form
         onSubmit={handleSubmit}
         className="flex flex-col gap-4 sm:flex-row sm:items-end"

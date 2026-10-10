@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, SyntheticEvent } from "react";
+import { useState, useEffect, useRef, SyntheticEvent } from "react";
 import { ClipLoader } from "react-spinners";
 import { useRouter } from "next/navigation";
 import { Category } from "@/app/lib/types";
@@ -9,15 +9,22 @@ export default function Select() {
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [allChecked, setAllChecked] = useState(false);
+  const [error, setError] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const productRequest = useRef(0);
+  const selectedCount = products.filter((product) => product.checked).length;
+  const allChecked = products.length > 0 && selectedCount === products.length;
 
   useEffect(() => {
     fetchCategories();
   }, []);
 
   useEffect(() => {
-    fetchProducts();
+    if (!selectedCategory) return;
     setIsLoading(true);
+    setError("");
+    setProducts([]);
+    fetchProducts();
   }, [selectedCategory]);
 
   const router = useRouter();
@@ -38,38 +45,46 @@ export default function Select() {
       setIsLoading(false);
     } catch (error) {
       console.error("Error fetching categories:", error);
+      setError(
+        "No pudimos cargar las categorías. Recarga la página para intentar nuevamente.",
+      );
+      setIsLoading(false);
     }
   }
   interface Product {
     id: string;
     name: string;
     id_category: string;
-    checked: any;
+    checked: boolean;
   }
 
   async function fetchProducts() {
-    if (selectedCategory) {
-      const productsResponse = await fetch(
-        "/api/products/get-products-by-category",
-        {
-          method: "POST",
-          headers: {
-            "Content-type": "application/json",
-          },
-          body: JSON.stringify({ id_category: selectedCategory }),
-        }
+    if (!selectedCategory) return;
+    const requestId = ++productRequest.current;
+    try {
+      const response = await fetch("/api/products/get-products-by-category", {
+        method: "POST",
+        headers: { "Content-type": "application/json" },
+        body: JSON.stringify({ id_category: selectedCategory }),
+      });
+      if (!response.ok) throw new Error("Error fetching products");
+      const data = await response.json();
+      if (requestId !== productRequest.current) return;
+      setProducts(
+        data.map(
+          (
+            product: Omit<Product, "checked"> & { checked: string | boolean },
+          ) => ({
+            ...product,
+            checked: product.checked === "1" || product.checked === true,
+          }),
+        ),
       );
-      if (!productsResponse.ok) {
-        throw new Error("Error fetching productos by categories");
-      }
-      const productsData = await productsResponse.json();
-      const productsDataChecked = productsData.map((product: Product) => ({
-        ...product,
-        checked: product.checked === "1" ? true : false,
-      }));
-
-      setProducts(productsDataChecked);
-      setIsLoading(false);
+    } catch {
+      if (requestId === productRequest.current)
+        setError("No pudimos cargar los productos. Intenta nuevamente.");
+    } finally {
+      if (requestId === productRequest.current) setIsLoading(false);
     }
   }
 
@@ -79,8 +94,12 @@ export default function Select() {
   };
 
   const handleAllChecked = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
+    if (isUpdating) return;
+    const previousProducts = products;
+    setIsUpdating(true);
+    setError("");
     const checked = event.target.checked;
 
     const allcheckedProducts = products.map((product) => ({
@@ -89,26 +108,36 @@ export default function Select() {
     }));
 
     setProducts(allcheckedProducts);
-    setAllChecked(checked);
 
-    const productsResponse = await fetch(
-      "/api/products/edit-checked-products",
-      {
-        method: "PUT",
-        headers: {
-          "Content-type": "application/json",
+    try {
+      const productsResponse = await fetch(
+        "/api/products/edit-checked-products",
+        {
+          method: "PUT",
+          headers: {
+            "Content-type": "application/json",
+          },
+          body: JSON.stringify(allcheckedProducts),
         },
-        body: JSON.stringify(allcheckedProducts),
+      );
+      if (!productsResponse.ok) {
+        throw new Error("Error when changing the checked of the product");
       }
-    );
-    if (!productsResponse.ok) {
-      throw new Error("Error when changing the checked of the product");
+    } catch {
+      setProducts(previousProducts);
+      setError("No pudimos guardar la selección. Intenta nuevamente.");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
   const handleCheckboxChange = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
+    if (isUpdating) return;
+    const previousProducts = products;
+    setIsUpdating(true);
+    setError("");
     const productId = event.target.id;
     const isChecked = event.target.checked;
 
@@ -116,8 +145,8 @@ export default function Select() {
       prevProducts.map((product) =>
         String(product.id) === productId
           ? { ...product, checked: isChecked }
-          : product
-      )
+          : product,
+      ),
     );
 
     const productChecked = {
@@ -125,33 +154,67 @@ export default function Select() {
       checked: event.target.checked,
     };
 
-    const productsResponse = await fetch("/api/products/edit-checked-product", {
-      method: "PUT",
-      headers: {
-        "Content-type": "application/json",
-      },
-      body: JSON.stringify(productChecked),
-    });
-    if (!productsResponse.ok) {
-      throw new Error("Error when changing the checked of the product");
+    try {
+      const productsResponse = await fetch(
+        "/api/products/edit-checked-product",
+        {
+          method: "PUT",
+          headers: {
+            "Content-type": "application/json",
+          },
+          body: JSON.stringify(productChecked),
+        },
+      );
+      if (!productsResponse.ok) {
+        throw new Error("Error when changing the checked of the product");
+      }
+    } catch {
+      setProducts(previousProducts);
+      setError("No pudimos guardar la selección. Intenta nuevamente.");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
   const createList = async () => {
     setIsLoading(true);
-    await fetch("/api/list/add-list", {
-      method: "POST",
-      headers: {
-        "Content-type": "application/json",
-      },
-    });
+    setError("");
+    try {
+      const response = await fetch("/api/list/add-list", {
+        method: "POST",
+        headers: {
+          "Content-type": "application/json",
+        },
+      });
 
-    setIsLoading(false);
-    router.push("/logistic");
+      if (!response.ok) throw new Error("Error adding list");
+      router.push("/logistic");
+    } catch {
+      setError(
+        "No pudimos agregar los productos a la lista. Intenta nuevamente.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div role="alert" className="error-notice">
+          <p>{error}</p>
+          <button
+            className="btn-secondary mt-3"
+            onClick={() => {
+              setError("");
+              setIsLoading(true);
+              selectedCategory ? fetchProducts() : fetchCategories();
+            }}
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
       <div className="panel flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <label className="w-full text-sm font-medium sm:max-w-sm">
           Categoría
@@ -159,6 +222,7 @@ export default function Select() {
             value={selectedCategory}
             onChange={handleSelectChange}
             className="field mt-2"
+            disabled={isUpdating}
           >
             <option value="" disabled>
               Selecciona una categoría
@@ -172,13 +236,13 @@ export default function Select() {
         </label>
         <button
           onClick={createList}
-          disabled={isLoading}
+          disabled={isLoading || isUpdating || !selectedCategory}
           className="btn-primary"
         >
           Agregar a mi lista
         </button>
       </div>
-      {!selectedCategory && !isLoading && (
+      {!selectedCategory && !isLoading && !error && (
         <div className="empty-state">
           <p className="font-semibold text-zinc-900">
             Empecemos por una categoría.
@@ -188,20 +252,25 @@ export default function Select() {
           </p>
         </div>
       )}
-      {products.length > 0 && (
+      {!isLoading && products.length > 0 && (
         <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
           <div className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-4">
             <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
               <input
+                ref={(input) => {
+                  if (input)
+                    input.indeterminate = selectedCount > 0 && !allChecked;
+                }}
                 type="checkbox"
+                disabled={isUpdating}
                 checked={allChecked}
                 onChange={handleAllChecked}
               />
               Seleccionar todos
             </label>
             <span className="text-xs text-zinc-500">
-              {products.filter((product) => product.checked).length}{" "}
-              seleccionados
+              {selectedCount}{" "}
+              {selectedCount === 1 ? "seleccionado" : "seleccionados"}
             </span>
           </div>
           <ul className="divide-y divide-zinc-100">
@@ -214,6 +283,7 @@ export default function Select() {
                     id={product.id}
                     type="checkbox"
                     onChange={handleCheckboxChange}
+                    disabled={isUpdating}
                     checked={product.checked}
                   />
                   <span className="break-words">{product.name}</span>
@@ -223,7 +293,7 @@ export default function Select() {
           </ul>
         </section>
       )}
-      {selectedCategory && !isLoading && products.length === 0 && (
+      {selectedCategory && !isLoading && !error && products.length === 0 && (
         <div className="empty-state">
           Todavía no hay productos en esta categoría. Puedes agregarlos desde
           Administración.
