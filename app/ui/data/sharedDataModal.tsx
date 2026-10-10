@@ -18,9 +18,9 @@ export default function SharedDataModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="share-title"
-        className="bg-white p-10 max-w-lg w-full"
+        className="bg-white rounded-2xl p-6 max-w-lg w-full"
       >
-        <h2 id="share-title" className="text-3xl mb-8">
+        <h2 id="share-title" className="text-2xl font-semibold mb-6">
           Compartir datos del hogar
         </h2>
         <p className="mb-4">
@@ -50,7 +50,7 @@ export default function SharedDataModal({
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 border border-gray-300"
+              className="field mt-2"
             />
           </label>
           {error && (
@@ -59,14 +59,10 @@ export default function SharedDataModal({
             </p>
           )}
           <div className="flex justify-end gap-4">
-            <button type="button" onClick={onClose}>
+            <button className="btn-secondary" type="button" onClick={onClose}>
               Cancelar
             </button>
-            <button
-              disabled={busy}
-              type="submit"
-              className="bg-black text-white p-3"
-            >
+            <button disabled={busy} type="submit" className="btn-primary">
               {busy ? "Guardando…" : "Compartir"}
             </button>
           </div>

@@ -7,9 +7,7 @@ import { Category } from "@/app/lib/types";
 
 export default function List() {
   useEffect(() => {
-    Promise.all([fetchList(), fetchCategories()])
-      .catch(() => setError("No se pudo cargar la lista. Intentá nuevamente."))
-      .finally(() => setIsLoading(false));
+    load();
   }, []);
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -17,6 +15,19 @@ export default function List() {
   const [listModal, setLisModal] = useState<IList | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
+
+  async function load() {
+    setIsLoading(true);
+    setError("");
+    try {
+      await Promise.all([fetchList(), fetchCategories()]);
+    } catch {
+      setError("No pudimos cargar tu lista. Intenta nuevamente.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
   const [visibleCategories, setVisibleCategories] = useState<
     Record<string, boolean>
   >({});
@@ -96,17 +107,17 @@ export default function List() {
   const clean = async () => {
     setIsLoading(true);
     setError("");
+    setStatus("");
     try {
       const response = await fetch("/api/historical/add-historical", {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
+        headers: { "content-type": "application/json" },
       });
-      if (!response.ok) throw new Error("No se pudo archivar la compra");
+      if (!response.ok) throw new Error("Error cleaning list");
       await fetchList();
+      setStatus("Lista limpiada.");
     } catch {
-      setError("No se pudo limpiar la lista. Intentá nuevamente.");
+      setError("No pudimos limpiar la lista. Intenta nuevamente.");
     } finally {
       setIsLoading(false);
     }
@@ -119,6 +130,8 @@ export default function List() {
     field: string,
   ) => {
     const { value } = e.target;
+    setStatus("");
+    setError("");
 
     setList((prevList) => {
       const updatedList = { ...prevList };
@@ -132,6 +145,7 @@ export default function List() {
   const save = async () => {
     setIsLoading(true);
     setError("");
+    setStatus("");
     // Transformar el diccionario en un array de productos
     const productsToUpdate = Object.values(list)
       .flat()
@@ -147,124 +161,182 @@ export default function List() {
       return product.cantidad > 0 && product.medida > 0;
     });
 
-    // Llamar a la función updateMultipleProducts con los productos cambiados
     try {
-      if (changedProducts.length > 0) {
-        const response = await fetch("/api/list/update-multiple-products", {
-          method: "PUT",
-          body: JSON.stringify(changedProducts),
-          headers: {
-            "content-Type": "application/json",
-          },
-        });
-        if (!response.ok) throw new Error("No se pudo guardar la lista");
-        await fetchList();
+      if (changedProducts.length === 0) {
+        setError(
+          "Completa una cantidad y una medida mayores que cero antes de guardar.",
+        );
+        return;
       }
+      const response = await fetch("/api/list/update-multiple-products", {
+        method: "PUT",
+        body: JSON.stringify(changedProducts),
+        headers: { "content-Type": "application/json" },
+      });
+      if (!response.ok) throw new Error("Error saving list");
+      await fetchList();
+      setStatus("Cambios guardados.");
     } catch {
-      setError("No se pudo guardar la lista. Intentá nuevamente.");
+      setError("No pudimos guardar los cambios. Intenta nuevamente.");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const products = Object.values(list).flat();
+  const boughtCount = products.filter(
+    (product) => product.comprado === "1",
+  ).length;
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 sm:px-6">
-      {error && <p role="alert">{error}</p>}
+    <div className="space-y-6">
+      {error && (
+        <div className="error-notice" role="alert">
+          <p>{error}</p>
+          {products.length === 0 && (
+            <button className="btn-secondary mt-3" onClick={load}>
+              Reintentar
+            </button>
+          )}
+        </div>
+      )}
+      {status && (
+        <p role="status" className="text-sm text-zinc-600">
+          {status}
+        </p>
+      )}
       {!isLoading && (
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={clean}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-black bg-white border border-gray-300 hover:bg-gray-50 transition-colors"
-          >
-            Limpiar
-          </button>
-          <button
-            onClick={save}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-black hover:opacity-80 transition-opacity"
-          >
-            Guardar
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <p className="text-sm text-zinc-500">
+            <span className="font-semibold text-zinc-900">
+              {products.length}
+            </span>{" "}
+            {products.length === 1 ? "producto" : "productos"} · {boughtCount}{" "}
+            {boughtCount === 1 ? "comprado" : "comprados"}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={clean}
+              disabled={products.length === 0}
+              className="btn-secondary"
+            >
+              Limpiar lista
+            </button>
+            <button
+              onClick={save}
+              disabled={products.length === 0}
+              className="btn-primary"
+            >
+              Guardar cambios
+            </button>
+          </div>
+        </div>
+      )}
+      {!isLoading && !error && products.length === 0 && (
+        <div className="empty-state">
+          <p className="text-lg font-semibold text-zinc-900">
+            Tu lista está lista para empezar.
+          </p>
+          <p className="mt-2">
+            Agrega los productos que necesitas para tu próxima compra.
+          </p>
+          <a href="/logistic/add" className="btn-primary mt-6">
+            Agregar productos
+          </a>
         </div>
       )}
       {categories
-        .filter((category) => list[category.id] && list[category.id].length > 0)
+        .filter((category) => list[category.id]?.length > 0)
         .map((category) => (
-          <div key={category.id} className="mb-6">
-            <h2
-              className="text-lg font-medium text-black mb-3 cursor-pointer hover:opacity-70 transition-opacity flex items-center gap-2"
-              onClick={() => toggleCategoryVisibility(category.id)}
-            >
-              <span className="text-lg">
-                {visibleCategories[category.id] ? "▼" : "▶"}
-              </span>
-              {category.name}
+          <section
+            key={category.id}
+            className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
+          >
+            <h2>
+              <button
+                className="flex min-h-16 w-full items-center justify-between gap-3 px-4 py-4 text-left transition-colors hover:bg-zinc-50 sm:px-6"
+                onClick={() => toggleCategoryVisibility(category.id)}
+                aria-expanded={!!visibleCategories[category.id]}
+                aria-controls={`category-${category.id}`}
+              >
+                <span className="min-w-0 break-words font-semibold">
+                  {category.name}
+                  <span className="ml-3 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-500">
+                    {list[category.id].length}
+                  </span>
+                </span>
+                <span aria-hidden="true" className="text-zinc-400">
+                  {visibleCategories[category.id] ? "−" : "+"}
+                </span>
+              </button>
             </h2>
             {visibleCategories[category.id] && (
-              <div>
-                {list[category.id]?.map((productList) => (
-                  <div
-                    className="flex items-center gap-3 py-2 border-b border-gray-200"
-                    key={productList.id}
-                  >
-                    <div className="order-2 grid shrink-0 grid-cols-[3.5rem_4rem] gap-2">
-                      <label
-                        htmlFor={`quantity-${productList.id}`}
-                        className="grid gap-1 text-xs font-medium text-gray-600"
-                      >
-                        Cantidad
-                        <input
-                          id={`quantity-${productList.id}`}
-                          aria-label={`Cantidad de ${productList.name}`}
-                          className="h-10 min-w-0 w-full rounded-lg px-1.5 text-center text-base tabular-nums border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black sm:h-9 sm:text-sm"
-                          type="number"
-                          value={productList.cantidad}
-                          onChange={(e) =>
-                            handleInputChange(
-                              e,
-                              productList.id,
-                              category.id,
-                              "cantidad",
-                            )
-                          }
-                        />
-                      </label>
-                      <label
-                        htmlFor={`measure-${productList.id}`}
-                        className="grid gap-1 text-xs font-medium text-gray-600"
-                      >
-                        Medida
-                        <input
-                          id={`measure-${productList.id}`}
-                          aria-label={`Medida de ${productList.name}`}
-                          className="h-10 min-w-0 w-full rounded-lg px-1.5 text-center text-base tabular-nums border border-gray-300 focus:outline-none focus:ring-2 focus:ring-black/20 focus:border-black sm:h-9 sm:text-sm"
-                          type="number"
-                          value={productList.medida}
-                          onChange={(e) =>
-                            handleInputChange(
-                              e,
-                              productList.id,
-                              category.id,
-                              "medida",
-                            )
-                          }
-                        />
-                      </label>
-                    </div>
-                    <div
-                      onClick={() => handleOpenModal(productList)}
-                      className={`order-1 min-w-0 flex-1 break-words text-sm cursor-pointer ${
-                        productList.comprado === "1"
-                          ? "line-through text-gray-400"
-                          : "text-black"
-                      } hover:opacity-70 transition-opacity`}
+              <div id={`category-${category.id}`}>
+                <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem] gap-2 border-y border-zinc-100 bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-500 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem] sm:gap-2 sm:px-6">
+                  <span>Producto</span>
+                  <span className="text-center">Cantidad</span>
+                  <span className="text-center">Medida</span>
+                </div>
+                <ul className="divide-y divide-zinc-100">
+                  {list[category.id].map((product) => (
+                    <li
+                      key={product.id}
+                      className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem] sm:gap-2 sm:px-6"
                     >
-                      {productList.name}
-                    </div>
-                  </div>
-                ))}
+                      <button
+                        onClick={() => handleOpenModal(product)}
+                        className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg text-left text-sm hover:text-zinc-500 sm:gap-3"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${product.comprado === "1" ? "border-zinc-900 bg-zinc-900 text-xs text-white" : "border-zinc-300"}`}
+                        >
+                          {product.comprado === "1" ? "✓" : ""}
+                        </span>
+                        <span
+                          className={`min-w-0 break-words ${product.comprado === "1" ? "text-zinc-500 line-through" : "font-medium"}`}
+                        >
+                          {product.name}
+                        </span>
+                        <span className="sr-only">
+                          {product.comprado === "1"
+                            ? ", comprado"
+                            : ", registrar compra"}
+                        </span>
+                      </button>
+                      <input
+                        aria-label={`Cantidad de ${product.name}`}
+                        className="h-10 min-w-0 w-full rounded-lg border border-zinc-300 px-1.5 text-center text-base tabular-nums focus:ring-2 focus:ring-zinc-400 sm:h-9 sm:text-sm"
+                        type="number"
+                        value={product.cantidad}
+                        onChange={(e) =>
+                          handleInputChange(
+                            e,
+                            product.id,
+                            category.id,
+                            "cantidad",
+                          )
+                        }
+                      />
+                      <input
+                        aria-label={`Medida de ${product.name}`}
+                        className="h-10 min-w-0 w-full rounded-lg border border-zinc-300 px-1.5 text-center text-base tabular-nums focus:ring-2 focus:ring-zinc-400 sm:h-9 sm:text-sm"
+                        type="number"
+                        value={product.medida}
+                        onChange={(e) =>
+                          handleInputChange(
+                            e,
+                            product.id,
+                            category.id,
+                            "medida",
+                          )
+                        }
+                      />
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
-          </div>
+          </section>
         ))}
       {listModal && (
         <BoughtListModal
@@ -278,10 +350,10 @@ export default function List() {
           medidap={listModal.medida}
         />
       )}
-
       {isLoading && (
-        <div className="flex justify-center items-center h-screen">
-          <ClipLoader size={50} color={"#000000"} loading={isLoading} />
+        <div role="status" className="loading-state">
+          <ClipLoader size={24} color="#3f3f46" loading={isLoading} />
+          <span>Cargando tu lista…</span>
         </div>
       )}
     </div>

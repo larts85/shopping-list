@@ -33,21 +33,21 @@ const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const baseClasses =
-    'inline-flex items-center justify-center px-8 py-3 text-base font-normal transition-all duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed'
+    'inline-flex items-center justify-center min-h-11 gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed'
 
   const variantClasses = {
     [Variant.PRIMARY]:
-      'bg-black text-white hover:opacity-80',
+      'bg-black text-white hover:bg-gray-800 focus:ring-gray-500',
     [Variant.SECONDARY]:
-      'bg-white text-black border border-gray-300 hover:bg-gray-50',
+      'bg-white text-black border border-black hover:bg-gray-50 focus:ring-gray-500',
     [Variant.TERTIARY]:
-      'bg-gray-100 text-black hover:bg-gray-200',
+      'bg-gray-100 text-black hover:bg-gray-200 focus:ring-gray-500',
     [Variant.OUTLINE]:
-      'border border-gray-300 text-black bg-transparent hover:bg-gray-50',
+      'border border-gray-300 text-gray-700 bg-transparent hover:bg-gray-50 focus:ring-gray-500',
     [Variant.GHOST]:
-      'text-black bg-transparent hover:opacity-70',
+      'text-gray-700 bg-transparent hover:bg-gray-100 focus:ring-gray-500',
     [Variant.LINK]:
-      'text-black underline hover:opacity-70 p-0',
+      'text-black underline hover:text-gray-700 p-0 focus:ring-gray-500',
   }
 
   const combinedClasses =
@@ -57,6 +57,7 @@ const Button: React.FC<ButtonProps> = ({
     <button
       type={type}
       disabled={disabled || isLoading}
+      aria-busy={isLoading}
       className={combinedClasses}
       {...props}
     >
@@ -66,7 +67,7 @@ const Button: React.FC<ButtonProps> = ({
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          Loading...
+          Cargando...
         </>
       ) : (
         children

@@ -1,24 +1,30 @@
 "use client";
-import { useState, useEffect, SyntheticEvent } from "react";
+import { useState, useEffect, useRef, SyntheticEvent } from "react";
 import { ClipLoader } from "react-spinners";
 import { useRouter } from "next/navigation";
 import { Category } from "@/app/lib/types";
 
 export default function Select() {
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const allChecked =
-    products.length > 0 && products.every((product) => product.checked);
+  const [error, setError] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const productRequest = useRef(0);
+  const selectedCount = products.filter((product) => product.checked).length;
+  const allChecked = products.length > 0 && selectedCount === products.length;
 
   useEffect(() => {
     fetchCategories();
   }, []);
 
   useEffect(() => {
-    void fetchProducts();
+    if (!selectedCategory) return;
+    setIsLoading(true);
+    setError("");
+    setProducts([]);
+    fetchProducts();
   }, [selectedCategory]);
 
   const router = useRouter();
@@ -38,12 +44,10 @@ export default function Select() {
       setCategories(categoriesData);
       setIsLoading(false);
     } catch (error) {
+      console.error("Error fetching categories:", error);
       setError(
-        error instanceof Error
-          ? error.message
-          : "No se pudieron cargar las categorías",
+        "No pudimos cargar las categorías. Recarga la página para intentar nuevamente.",
       );
-    } finally {
       setIsLoading(false);
     }
   }
@@ -55,43 +59,32 @@ export default function Select() {
   }
 
   async function fetchProducts() {
-    setError("");
+    if (!selectedCategory) return;
+    const requestId = ++productRequest.current;
     try {
-      if (selectedCategory) {
-        setIsLoading(true);
-        const productsResponse = await fetch(
-          "/api/products/get-products-by-category",
-          {
-            method: "POST",
-            headers: {
-              "Content-type": "application/json",
-            },
-            body: JSON.stringify({ id_category: selectedCategory }),
-          },
-        );
-        if (!productsResponse.ok) {
-          throw new Error("Error fetching productos by categories");
-        }
-        const productsData = await productsResponse.json();
-        const productsDataChecked = productsData.map(
+      const response = await fetch("/api/products/get-products-by-category", {
+        method: "POST",
+        headers: { "Content-type": "application/json" },
+        body: JSON.stringify({ id_category: selectedCategory }),
+      });
+      if (!response.ok) throw new Error("Error fetching products");
+      const data = await response.json();
+      if (requestId !== productRequest.current) return;
+      setProducts(
+        data.map(
           (
             product: Omit<Product, "checked"> & { checked: string | boolean },
           ) => ({
             ...product,
             checked: product.checked === "1" || product.checked === true,
           }),
-        );
-
-        setProducts(productsDataChecked);
-        setIsLoading(false);
-      } else {
-        setProducts([]);
-        setIsLoading(false);
-      }
+        ),
+      );
     } catch {
-      setError("No se pudieron cargar los productos. Intenta nuevamente.");
+      if (requestId === productRequest.current)
+        setError("No pudimos cargar los productos. Intenta nuevamente.");
     } finally {
-      setIsLoading(false);
+      if (requestId === productRequest.current) setIsLoading(false);
     }
   }
 
@@ -103,6 +96,10 @@ export default function Select() {
   const handleAllChecked = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
+    if (isUpdating) return;
+    const previousProducts = products;
+    setIsUpdating(true);
+    setError("");
     const checked = event.target.checked;
 
     const allcheckedProducts = products.map((product) => ({
@@ -112,7 +109,6 @@ export default function Select() {
 
     setProducts(allcheckedProducts);
 
-    setError("");
     try {
       const productsResponse = await fetch(
         "/api/products/edit-checked-products",
@@ -128,14 +124,20 @@ export default function Select() {
         throw new Error("Error when changing the checked of the product");
       }
     } catch {
-      await fetchProducts();
-      setError("No se pudo guardar la selección. Intenta nuevamente.");
+      setProducts(previousProducts);
+      setError("No pudimos guardar la selección. Intenta nuevamente.");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
   const handleCheckboxChange = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
+    if (isUpdating) return;
+    const previousProducts = products;
+    setIsUpdating(true);
+    setError("");
     const productId = event.target.id;
     const isChecked = event.target.checked;
 
@@ -152,7 +154,6 @@ export default function Select() {
       checked: event.target.checked,
     };
 
-    setError("");
     try {
       const productsResponse = await fetch(
         "/api/products/edit-checked-product",
@@ -168,8 +169,10 @@ export default function Select() {
         throw new Error("Error when changing the checked of the product");
       }
     } catch {
-      await fetchProducts();
-      setError("No se pudo guardar la selección. Intenta nuevamente.");
+      setProducts(previousProducts);
+      setError("No pudimos guardar la selección. Intenta nuevamente.");
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -177,98 +180,129 @@ export default function Select() {
     setIsLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/list/add-list", { method: "POST" });
-      if (!response.ok) throw new Error("No se pudo crear la lista");
+      const response = await fetch("/api/list/add-list", {
+        method: "POST",
+        headers: {
+          "Content-type": "application/json",
+        },
+      });
+
+      if (!response.ok) throw new Error("Error adding list");
       router.push("/logistic");
     } catch {
-      setError("No se pudo crear la lista. Intenta nuevamente.");
+      setError(
+        "No pudimos agregar los productos a la lista. Intenta nuevamente.",
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-12">
-      {error && <p role="alert">{error}</p>}
-      <div className="mb-12">
-        <h1 className="text-4xl font-normal text-black mb-8">
-          Agregar Productos
-        </h1>
-        <div className="flex gap-4 items-start mb-12">
+    <div className="space-y-6">
+      {error && (
+        <div role="alert" className="error-notice">
+          <p>{error}</p>
+          <button
+            className="btn-secondary mt-3"
+            onClick={() => {
+              setError("");
+              setIsLoading(true);
+              selectedCategory ? fetchProducts() : fetchCategories();
+            }}
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+      <div className="panel flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <label className="w-full text-sm font-medium sm:max-w-sm">
+          Categoría
           <select
             value={selectedCategory}
             onChange={handleSelectChange}
-            className="flex-1 max-w-xs px-4 py-3 text-base border border-gray-300 focus:outline-none focus:border-black bg-white"
+            className="field mt-2"
+            disabled={isUpdating}
           >
-            {selectedCategory ? null : (
-              <option value="">Seleccione una Categoría</option>
-            )}
+            <option value="" disabled>
+              Selecciona una categoría
+            </option>
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
               </option>
             ))}
           </select>
-          <button
-            disabled={isLoading}
-            onClick={createList}
-            className="px-8 py-3 text-base font-normal text-white bg-black hover:opacity-80 transition-opacity"
-          >
-            Agregar a la lista
-          </button>
-        </div>
+        </label>
+        <button
+          onClick={createList}
+          disabled={isLoading || isUpdating || !selectedCategory}
+          className="btn-primary"
+        >
+          Agregar a mi lista
+        </button>
       </div>
-
-      <div className="space-y-6">
-        {products.length > 0 ? (
-          <div className="mb-8 pb-6 border-b border-gray-200">
-            <label className="flex items-center gap-4 cursor-pointer">
+      {!selectedCategory && !isLoading && !error && (
+        <div className="empty-state">
+          <p className="font-semibold text-zinc-900">
+            Empecemos por una categoría.
+          </p>
+          <p className="mt-2">
+            Selecciona una opción para ver tus productos habituales.
+          </p>
+        </div>
+      )}
+      {!isLoading && products.length > 0 && (
+        <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-4">
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
               <input
-                className="w-5 h-5 border-gray-300 focus:ring-black cursor-pointer"
+                ref={(input) => {
+                  if (input)
+                    input.indeterminate = selectedCount > 0 && !allChecked;
+                }}
                 type="checkbox"
+                disabled={isUpdating}
                 checked={allChecked}
                 onChange={handleAllChecked}
               />
-              <span className="text-base font-normal text-black">
-                Seleccionar Todo
-              </span>
+              Seleccionar todos
             </label>
+            <span className="text-xs text-zinc-500">
+              {selectedCount}{" "}
+              {selectedCount === 1 ? "seleccionado" : "seleccionados"}
+            </span>
           </div>
-        ) : (
-          selectedCategory && (
-            <div className="text-center py-16">
-              <p className="text-lg text-gray-600">
-                No hay productos en esta categoría
-              </p>
-            </div>
-          )
-        )}
-
-        <div className="space-y-3">
-          {products.map((product) => (
-            <div key={product.id} className="py-4 border-b border-gray-200">
-              <label className="flex items-center gap-4 cursor-pointer">
-                <input
-                  className="w-5 h-5 border-gray-300 focus:ring-black cursor-pointer"
-                  id={product.id}
-                  type="checkbox"
-                  onChange={handleCheckboxChange}
-                  checked={product.checked}
-                />
-                <span
-                  className={`text-base ${product.checked ? "text-gray-400 line-through" : "text-black"}`}
+          <ul className="divide-y divide-zinc-100">
+            {products.map((product) => (
+              <li key={product.id}>
+                <label
+                  className={`flex min-h-16 cursor-pointer items-center gap-3 px-5 py-4 text-sm transition-colors hover:bg-zinc-50 ${product.checked ? "bg-zinc-50 font-medium" : ""}`}
                 >
-                  {product.name}
-                </span>
-              </label>
-            </div>
-          ))}
+                  <input
+                    id={product.id}
+                    type="checkbox"
+                    onChange={handleCheckboxChange}
+                    disabled={isUpdating}
+                    checked={product.checked}
+                  />
+                  <span className="break-words">{product.name}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {selectedCategory && !isLoading && !error && products.length === 0 && (
+        <div className="empty-state">
+          Todavía no hay productos en esta categoría. Puedes agregarlos desde
+          Administración.
         </div>
-      </div>
-
+      )}
       {isLoading && (
-        <div className="flex justify-center items-center h-64">
-          <ClipLoader size={50} color={"#000000"} loading={isLoading} />
+        <div role="status" className="loading-state">
+          <ClipLoader size={24} color="#3f3f46" loading={isLoading} />
+          <span>Cargando productos…</span>
         </div>
       )}
     </div>
