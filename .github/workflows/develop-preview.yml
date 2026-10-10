@@ -1,7 +1,9 @@
 name: Stable develop PR preview
 
 on:
-  deployment_status:
+  workflow_run:
+    workflows: ['Vercel preview ready']
+    types: [completed]
   workflow_dispatch:
   schedule:
     # Also handles a PR retargeted to develop after its deployment finished.
@@ -17,7 +19,7 @@ concurrency:
 
 jobs:
   update-alias:
-    if: github.event_name != 'deployment_status' || github.event.deployment_status.state == 'success'
+    if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     # Store VERCEL_TOKEN here; restrict this environment to the default branch.

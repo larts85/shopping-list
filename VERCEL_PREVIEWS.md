@@ -46,7 +46,9 @@ Activación (una sola vez, una vez que el workflow esté en la rama predetermina
    usar la ejecución manual o esperar la reconciliación programada (aproximadamente 10 minutos;
    GitHub puede demorarla). Un PR cuyo build no está listo mantiene la preview anterior.
 
-El workflow lee exclusivamente la rama predeterminada, no hace checkout del head de un PR,
+El evento deployment_status solo inicia una notificación sin permisos ni secretos.
+El workflow de asignación se inicia con workflow_run en main: no descarga artifacts ni caches
+del workflow anterior y consulta nuevamente GitHub y Vercel. Lee exclusivamente la rama predeterminada, no hace checkout del head de un PR,
 no instala dependencias y utiliza el token únicamente en `api.vercel.com`. Tiene concurrencia
 serializada y no retrocede el alias a un deployment anterior. No modifica protección de deployments.
 
