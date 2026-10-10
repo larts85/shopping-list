@@ -6,7 +6,7 @@ export default function SharedDataModal({
   onClose,
 }: {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: (shared?: boolean) => void;
 }) {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
@@ -25,7 +25,9 @@ export default function SharedDataModal({
         </h2>
         <p className="mb-4">
           La invitación aparecerá cuando esa persona ingrese con su cuenta de
-          Google. Podrá editar las categorías, productos y compras del hogar.
+          Google. Al aceptar tendrá acceso a la lista abierta, las categorías,
+          los productos y el historial de compras de este hogar. Puedes quitar
+          el acceso desde Datos.
         </p>
         <form
           className="space-y-6"
@@ -35,7 +37,7 @@ export default function SharedDataModal({
             setError("");
             try {
               await shareHousehold(email);
-              onClose();
+              onClose(true);
             } catch (e) {
               setError(e instanceof Error ? e.message : "No se pudo compartir");
             } finally {
@@ -59,7 +61,11 @@ export default function SharedDataModal({
             </p>
           )}
           <div className="flex justify-end gap-4">
-            <button className="btn-secondary" type="button" onClick={onClose}>
+            <button
+              className="btn-secondary"
+              type="button"
+              onClick={() => onClose()}
+            >
               Cancelar
             </button>
             <button disabled={busy} type="submit" className="btn-primary">

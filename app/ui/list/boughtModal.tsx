@@ -1,6 +1,8 @@
 "use client";
 import Modal from "@/shared/components/ui/Modal";
 import { useState } from "react";
+import UnitSelect from "@/shared/components/ui/UnitSelect";
+import { compatibleUnits, type Unit } from "@/app/lib/units";
 import { IList } from "@/app/lib/types";
 
 interface ListModalProps {
@@ -11,7 +13,8 @@ interface ListModalProps {
   idProduct: string;
   idCategory: string;
   cantidadp: string;
-  medidap: string;
+  unitp: Unit;
+  productUnit: Unit;
 }
 
 const BoughtListModal: React.FC<ListModalProps> = ({
@@ -22,10 +25,12 @@ const BoughtListModal: React.FC<ListModalProps> = ({
   idProduct,
   idCategory,
   cantidadp,
-  medidap,
+  unitp,
+  productUnit,
 }) => {
   const [cantidad, setCantidad] = useState<number | string>(cantidadp);
-  const [medida, setMedida] = useState<number | string>(medidap);
+  const [unit, setUnit] = useState<Unit>(unitp);
+  const medida = 1;
   const [precio, setPrecio] = useState<number | string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -42,9 +47,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
       Number(precio) < 0 ||
       precio === ""
     ) {
-      setError(
-        "Completa cantidad y medida mayores que cero y un precio válido.",
-      );
+      setError("Completa una cantidad mayor que cero y un precio válido.");
       return;
     }
     setIsLoading(true);
@@ -55,6 +58,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         idList,
         cantidad,
         medida: Number(medida),
+        unit,
         precio: Number(precio),
       };
       const response = await fetch("/api/list/set-bought", {
@@ -78,6 +82,8 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         precioKg: "",
         kgTotal: "",
         comprado: "1",
+        unit,
+        productUnit,
       };
       setIsLoading(false);
       onClose(updateList);
@@ -133,23 +139,24 @@ const BoughtListModal: React.FC<ListModalProps> = ({
               step="any"
               className="field mt-2"
               value={cantidad}
-              onChange={(e) => setCantidad(Number(e.target.value))}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === "" || Number(value) > 0) setCantidad(value);
+                else setError("La cantidad debe ser mayor que cero.");
+              }}
             />
           </label>
           <label className="text-sm font-medium">
-            Medida
-            <input
-              type="number"
-              required
-              min="0"
-              step="any"
-              className="field mt-2"
-              value={medida}
-              onChange={(e) => setMedida(e.target.value)}
+            Unidad de medida
+            <UnitSelect
+              value={unit}
+              onChange={setUnit}
+              options={compatibleUnits(productUnit)}
+              disabled={isLoading}
             />
           </label>
           <label className="col-span-2 text-sm font-medium">
-            Precio
+            Precio por {unit}
             <input
               type="number"
               required

@@ -2,6 +2,8 @@
 import Modal from "@/shared/components/ui/Modal";
 
 import { useState, SyntheticEvent } from "react";
+import UnitSelect from "@/shared/components/ui/UnitSelect";
+import type { Unit } from "@/app/lib/units";
 import { capitalize } from "../../utils/capitalize";
 
 interface EditProductModalProps {
@@ -9,6 +11,7 @@ interface EditProductModalProps {
   onClose: () => void;
   idProduct: string;
   nameProduct: string;
+  unitProduct: Unit;
 }
 
 const EditProductModal: React.FC<EditProductModalProps> = ({
@@ -16,7 +19,9 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
   onClose,
   idProduct,
   nameProduct,
+  unitProduct,
 }) => {
+  const [unit, setUnit] = useState<Unit>(unitProduct);
   const [newNameProduct, setNewNameProduct] = useState(nameProduct);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -33,6 +38,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
       const product = {
         idProduct: idProduct,
         newNameProduct: newNameProduct,
+        unit,
       };
       const response = await fetch("/api/products/edit-name-product", {
         method: "PUT",
@@ -80,6 +86,10 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
             className="field mt-2"
           />
         </div>
+        <label className="block text-sm font-medium">
+          Unidad de medida
+          <UnitSelect value={unit} onChange={setUnit} disabled={isSubmitting} />
+        </label>
         <div className="flex justify-end space-x-4">
           <button
             type="button"

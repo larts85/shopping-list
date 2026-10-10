@@ -6,6 +6,7 @@ const mainLinks = [
   { href: "/logistic", label: "Mi lista" },
   { href: "/logistic/add", label: "Agregar" },
   { href: "/logistic/admin", label: "Administrar" },
+  { href: "/logistic/history", label: "Historial" },
   { href: "/logistic/data", label: "Datos" },
 ];
 const adminLinks = [
@@ -17,7 +18,7 @@ export default function NavLinks({ admin = false }: { admin?: boolean }) {
   return (
     <nav
       aria-label={admin ? "Administración" : "Navegación principal"}
-      className={admin ? "flex gap-2 sm:flex-col" : "grid grid-cols-4 gap-1"}
+      className={admin ? "flex gap-2 sm:flex-col" : "grid grid-cols-5 gap-1"}
     >
       {(admin ? adminLinks : mainLinks).map(({ href, label }) => {
         const active =

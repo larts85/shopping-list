@@ -1,8 +1,11 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ClipLoader } from "react-spinners";
 import BoughtListModal from "./boughtModal";
 import { IList } from "@/app/lib/types";
+import UnitSelect from "@/shared/components/ui/UnitSelect";
+import { compatibleUnits, type Unit } from "@/app/lib/units";
+import SharedListControls from "./sharedListControls";
 import { Category } from "@/app/lib/types";
 
 export default function List() {
@@ -16,6 +19,24 @@ export default function List() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const revision = useRef(0);
+  const [dirty, setDirty] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (isLoading || listModal || Object.keys(dirty).length) return;
+    const refresh = () => {
+      if (document.visibilityState === "visible")
+        void Promise.all([fetchList(), fetchCategories()]).catch(() =>
+          setError("No se pudo actualizar la lista compartida."),
+        );
+    };
+    const timer = setInterval(refresh, 15000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [isLoading, listModal, dirty]);
 
   async function load() {
     setIsLoading(true);
@@ -61,6 +82,7 @@ export default function List() {
   }
 
   async function fetchList() {
+    const startedAtRevision = revision.current;
     const dataFechList = await fetch(
       "/api/list/get-list-products-by-categories",
       {
@@ -75,9 +97,11 @@ export default function List() {
     }
     const filteredProductListByCategories = await dataFechList.json();
 
-    setList(filteredProductListByCategories);
+    if (startedAtRevision === revision.current)
+      setList(filteredProductListByCategories);
   }
   const handleOpenModal = (list: IList) => {
+    revision.current++;
     setLisModal(list);
   };
 
@@ -94,7 +118,16 @@ export default function List() {
         return updatedListProduct;
       });
     }
+    revision.current++;
     setLisModal(null);
+    if (updateList) {
+      setDirty((prev) => {
+        const next = { ...prev };
+        delete next[updateList.id];
+        return next;
+      });
+      void fetchList();
+    }
   };
 
   const toggleCategoryVisibility = (categoryId: string) => {
@@ -115,7 +148,10 @@ export default function List() {
       });
       if (!response.ok) throw new Error("Error cleaning list");
       await fetchList();
-      setStatus("Lista limpiada.");
+      setDirty({});
+      setStatus(
+        "Compra guardada en el historial. Los pendientes siguen en la lista.",
+      );
     } catch {
       setError("No pudimos limpiar la lista. Intenta nuevamente.");
     } finally {
@@ -124,12 +160,22 @@ export default function List() {
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
     productId: string,
     categoryId: string,
     field: string,
   ) => {
     const { value } = e.target;
+    if (
+      field === "cantidad" &&
+      value !== "" &&
+      (!Number.isFinite(Number(value)) || Number(value) <= 0)
+    ) {
+      setError("La cantidad debe ser mayor que cero.");
+      return;
+    }
+    revision.current++;
+    setDirty((prev) => ({ ...prev, [productId]: true }));
     setStatus("");
     setError("");
 
@@ -146,26 +192,28 @@ export default function List() {
     setIsLoading(true);
     setError("");
     setStatus("");
-    // Transformar el diccionario en un array de productos
-    const productsToUpdate = Object.values(list)
+    const changedProducts = Object.values(list)
       .flat()
+      .filter((product) => dirty[product.id] && product.comprado !== "1")
       .map((product) => ({
         id: product.id,
-        cantidad: parseFloat(product.cantidad),
-        medida: parseFloat(product.medida),
+        cantidad: Number(product.cantidad),
+        medida: 1,
         precio: 0,
+        unit: product.unit ?? "un",
       }));
-
-    // Filtrar los productos que tengan valores en los campos 'cantidad' y 'medida'
-    const changedProducts = productsToUpdate.filter((product) => {
-      return product.cantidad > 0 && product.medida > 0;
-    });
-
+    if (
+      changedProducts.some(
+        (p) => !Number.isFinite(p.cantidad) || p.cantidad <= 0,
+      )
+    ) {
+      setError("Todas las cantidades editadas deben ser mayores que cero.");
+      setIsLoading(false);
+      return;
+    }
     try {
       if (changedProducts.length === 0) {
-        setError(
-          "Completa una cantidad y una medida mayores que cero antes de guardar.",
-        );
+        setError("Edita una cantidad o unidad antes de guardar.");
         return;
       }
       const response = await fetch("/api/list/update-multiple-products", {
@@ -175,6 +223,7 @@ export default function List() {
       });
       if (!response.ok) throw new Error("Error saving list");
       await fetchList();
+      setDirty({});
       setStatus("Cambios guardados.");
     } catch {
       setError("No pudimos guardar los cambios. Intenta nuevamente.");
@@ -189,6 +238,17 @@ export default function List() {
   ).length;
   return (
     <div className="space-y-6">
+      <SharedListControls
+        onSwitch={async () => {
+          setDirty({});
+          await load();
+        }}
+      />
+      <p className="text-sm text-zinc-500">
+        Finaliza la compra para guardar los productos comprados en el historial.
+        La lista compartida se actualiza cada 15 segundos cuando no hay cambios
+        sin guardar.
+      </p>
       {error && (
         <div className="error-notice" role="alert">
           <p>{error}</p>
@@ -216,14 +276,14 @@ export default function List() {
           <div className="flex gap-2">
             <button
               onClick={clean}
-              disabled={products.length === 0}
+              disabled={!products.some((p) => p.comprado === "1")}
               className="btn-secondary"
             >
-              Limpiar lista
+              Finalizar compra
             </button>
             <button
               onClick={save}
-              disabled={products.length === 0}
+              disabled={Object.keys(dirty).length === 0}
               className="btn-primary"
             >
               Guardar cambios
@@ -274,7 +334,7 @@ export default function List() {
                 <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem] gap-2 border-y border-zinc-100 bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-500 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem] sm:gap-2 sm:px-6">
                   <span>Producto</span>
                   <span className="text-center">Cantidad</span>
-                  <span className="text-center">Medida</span>
+                  <span className="text-center">Unidad</span>
                 </div>
                 <ul className="divide-y divide-zinc-100">
                   {list[category.id].map((product) => (
@@ -307,6 +367,9 @@ export default function List() {
                         aria-label={`Cantidad de ${product.name}`}
                         className="h-10 min-w-0 w-full rounded-lg border border-zinc-300 px-1.5 text-center text-base tabular-nums focus:ring-2 focus:ring-zinc-400 sm:h-9 sm:text-sm"
                         type="number"
+                        min="0"
+                        step="any"
+                        disabled={product.comprado === "1"}
                         value={product.cantidad}
                         onChange={(e) =>
                           handleInputChange(
@@ -317,19 +380,22 @@ export default function List() {
                           )
                         }
                       />
-                      <input
-                        aria-label={`Medida de ${product.name}`}
-                        className="h-10 min-w-0 w-full rounded-lg border border-zinc-300 px-1.5 text-center text-base tabular-nums focus:ring-2 focus:ring-zinc-400 sm:h-9 sm:text-sm"
-                        type="number"
-                        value={product.medida}
-                        onChange={(e) =>
-                          handleInputChange(
-                            e,
-                            product.id,
-                            category.id,
-                            "medida",
-                          )
-                        }
+                      <UnitSelect
+                        compact
+                        label={`Unidad de ${product.name}`}
+                        value={product.unit ?? "un"}
+                        options={compatibleUnits(product.productUnit ?? "un")}
+                        disabled={product.comprado === "1"}
+                        onChange={(unit: Unit) => {
+                          revision.current++;
+                          setDirty((prev) => ({ ...prev, [product.id]: true }));
+                          setList((prev) => ({
+                            ...prev,
+                            [category.id]: prev[category.id].map((p) =>
+                              p.id === product.id ? { ...p, unit } : p,
+                            ),
+                          }));
+                        }}
                       />
                     </li>
                   ))}
@@ -347,7 +413,8 @@ export default function List() {
           idProduct={listModal.id_product}
           idCategory={listModal.id_category}
           cantidadp={listModal.cantidad}
-          medidap={listModal.medida}
+          unitp={listModal.unit ?? "un"}
+          productUnit={listModal.productUnit ?? "un"}
         />
       )}
       {isLoading && (
