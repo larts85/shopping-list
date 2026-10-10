@@ -5,6 +5,8 @@ import { capitalize } from "../../utils/capitalize";
 import { RiDeleteBin6Line } from "react-icons/ri";
 import DeleteProductModal from "./deleteProductModal";
 import { BiEditAlt } from "react-icons/bi";
+import UnitSelect from "@/shared/components/ui/UnitSelect";
+import type { Unit } from "@/app/lib/units";
 import EditProductModal from "./editProductModal";
 interface Category {
   id: string;
@@ -16,11 +18,13 @@ interface Product {
   name: string;
   id_category: string;
   checked: boolean;
+  unit?: Unit;
 }
 
 export interface NewProduct {
   name: string;
   idCategory: string;
+  unit: Unit;
 }
 
 export default function AddProduct() {
@@ -31,6 +35,7 @@ export default function AddProduct() {
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [unit, setUnit] = useState<Unit>("un");
   const [newProductName, setNewProductName] = useState<string>("");
   const [editModalProduct, setEditModalProduct] = useState<Product | null>(
     null,
@@ -113,6 +118,7 @@ export default function AddProduct() {
     const product: NewProduct = {
       name: newProductName,
       idCategory: selectedCategory,
+      unit,
     };
     try {
       const response = await fetch("/api/products/add-product", {
@@ -196,6 +202,10 @@ export default function AddProduct() {
             required
           />
         </label>
+        <label className="text-sm font-medium">
+          Unidad de medida
+          <UnitSelect value={unit} onChange={setUnit} disabled={isSubmitting} />
+        </label>
         <div className="lg:col-span-2">
           <button
             type="submit"
@@ -265,6 +275,7 @@ export default function AddProduct() {
           onClose={handleCloseEditModal}
           idProduct={editModalProduct.id}
           nameProduct={editModalProduct.name}
+          unitProduct={editModalProduct.unit ?? "un"}
         />
       )}
       {deleteModalProduct && (

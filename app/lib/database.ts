@@ -46,6 +46,8 @@ export function text(value: unknown): string {
 export function positive(value: unknown, allowZero = false): number {
   const number = Number(value);
   if (
+    (typeof value !== "number" && typeof value !== "string") ||
+    (typeof value === "string" && !value.trim()) ||
     value === "" ||
     value == null ||
     !Number.isFinite(number) ||

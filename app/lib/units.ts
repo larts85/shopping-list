@@ -1,0 +1,17 @@
+export const units = ["un", "kg", "g", "lt", "ml"] as const;
+export type Unit = (typeof units)[number];
+export const unitLabels: Record<Unit, string> = {
+  un: "Unidades",
+  kg: "Kilogramos",
+  g: "Gramos",
+  lt: "Litros",
+  ml: "Mililitros",
+};
+export function isUnit(value: unknown): value is Unit {
+  return typeof value === "string" && units.includes(value as Unit);
+}
+export function compatibleUnits(unit: Unit): Unit[] {
+  if (unit === "kg" || unit === "g") return ["kg", "g"];
+  if (unit === "lt" || unit === "ml") return ["lt", "ml"];
+  return ["un"];
+}
