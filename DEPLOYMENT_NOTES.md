@@ -1,13 +1,13 @@
-# Preparación del despliegue tras revisar este PR
+# Estado de Preview del PR #12
 
-Este PR no debe fusionarse ni desplegarse automáticamente por el agente. No se aplicaron migraciones a la base compartida ni se cambiaron variables remotas.
+El 11 de octubre de 2026, con autorización explícita del usuario, se preparó `preview_lists` dentro del proyecto Supabase shopping-list. Se aplicaron allí todas las migraciones del PR, sin modificar las tablas `public`. Sus 15 tablas tienen RLS y el esquema no concede acceso a anon/authenticated.
 
-1. Revisar `lists_roles_suggestions` y `global_catalog_roles_requests`. La segunda conserva IDs de productos, listas y snapshots históricos; agrupa categorías con el mismo nombre, dando prioridad a las de larts85@gmail.com. Conserva todos los productos existentes para no colapsar compras. No elimina tablas heredadas ni datos originales.
-2. Preparar un esquema independiente `preview_lists`. Ejecutar las migraciones en una transacción sobre ese destino, cambiando únicamente los calificadores `public.` por `preview_lists.`. Nunca ejecutar las migraciones con calificadores public para preparar preview. Las tablas `auth.users` siguen siendo las del proyecto Supabase.
-3. Configurar Vercel Preview con `SUPABASE_DB_SCHEMA=preview_lists` y la conexión Postgres. No activar el código nuevo sobre las tablas anteriores: la migración cambia las referencias de productos de las listas al catálogo general.
-4. Habilitar el proveedor Google de Supabase para el cliente OAuth existente y configurar `SUPABASE_AUTH_URL` y `SUPABASE_AUTH_PUBLISHABLE_KEY`. La integración en auth.ts requiere esa configuración; no hace fallback silencioso. Supabase valida el token, el email confirmado y la identidad Google antes de vincular el UUID. Se mantiene la sesión NextAuth para compatibilidad con el callback ya autorizado.
-5. Registrar en Google el callback exacto del despliegue de la rama si se quiere probar su URL propia. El callback de develop ya fue autorizado y su login previo fue verificado.
-6. Para envío real de invitaciones, configurar un remitente/proveedor autorizado. El adaptador Gmail está incluido pero no se copiaron sus credenciales desde dyarti; las autorizaciones pendientes no se presumieron.
-7. Antes de producción, probar Google OAuth real, aceptación de invitaciones y la entrega de correo. La suite local cubre catálogo global, roles, solicitudes, unidades, varias listas, aislamiento, acceso revocado y conservación de compras.
+El catálogo de preview tiene las 16 categorías y 141 productos de `data/argentina-catalog.json`. No se copiaron compras, listas ni datos personales de producción. Los usuarios y listas creados al iniciar sesión en preview pertenecen a ese esquema; Supabase Auth es compartido a nivel de proyecto.
 
-Producción y preview actualmente comparten proyecto Supabase. Crear un esquema aislado y configurar Auth son operaciones pendientes de aprobación/configuración; este PR solo entrega código, migraciones y pruebas para revisión.
+Se habilitó Google en Supabase con el cliente OAuth home-logistics para verificar ID tokens. Se conservaron los controles de nonce y email. La sesión NextAuth mantiene el callback de Google Cloud ya autorizado. No se requiere el secreto OAuth de Google para este intercambio de ID tokens.
+
+Se configuraron `SUPABASE_AUTH_URL`, `SUPABASE_AUTH_PUBLISHABLE_KEY` y `SUPABASE_DB_SCHEMA=preview_lists` únicamente en Vercel Preview. Se redesplegó la rama sin merge. El login real se verificó con larts85@gmail.com (admin) y masajelasmanos@gmail.com (user), con vínculos a auth.users confirmados.
+
+Preview de la rama: https://home-logistics-git-fix-global-catalog-ad0f31-larts85s-projects.vercel.app
+
+Para producción siguen pendientes la revisión y aplicación de las migraciones sobre su destino, la configuración de Auth en Vercel Production y la validación correspondiente. No fusionar ni promover este PR automáticamente. El envío real de correo sigue pendiente de configurar un remitente/proveedor autorizado; no se copiaron credenciales de dyarti.

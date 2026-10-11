@@ -94,7 +94,7 @@ export default function Suggestions({
         {owner ? "Revisar sugerencias" : "Sugerir cambios"}
       </h2>
       <p className="text-sm text-zinc-500">
-        Las sugerencias no modifican la lista hasta que un owneristrador las
+        Las sugerencias no modifican la lista hasta que el propietario de la lista las
         aprueba.
       </p>
       {error && (
