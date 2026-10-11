@@ -47,3 +47,8 @@ yarn verify:import
 ```
 
 El script crea usuarios y hogares sintéticos identificados por UUID bajo `example.invalid`, utiliza sesiones JWT firmadas con el secreto local y limpia únicamente sus fixtures. Comprueba autenticación, CRUD, aislamiento, cálculos, concurrencia, archivo atómico y todas las páginas. No omite autenticación en la aplicación. `verify:households` comprueba invitación, aceptación, cambio, revocación y una revocación concurrente. `verify:import` ejecuta el importador real con respuestas Sheets sintéticas y Postgres aislado, incluyendo rollback y reimportación. Ver [SUPABASE_VERIFICATION.md](SUPABASE_VERIFICATION.md) para cobertura y límites de las verificaciones.
+
+## Agente de desarrollo
+
+Ver [configuración de Codex](.codex/README.md) para las skills, workflows y reglas
+de trabajo de este repo.
