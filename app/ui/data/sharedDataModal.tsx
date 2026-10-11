@@ -30,7 +30,7 @@ export default function SharedDataModal({
         <p>
           La persona debe ingresar con el correo invitado y aceptar la
           notificación. Podrá ver esta lista y su historial, y sugerir cambios.
-          Un administrador debe aprobarlos.
+          El propietario de la lista debe aprobarlos.
         </p>
         {!delivery ? (
           <form

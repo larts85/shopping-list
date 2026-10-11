@@ -99,8 +99,8 @@ export default function SharedListControls({
           <p className="text-sm text-zinc-500">
             {data.memberCount}{" "}
             {data.memberCount === 1 ? "persona tiene" : "personas tienen"}{" "}
-            acceso. Tu rol: {data.role === "admin" ? "admin de la app" : "user"}
-            .
+            acceso.
+            {data.role === "admin" && " Rol en la aplicación: Administrador."}
             {data.canEditList
               ? " Puedes gestionar esta lista."
               : " Puedes verla y sugerir cambios."}

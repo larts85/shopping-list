@@ -59,8 +59,9 @@ export default function CatalogRequests() {
           : "Solicitar una categoría o producto"}
       </h2>
       <p className="text-sm text-zinc-600">
-        El catálogo es común a todos. Las solicitudes se publican solo cuando el
-        admin las aprueba. Tu rol: {role ?? "cargando…"}.
+        {role === "admin"
+          ? "Revisa y aprueba las solicitudes pendientes."
+          : "Solicita los productos o categorías que necesitas."}
       </p>
       {error && (
         <p role="alert" className="error-notice">

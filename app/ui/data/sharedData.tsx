@@ -64,12 +64,11 @@ export default function SharedData() {
             <strong>{data.household.name}</strong> · Propietario:{" "}
             {data.household.owner_email}
           </p>
-          <p>
-            Tu rol en la app: <strong>{data.role}</strong>. Todos pueden
-            consultar el catálogo general y gestionar sus propias listas. Solo
-            el admin de la app modifica el catálogo y aprueba nuevas categorías
-            o productos. El propietario controla los accesos a esta lista.
-          </p>
+          {data.role === "admin" && (
+            <p>
+              Rol en la aplicación: <strong>Administrador</strong>.
+            </p>
+          )}
           {owner && (
             <form
               className="flex flex-wrap gap-3 items-end"
