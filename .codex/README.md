@@ -14,7 +14,6 @@ Codex a nivel de proyecto; `.agents/skills/` expone los workflows compartidos de
 | `$feature` | [.ai-assistant/commands/feature.prompt.md](../.ai-assistant/commands/feature.prompt.md) |
 | `$fix` | [.ai-assistant/commands/fix.prompt.md](../.ai-assistant/commands/fix.prompt.md) |
 | `$hotfix` | [.ai-assistant/commands/hotfix.md](../.ai-assistant/commands/hotfix.md) |
-| `$migrate-typescript` | [.ai-assistant/commands/migrate-typescript.md](../.ai-assistant/commands/migrate-typescript.md) |
 | `$plan` | [.ai-assistant/commands/plan.md](../.ai-assistant/commands/plan.md) |
 | `$prompt-base` | [.ai-assistant/commands/base.prompt.md](../.ai-assistant/commands/base.prompt.md) |
 | `$push-and-deploy` | [.ai-assistant/commands/push-and-deploy.md](../.ai-assistant/commands/push-and-deploy.md) |
