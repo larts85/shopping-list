@@ -1,6 +1,5 @@
 "use client";
 import Suggestions from "@/app/ui/list/suggestions";
-import CatalogRequests from "@/app/ui/catalog/catalogRequests";
 import { getHouseholdData } from "@/app/actions/households";
 import { getActiveListId } from "@/app/lib/listClient";
 import { listFetch } from "@/app/lib/listClient";
@@ -227,16 +226,9 @@ export default function Select() {
 
   if (canEditList === undefined)
     return <p role="status">Comprobando permisos…</p>;
-  if (!canEditList)
-    return (
-      <>
-        <Suggestions />
-        <CatalogRequests />
-      </>
-    );
+  if (!canEditList) return <Suggestions />;
   return (
     <div className="space-y-6">
-      <CatalogRequests />
       {error && (
         <div role="alert" className="error-notice">
           <p>{error}</p>
