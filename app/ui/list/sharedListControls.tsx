@@ -19,12 +19,14 @@ export default function SharedListControls({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [name, setName] = useState("");
+  const [copied, setCopied] = useState(false);
   const router = useRouter();
   async function load() {
     try {
       const d = await getHouseholdData(getActiveListId());
       setActiveListId(d.household.id);
       setData(d);
+      setCopied(false);
     } catch {
       setError("No pudimos cargar tus listas.");
     }
@@ -40,6 +42,7 @@ export default function SharedListControls({
       await load();
       await onSwitch();
       window.dispatchEvent(new Event("active-list-changed"));
+      router.push("/logistic");
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cambiar de lista");
@@ -92,6 +95,24 @@ export default function SharedListControls({
                 Compartir lista
               </button>
             )}
+            <button
+              className="btn-secondary"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(
+                    new URL(
+                      `/logistic/lists/${data.household.slug}`,
+                      window.location.origin,
+                    ).href,
+                  );
+                  setCopied(true);
+                } catch {
+                  setError("No pudimos copiar el enlace. Intenta nuevamente.");
+                }
+              }}
+            >
+              {copied ? "Enlace copiado" : "Copiar enlace"}
+            </button>
             <a className="text-sm underline" href="/logistic/data">
               Accesos y nombre
             </a>
@@ -137,8 +158,10 @@ export default function SharedListControls({
             </button>
           </form>
           <p className="text-sm text-zinc-500">
-            Cada lista conserva sus productos pendientes y compras por separado.
-            La nueva empieza vacía y utiliza el catálogo general de la app.
+            El enlace requiere acceso o una invitación para el correo de quien
+            lo abre. Cada lista conserva sus productos pendientes y compras por
+            separado. La nueva empieza vacía y utiliza el catálogo general de la
+            app.
           </p>
         </>
       )}

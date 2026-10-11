@@ -95,6 +95,26 @@ try {
       ) +
       "commit;",
   );
+  const slugMigration = migrationNames.find((n) => n.includes("list_slugs"));
+  await db.exec(
+    readFileSync("supabase/migrations/" + slugMigration, "utf8").replaceAll(
+      "public.",
+      "preview_lists.",
+    ),
+  );
+  const slugs = (await db.query("select id,slug from preview_lists.households"))
+    .rows;
+  assert.equal(new Set(slugs.map((h) => h.slug)).size, 2);
+  assert.ok(slugs.every((h) => /^lista-[0-9a-f]{32}$/.test(h.slug)));
+  await assert.rejects(
+    db.query("update preview_lists.households set slug=$1 where id=$2", [
+      slugs[0].slug,
+      slugs[1].id,
+    ]),
+    /unique/,
+  );
+  const linkedSlug = slugs.find((h) => h.id === homeB).slug;
+  checks += 3;
   assert.equal(
     (await db.query("select count(*)::int n from preview_lists.shopping_list"))
       .rows[0].n,
@@ -152,6 +172,22 @@ try {
     if (next.exitCode !== null) throw new Error(output);
     await new Promise((r) => setTimeout(r, 500));
   }
+  const linkedPath = `/api/households?slug=${linkedSlug}`;
+  assert.deepEqual(await req(linkedPath), { kind: "member", id: homeB });
+  await req(linkedPath, "GET", undefined, outsider, 403);
+  await req(linkedPath, "GET", undefined, "", 401);
+  await req("/api/households?slug=invalid", "GET", undefined, user, 400);
+  const redirect = await fetch(origin + `/logistic/lists/${linkedSlug}`, {
+    redirect: "manual",
+  });
+  assert.equal(redirect.status, 307);
+  assert.equal(
+    new URL(redirect.headers.get("location"), origin).searchParams.get(
+      "returnTo",
+    ),
+    `/logistic/lists/${linkedSlug}`,
+  );
+  checks += 2;
   await req("/api/profile", "GET", undefined, "", 401);
   assert.equal((await req("/api/profile")).role, "user");
   checks++;
@@ -382,6 +418,14 @@ try {
     200,
     second,
   );
+  const secondSlug = (await req("/api/households")).household.slug;
+  assert.notEqual(secondSlug, linkedSlug);
+  const sharedPath = `/api/households?slug=${secondSlug}`;
+  const invitationLink = await req(sharedPath, "GET", undefined, outsider);
+  assert.equal(invitationLink.kind, "invitation");
+  assert.equal(invitationLink.name, "Otra lista");
+  await req(sharedPath, "GET", undefined, admin, 403);
+  checks += 2;
   const recipient = await req("/api/households", "GET", undefined, outsider);
   assert.equal(recipient.invitations.length, 1);
   checks++;
@@ -398,6 +442,10 @@ try {
     { action: "accept", id: recipient.invitations[0].id },
     outsider,
   );
+  assert.deepEqual(await req(sharedPath, "GET", undefined, outsider), {
+    kind: "member",
+    id: second,
+  });
   const shared = await req("/api/households", "GET", undefined, outsider);
   assert.equal(shared.role, "user");
   assert.equal(shared.canEditList, false);
@@ -444,6 +492,7 @@ try {
     second,
   );
   await req("/api/list/get-list", "GET", undefined, outsider, 403, second);
+  await req(sharedPath, "GET", undefined, outsider, 403);
   await req(
     "/api/list/set-bought",
     "PUT",

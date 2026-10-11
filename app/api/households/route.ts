@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { apiError } from "@/app/lib/apiError";
 import {
   getHouseholdData,
+  resolveListSlug,
   createHousehold,
   shareHousehold,
   acceptInvitation,
@@ -11,9 +12,12 @@ import {
   revokeAccess,
   renameHousehold,
 } from "@/app/actions/households";
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    return NextResponse.json(await getHouseholdData());
+    const slug = new URL(request.url).searchParams.get("slug");
+    return NextResponse.json(
+      slug !== null ? await resolveListSlug(slug) : await getHouseholdData(),
+    );
   } catch (e) {
     return apiError(e);
   }
