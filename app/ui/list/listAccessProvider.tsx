@@ -2,9 +2,23 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { resolveListSlug, acceptInvitation } from "@/app/actions/households";
+import type { resolveListSlug } from "@/app/actions/households";
+import { acceptInvitation } from "@/app/actions/households";
 import { getHouseholdData } from "@/app/actions/households";
 import { getActiveListId, setActiveListId } from "@/app/lib/listClient";
+
+async function resolveLinkedList(
+  slug: string,
+): Promise<Awaited<ReturnType<typeof resolveListSlug>>> {
+  const response = await fetch(
+    `/api/households?slug=${encodeURIComponent(slug)}`,
+    { cache: "no-store" },
+  );
+  const result = await response.json();
+  if (!response.ok)
+    throw new Error(result.error || "No pudimos abrir esta lista.");
+  return result;
+}
 
 export default function ListAccessProvider({
   children,
@@ -34,7 +48,7 @@ export default function ListAccessProvider({
         setReadyPath("");
         setError("");
         setInvitation(undefined);
-        const linked = slug ? await resolveListSlug(slug) : undefined;
+        const linked = slug ? await resolveLinkedList(slug) : undefined;
         if (cancelled) return;
         if (linked?.kind === "invitation") {
           setInvitation(linked);
@@ -43,8 +57,11 @@ export default function ListAccessProvider({
         const active =
           linked?.kind === "member" ? linked.id : getActiveListId();
         const data = active
-          ? await getHouseholdData(active).catch((error) => {
-              if (slug) throw error;
+          ? await getHouseholdData(active).catch(() => {
+              if (slug)
+                throw new Error(
+                  "La lista no está disponible o no tienes acceso. Solicita una invitación al propietario.",
+                );
               return getHouseholdData();
             })
           : await getHouseholdData();

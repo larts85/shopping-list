@@ -8,9 +8,9 @@ El proxy conserva el destino durante Google login. La acción de login acepta ú
 
 ## Integración
 
-Aplicar `supabase/migrations/20261011223114_list_slugs.sql` al esquema de destino antes de publicar el código. Para previews con esquema separado, seguir el procedimiento existente de migraciones para ese esquema, sin usar `public` como fallback. Esta entrega no ejecuta migraciones remotas ni cambia configuración de autenticación.
+Aplicar `supabase/migrations/20261011223114_list_slugs.sql` al esquema de destino antes de publicar el código. Para previews con esquema separado, seguir el procedimiento existente de migraciones para ese esquema, sin usar `public` como fallback. La migración se aplicó únicamente a `preview_lists` para validar PR13. `public` queda pendiente de la futura entrega a producción. El callback OAuth del PR12 se reemplazó por el de PR13 en Google Cloud.
 
-Base local: `71e73bc` de PR12. La rama `codex/list-slugs` está en `/private/tmp/home-logistics-list-slugs`; integrar su commit en la rama de PR12 una vez terminada la coordinación de conflictos.
+Base local: `71e73bc` de PR12. PR12 se integró primero a `develop`; `codex/list-slugs` se actualizó con ese estado sin conflictos. PR de la feature: https://github.com/larts85/shopping-list/pull/13.
 
 ## Validación
 
@@ -18,4 +18,6 @@ Base local: `71e73bc` de PR12. La rama `codex/list-slugs` está en `/private/tmp
 - `node --experimental-strip-types scripts/verify-invitation-delivery.mjs`: 21 checks offline de Resend/Gmail; enlace exacto sin sufijos agregados. No se enviaron correos.
 - `yarn lint`, `yarn build`, `yarn typecheck`: pasan.
 
-No se ejercitó un login Google real ni el portapapeles en navegador. Las pruebas de retorno verifican la redirección HTTP; la aceptación y los permisos se verifican por API contra la base efímera. No se ejecutó el SQL contra Supabase remoto.
+En el preview se verificó un login Google real, retorno al slug de una lista existente, selección exacta y confirmación del botón de copia. La prueba de acceso denegado detectó mensajes de Server Actions ocultos en producción; la resolución por slug ahora usa el API existente con errores esperados explícitos.
+
+En el navegador integrado de Codex, contra el build de producción local y una base PGlite efímera, se verificaron creación desde UI con slug automático, enlace que sustituye la selección previa de la pestaña, botón de copia, rechazo de lista ajena con mensaje claro, aceptación desde enlace por destinatario, controles bloqueados para colaborador, revocación y retorno de login anónimo. Se usaron sesiones JWT de fixtures `example.invalid`, suministradas por un arnés temporal externo a la app; no se incorporaron accesos de prueba al código. No se enviaron correos reales. El portapapeles mostró confirmación de copia en UI, aunque la herramienta de lectura no devolvió su contenido.
