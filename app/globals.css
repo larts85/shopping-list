@@ -1,10 +1,86 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@source "../shared";
 
-html,
-body,
-#__next,
-main {
-  height: 100%;
+@theme {
+  --color-card: #ffffff;
+  --color-card-foreground: #18181b;
+  --color-muted-foreground: #71717a;
+  --font-sans: "Inter", system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply min-h-screen bg-zinc-50 text-zinc-900 antialiased;
+  }
+  button,
+  select,
+  a,
+  input,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:not(:disabled),
+  select {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid #52525b;
+    outline-offset: 3px;
+  }
+  input[type="checkbox"] {
+    @apply size-5 shrink-0 accent-zinc-900;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 1rem;
+  }
+  ::selection {
+    @apply bg-zinc-300 text-zinc-950;
+  }
+}
+
+@layer components {
+  .page-heading {
+    @apply text-3xl font-semibold tracking-tight sm:text-4xl;
+  }
+  .page-description {
+    @apply mt-3 max-w-xl text-base leading-relaxed text-zinc-500;
+  }
+  .panel {
+    @apply rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6;
+  }
+  .field {
+    @apply min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-zinc-200 disabled:cursor-not-allowed disabled:bg-zinc-100;
+  }
+  .btn-primary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .icon-button {
+    @apply inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-950;
+  }
+  .btn-danger {
+    @apply inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .error-notice {
+    @apply rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800;
+  }
+  .empty-state {
+    @apply rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-12 text-center text-sm leading-relaxed text-zinc-500;
+  }
+  .loading-state {
+    @apply flex min-h-48 items-center justify-center gap-3 text-sm text-zinc-500;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

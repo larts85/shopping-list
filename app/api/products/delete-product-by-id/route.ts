@@ -1,3 +1,4 @@
+import { apiError } from '@/app/lib/apiError';
 import { NextResponse } from "next/server";
 import { deleteProductById } from "@/app/actions/products";
 
@@ -14,7 +15,6 @@ export async function DELETE(req: Request) {
     await deleteProductById(idProduct);
     return NextResponse.json({ status: 200 });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: error });
+    return apiError(error);
   }
 }

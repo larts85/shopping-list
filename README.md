@@ -1,294 +1,54 @@
-# Shopping List
+# Home Logistics
 
-A Next.js web application for managing shopping lists using Google Drive and Google Sheets as a backend database.
+Aplicación para organizar categorías, productos, listas y compras de hogares compartidos. Google autentica al usuario; Supabase Postgres guarda los datos.
 
-## 🎯 Features
+## Desarrollo
 
-- **Google Authentication**: Secure OAuth 2.0 authentication with Google
-- **Product Management**: Create, edit, and organize household products
-- **Category System**: Organize products into customizable categories
-- **Shopping Lists**: Build shopping lists with quantities, prices, and automatic calculations
-- **Purchase History**: Track all purchases with historical data
-- **Google Drive Integration**: All data stored in your own Google Drive
-- **Data Sharing**: Share your logistics data with family members
-- **Email Notifications**: Send notifications via Gmail
+Requiere Node >=22 y Yarn 1.22.22. Copiar `.env.example` a `.env` (privado), configurar OAuth Google y conexión Postgres de Supabase. Usar la CA oficial del proyecto, incluida en `supabase/certs`; TLS siempre verifica el certificado.
 
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Node.js >= 18.0.0
-- npm or yarn
-- Google account
-- Google Cloud Project with OAuth 2.0 credentials
-
-### Installation
-
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/yourusername/home-logistics.git
-   cd home-logistics
-   ```
-
-2. **Install dependencies**
-
-   ```bash
-   npm install
-   ```
-
-3. **Set up environment variables**
-
-   Create a `.env.local` file in the root directory:
-
-   ```env
-   # Generate with: openssl rand -base64 32
-   AUTH_SECRET=your-random-secret-here
-
-   # Get from Google Cloud Console
-   AUTH_GOOGLE_ID=your-google-client-id.apps.googleusercontent.com
-   AUTH_GOOGLE_SECRET=your-google-client-secret
-   ```
-
-4. **Configure Google Cloud Console**
-
-   See [GOOGLE_AUTH.md](./GOOGLE_AUTH.md) for detailed setup instructions.
-
-5. **Run the development server**
-
-   ```bash
-   npm run dev
-   ```
-
-6. **Open your browser**
-
-   Navigate to [http://localhost:2020](http://localhost:2020)
-
-## 📖 Documentation
-
-- **[Google Authentication Guide](./GOOGLE_AUTH.md)** - Complete guide for setting up Google OAuth
-- **[Configuración de Codex](./.codex/README.md)** - Skills y workflows compartidos del agente
-- **[Memory Bank](./memory-bank/)** - Architecture, patterns, and technical context
-- **[API Documentation](#)** - Coming soon
-
-## 🏗️ Tech Stack
-
-- **Framework**: [Next.js 14](https://nextjs.org/) (App Router, Server Components)
-- **Language**: TypeScript
-- **Authentication**: [NextAuth.js v5](https://next-auth.js.org/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **APIs**: Google Drive, Google Sheets, Gmail
-- **Database**: Google Sheets (via googleapis and google-spreadsheet)
-
-## 📁 Project Structure
-
-```
-home-logistics/
-├── app/
-│   ├── actions/          # Server actions for data operations
-│   ├── api/             # API routes (NextAuth handlers)
-│   ├── lib/             # Shared utilities and helpers
-│   ├── logistic/        # Main application routes
-│   │   ├── add/        # Add items to shopping list
-│   │   ├── admin/      # Admin panel (categories, products)
-│   │   └── data/       # Data sharing features
-│   ├── ui/              # UI components
-│   └── no-data/         # First-time setup page
-├── memory-bank/         # Project documentation
-├── utils/               # Utility functions
-├── auth.ts              # NextAuth configuration
-├── middleware.ts        # Next.js middleware
-└── README.md
+```sh
+yarn deps:install
+yarn typecheck
+yarn lint
+yarn build
+yarn dev
 ```
 
-## 🔐 Security
+Este worktree utiliza http://localhost:2021. Configurar el callback OAuth correspondiente: `http://localhost:2021/api/auth/callback/google`. `dev:clean` limpia únicamente los archivos de este checkout y no mata servidores de otros puertos.
 
-- **OAuth 2.0**: Secure authentication with Google
-- **Server-side API Calls**: All Google API calls made server-side
-- **Encrypted Tokens**: Tokens stored in encrypted JWT cookies
-- **No Client Exposure**: Credentials never exposed to client-side code
-- **User-Owned Data**: All data stored in user's own Google Drive
+Versiones exactas: Next 16.4, React 19.3, TypeScript 6.0.3, Tailwind 4.3.3 y NextAuth beta32. La instalación congela `yarn.lock`, bloquea lifecycle scripts y comprueba origen HTTPS npm e integridad SHA-512.
 
-See [GOOGLE_AUTH.md](./GOOGLE_AUTH.md) for security best practices.
+## Datos y autorización
 
-## 🛠️ Development
+`app/lib/database.ts` conecta al pooler Postgres exclusivamente en el servidor. Cada operación autentica la sesión Google y filtra por hogar activo. El email Google debe estar verificado. Las transacciones y bloqueos evitan listas duplicadas y compras archivadas dos veces. Categorías con productos no pueden borrarse; borrar un producto quita su entrada de lista y conserva snapshots históricos.
 
-### Available Scripts
+Todas las tablas públicas tienen RLS y los roles `anon` y `authenticated` carecen de privilegios. No hay acceso directo del navegador a la base: la autorización por hogar se aplica en el servidor que usa el usuario Postgres. No publicar la contraseña ni prefijarla con `NEXT_PUBLIC_`.
 
-```bash
-npm run dev      # Start development server (port 2020)
-npm run build    # Build for production
-npm start        # Start production server
-npm run lint     # Run ESLint
+`supabase/migrations` contiene el esquema inicial. El esquema del proyecto actual ya fue aplicado; no ejecutar de nuevo CREATE TABLE. Las versiones `20261010064936` y `20261010071941` ya están registradas como aplicadas en el historial remoto. El CLI debe usar el pooler de sesión (puerto 5432) para sus prepared statements; la aplicación usa el pooler de transacción (6543). Antes de nuevas migraciones, comparar `supabase migration list` y revisar `supabase db push --dry-run`.
+
+## Importación anterior
+
+Datos → Autorizar lectura de Google Sheets → pegar enlace/ID → Revisar antes de importar → Importar a Supabase. Solo el propietario puede importar, una vez y en un hogar vacío. Lee `categories`, `products`, `list`, `historical`; conserva planilla, fechas y columnas repetidas, remapea identificadores y guarda todo en una transacción. No escribe en Google.
+
+El login normal solicita únicamente `openid email profile`. La importación solicita puntualmente Sheets/Drive de solo lectura. Luego las operaciones habituales no dependen de Google Sheets ni de Drive.
+
+## Hogares compartidos
+
+El propietario invita por email desde Datos. La persona invitada acepta al iniciar sesión con ese mismo email; puede cambiar entre sus hogares. El propietario puede cancelar invitaciones y revocar acceso. No se envían correos ni se modifican permisos de Drive.
+
+## Verificación
+
+Con servidor 2021 y `.env` configurado:
+
+```sh
+yarn verify:supabase
+yarn verify:households
+yarn verify:import
 ```
 
-### Environment Setup
+El script crea usuarios y hogares sintéticos identificados por UUID bajo `example.invalid`, utiliza sesiones JWT firmadas con el secreto local y limpia únicamente sus fixtures. Comprueba autenticación, CRUD, aislamiento, cálculos, concurrencia, archivo atómico y todas las páginas. No omite autenticación en la aplicación. `verify:households` comprueba invitación, aceptación, cambio, revocación y una revocación concurrente. `verify:import` ejecuta el importador real con respuestas Sheets sintéticas y Postgres aislado, incluyendo rollback y reimportación. Ver [SUPABASE_VERIFICATION.md](SUPABASE_VERIFICATION.md) para cobertura y límites de las verificaciones.
 
-1. Copy `.env.example` to `.env.local`
-2. Fill in your Google OAuth credentials
-3. Generate a random `AUTH_SECRET`
+## Agente de desarrollo
 
-### Google Cloud Setup
-
-Required APIs to enable:
-
-- Google Drive API
-- Google Sheets API
-- Gmail API
-
-Required OAuth Scopes:
-
-- `openid`
-- `email`
-- `profile`
-- `https://www.googleapis.com/auth/drive`
-- `https://www.googleapis.com/auth/gmail.send`
-
-See [GOOGLE_AUTH.md](./GOOGLE_AUTH.md) for step-by-step configuration.
-
-## 📊 How It Works
-
-### First-Time Setup
-
-1. User signs in with Google
-2. Application requests Drive and Gmail permissions
-3. System creates `homeLogistic` folder in user's Google Drive
-4. Creates `homeLogisticSheet` spreadsheet with 4 tabs:
-   - **categories**: Product categories
-   - **products**: Master product list
-   - **list**: Current shopping list
-   - **historical**: Purchase history
-
-### Data Flow
-
-```
-User Action → Server Action → Google Session Auth → Google API → Google Sheets
-```
-
-All operations read/write directly to Google Sheets in the user's Drive.
-
-## 🎨 Features in Detail
-
-### Category Management
-
-- Create, edit, and delete categories
-- Organize products by category
-- Visual category indicators
-
-### Product Management
-
-- Add products with category assignment
-- Mark products as checked/unchecked
-- Edit product details
-- Delete products
-
-### Shopping Lists
-
-- Add products with quantity and price
-- Automatic price calculations (quantity × price)
-- Price per kg calculation for weight-based items
-- Mark items as purchased
-- View organized by categories
-
-### Historical Tracking
-
-- Automatic purchase history recording
-- Track quantities, prices, and dates
-- Budget analysis (coming soon)
-
-### Data Sharing
-
-- Share Google Drive folder with family
-- Collaborative access to shopping data
-- Email notifications
-
-## 🚀 Deployment
-
-### Vercel (Recommended)
-
-1. Push your code to GitHub
-2. Import project in [Vercel](https://vercel.com)
-3. Add environment variables:
-   - `AUTH_SECRET`
-   - `AUTH_GOOGLE_ID`
-   - `AUTH_GOOGLE_SECRET`
-4. Update Google Cloud Console:
-   - Add production URL to authorized domains
-   - Add callback URL: `https://yourdomain.com/api/auth/callback/google`
-5. Deploy!
-
-### Docker
-
-```dockerfile
-# Coming soon
-```
-
-### Traditional Node.js Hosting
-
-```bash
-npm run build
-npm start
-```
-
-Ensure environment variables are set on your hosting platform.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Use TypeScript for new files
-- Follow existing code style
-- Add tests for new features (when test suite is implemented)
-- Update documentation as needed
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [Next.js](https://nextjs.org/) - The React framework
-- [NextAuth.js](https://next-auth.js.org/) - Authentication
-- [Tailwind CSS](https://tailwindcss.com/) - Styling
-- [Google APIs](https://developers.google.com/) - Drive, Sheets, Gmail
-
-## 📧 Support
-
-For issues and questions:
-
-- Open an issue on [GitHub Issues](https://github.com/yourusername/home-logistics/issues)
-- Check [GOOGLE_AUTH.md](./GOOGLE_AUTH.md) for authentication help
-- Review [memory-bank/](./memory-bank/) for technical details
-
-## 🗺️ Roadmap
-
-- [ ] Automated token refresh handling
-- [ ] Comprehensive test suite
-- [ ] Budget tracking and analytics
-- [ ] Recipe integration
-- [ ] Mobile app (React Native)
-- [ ] Barcode scanning
-- [ ] Dark mode
-- [ ] Multi-language support
-- [ ] Export functionality (PDF, CSV)
-- [ ] Offline mode with sync
-
-## 📊 Status
-
-**Current Version**: 0.1.0 (Beta)
-
-**Stability**: Functional, in active development
-
-**Test Coverage**: Not yet implemented
-
----
-
-Made with ❤️ for better household management
+Ver [configuración de Codex](.codex/README.md) para las skills, workflows y reglas
+de trabajo de este repo.

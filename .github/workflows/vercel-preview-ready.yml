@@ -1,0 +1,15 @@
+name: Vercel preview ready
+
+on:
+  deployment_status:
+
+# This notification has no credentials, checkout, artifacts or write permissions.
+permissions: {}
+
+jobs:
+  ready:
+    if: github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: echo 'Vercel deployment ready; reconcile the shared preview on the default branch.'

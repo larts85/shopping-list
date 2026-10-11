@@ -14,14 +14,16 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Contexto del proyecto
 
 Aplicación Next.js App Router con TypeScript, React, Tailwind CSS y NextAuth.
-Los datos se almacenan en Google Sheets y Google Drive. Las rutas están en
+Los datos se almacenan en Supabase Postgres; Google Sheets/Drive se usan solo
+para importar datos anteriores con acceso de lectura. Las rutas están en
 `app/`, las operaciones del servidor en `app/actions/` y `app/api/`, los
 componentes en `app/ui/` y `shared/`, y las utilidades en `utils/`.
 Consultar `package.json`, `memory-bank/` y `GOOGLE_AUTH.md` para el contexto actual.
 
 Usar Yarn porque el repo versiona `yarn.lock`. `yarn dev` inicia el servidor en
-el puerto 2020; `yarn lint` verifica ESLint y `yarn build` genera la aplicación.
-No asumir que existen scripts de tests o typecheck: comprobar `package.json`.
+el puerto 2021; `yarn lint` verifica ESLint y `yarn build` genera la aplicación.
+Usar `yarn typecheck` para TypeScript. Consultar `package.json` para scripts
+de verificación y `SUPABASE_VERIFICATION.md` para sus requisitos.
 Antes de cambiar APIs de Next.js, leer la guía correspondiente instalada en
 `node_modules/next/dist/docs/`.
 

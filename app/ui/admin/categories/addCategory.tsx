@@ -2,11 +2,17 @@
 
 import { useState, SyntheticEvent } from "react";
 import { capitalize } from "../../utils/capitalize";
-import { TextInput, Button, ButtonVariant, ButtonType } from "../../../../shared";
+import {
+  TextInput,
+  Button,
+  ButtonVariant,
+  ButtonType,
+} from "../../../../shared";
 
 export default function AddCategory() {
   const [formData, setFormData] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   const handleChange = (event: SyntheticEvent) => {
     const target = event.target as HTMLInputElement;
@@ -19,6 +25,7 @@ export default function AddCategory() {
     if (!formData.trim()) return;
 
     setIsSubmitting(true);
+    setError("");
     try {
       const response = await fetch("/api/categories/add-category", {
         method: "POST",
@@ -37,17 +44,27 @@ export default function AddCategory() {
       window.location.reload();
     } catch (error) {
       console.error("Error submitting form:", error);
-      // Aquí podríamos mostrar un mensaje de error al usuario
+      setError("No pudimos agregar la categoría. Intenta nuevamente.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="mb-8">
-      <h2 className="text-xl font-semibold text-gray-900 mb-4">Agregar Nueva Categoría</h2>
+    <div className="panel">
+      <h2 className="text-xl font-semibold text-gray-900 mb-4">
+        Agregar Nueva Categoría
+      </h2>
 
-      <form onSubmit={handleSubmit} className="flex gap-4 items-end max-w-md">
+      {error && (
+        <p role="alert" className="error-notice mb-4">
+          {error}
+        </p>
+      )}
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-4 sm:flex-row sm:items-end"
+      >
         <div className="flex-1">
           <TextInput
             type="text"

@@ -1,3 +1,4 @@
+import { apiError } from '@/app/lib/apiError';
 import { NextResponse } from "next/server";
 import { deleteCategoryById } from "@/app/actions/categories";
 
@@ -11,8 +12,8 @@ export async function DELETE(req: Request) {
       );
     }
     await deleteCategoryById(idCategory);
+    return NextResponse.json({ message: "Categoría eliminada" });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: error });
+    return apiError(error);
   }
 }
