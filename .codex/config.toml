@@ -1,0 +1,3 @@
+# Project-scoped Codex settings. Shared workflows remain in .ai-assistant/.
+# Discoverable adapters reference those files from .agents/skills/.
+project_doc_max_bytes = 65536

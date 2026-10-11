@@ -67,6 +67,7 @@ A Next.js web application for managing shopping lists using Google Drive and Goo
 ## 📖 Documentation
 
 - **[Google Authentication Guide](./GOOGLE_AUTH.md)** - Complete guide for setting up Google OAuth
+- **[Configuración de Codex](./.codex/README.md)** - Skills y workflows compartidos del agente
 - **[Memory Bank](./memory-bank/)** - Architecture, patterns, and technical context
 - **[API Documentation](#)** - Coming soon
 
