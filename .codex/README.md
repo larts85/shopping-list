@@ -40,10 +40,10 @@ Las reglas compartidas están en `.ai-assistant/rules/` y se referencian desde
 `AGENTS.md`: implementación, validación y entrega. Son instrucciones para el
 agente, no políticas `.rules` de aprobación de comandos.
 
-Todos los enlaces de los adaptadores son relativos a su propio directorio:
-desde `.agents/skills/feature/`, `../../../.ai-assistant/commands/feature.prompt.md`
-resuelve a `.ai-assistant/commands/feature.prompt.md` **dentro de este repo**.
-No depende de otro checkout, del directorio personal ni de rutas absolutas.
+Los adaptadores indican rutas desde la raíz Git de este checkout. Por ejemplo,
+`feature` lee `.ai-assistant/commands/feature.prompt.md` desde esa raíz.
+Estas referencias se expresan como rutas de archivos, sin enlaces Markdown con
+`../`. No se resuelven desde el directorio de la skill ni dependen de otro repo.
 
 Se conservan solo workflows y reglas pertinentes a Home Logistics. No se
 importan chats, logs, backups ni prompts del proyecto de origen. El prompt de

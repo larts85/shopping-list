@@ -5,6 +5,9 @@ description: Diagnose and fix a Home Logistics defect using the repository's can
 
 # Canonical workflow
 
-Read [the canonical fix workflow](../../../.ai-assistant/commands/fix.prompt.md) completely, then follow it for the current request. The linked file is the source of truth; do not duplicate or redefine its instructions here.
+Locate the Git repository root for this checkout. From that root, read
+`.ai-assistant/commands/fix.prompt.md` completely and follow it within the user’s authorized scope.
+This is a repository-root path, not a path relative to this skill directory or
+the current working directory. Read `AGENTS.md` from the same repository root.
 
-Repository-root location: `.ai-assistant/commands/fix.prompt.md`. Resolve the Markdown link relative to this `SKILL.md` file, not the working directory; its target stays inside this checkout. Read the root `AGENTS.md` before applying the workflow.
+The referenced file is the source of truth; do not duplicate its instructions here.
