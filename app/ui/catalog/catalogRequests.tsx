@@ -159,6 +159,7 @@ export default function CatalogRequests() {
           </button>
         </form>
       )}
+      <h3 className="text-lg font-semibold">Historial de solicitudes</h3>
       <ul className="divide-y divide-zinc-200">
         {requests.map((r) => (
           <li key={r.id} className="py-4 space-y-2">

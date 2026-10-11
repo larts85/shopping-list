@@ -201,6 +201,7 @@ export default function Suggestions({
           </button>
         </form>
       )}
+      <h3 className="text-lg font-semibold">Historial de sugerencias de la lista</h3>
       <ul className="divide-y divide-zinc-200">
         {items.map((s) => (
           <li key={s.id} className="py-3 space-y-2">

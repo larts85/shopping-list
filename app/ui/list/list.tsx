@@ -8,7 +8,6 @@ import { IList } from "@/app/lib/types";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
 import { compatibleUnits, type Unit } from "@/app/lib/units";
 import SharedListControls from "./sharedListControls";
-import Suggestions from "./suggestions";
 import { getHouseholdData } from "@/app/actions/households";
 import { Category } from "@/app/lib/types";
 
@@ -440,7 +439,6 @@ export default function List() {
             )}
           </section>
         ))}
-      <Suggestions onChange={load} />
       {canEditList && listModal && (
         <BoughtListModal
           isOpen={!!listModal}

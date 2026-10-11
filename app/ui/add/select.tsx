@@ -1,5 +1,5 @@
 "use client";
-import Suggestions from "@/app/ui/list/suggestions";
+import Link from "next/link";
 import { getHouseholdData } from "@/app/actions/households";
 import { getActiveListId } from "@/app/lib/listClient";
 import { listFetch } from "@/app/lib/listClient";
@@ -226,7 +226,15 @@ export default function Select() {
 
   if (canEditList === undefined)
     return <p role="status">Comprobando permisos…</p>;
-  if (!canEditList) return <Suggestions />;
+  if (!canEditList)
+    return (
+      <p className="panel">
+        Puedes proponer cambios en esta lista desde{" "}
+        <Link className="underline" href="/logistic/catalog">
+          Solicitudes
+        </Link>.
+      </p>
+    );
   return (
     <div className="space-y-6">
       {error && (
