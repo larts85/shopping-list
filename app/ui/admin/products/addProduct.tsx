@@ -1,10 +1,14 @@
 "use client";
+import { listFetch } from "@/app/lib/listClient";
 import { useState, useEffect, useRef, SyntheticEvent } from "react";
 import { ClipLoader } from "react-spinners";
 import { capitalize } from "../../utils/capitalize";
 import { RiDeleteBin6Line } from "react-icons/ri";
 import DeleteProductModal from "./deleteProductModal";
 import { BiEditAlt } from "react-icons/bi";
+import UnitSelect from "@/shared/components/ui/UnitSelect";
+import { unitLabels, type Unit } from "@/app/lib/units";
+import { suggestProductUnit } from "@/app/lib/productUnits";
 import EditProductModal from "./editProductModal";
 interface Category {
   id: string;
@@ -16,11 +20,13 @@ interface Product {
   name: string;
   id_category: string;
   checked: boolean;
+  unit?: Unit;
 }
 
 export interface NewProduct {
   name: string;
   idCategory: string;
+  unit: Unit;
 }
 
 export default function AddProduct() {
@@ -31,6 +37,8 @@ export default function AddProduct() {
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [unit, setUnit] = useState<Unit>("un");
+  const [unitChosen, setUnitChosen] = useState(false);
   const [newProductName, setNewProductName] = useState<string>("");
   const [editModalProduct, setEditModalProduct] = useState<Product | null>(
     null,
@@ -52,12 +60,15 @@ export default function AddProduct() {
 
   async function fetchCategories() {
     try {
-      const categoriesRespone = await fetch("/api/categories/get-categories", {
-        method: "GET",
-        headers: {
-          "content-type": "application/json",
+      const categoriesRespone = await listFetch(
+        "/api/categories/get-categories",
+        {
+          method: "GET",
+          headers: {
+            "content-type": "application/json",
+          },
         },
-      });
+      );
       if (!categoriesRespone.ok) {
         throw new Error("Error fetching categories");
       }
@@ -81,11 +92,14 @@ export default function AddProduct() {
     const requestId = ++productRequest.current;
     setError("");
     try {
-      const response = await fetch("/api/products/get-products-by-category", {
-        method: "POST",
-        headers: { "Content-type": "application/json" },
-        body: JSON.stringify({ id_category: selectedCategory }),
-      });
+      const response = await listFetch(
+        "/api/products/get-products-by-category",
+        {
+          method: "POST",
+          headers: { "Content-type": "application/json" },
+          body: JSON.stringify({ id_category: selectedCategory }),
+        },
+      );
       if (!response.ok) throw new Error("Error fetching products");
       const data = await response.json();
       if (requestId === productRequest.current) setProducts(data);
@@ -103,6 +117,13 @@ export default function AddProduct() {
     const target = event.target as HTMLInputElement;
     const nameCategory = capitalize(target.value);
     setNewProductName(nameCategory);
+    if (!unitChosen)
+      setUnit(
+        suggestProductUnit(
+          nameCategory,
+          categories.find((c) => c.id === selectedCategory)?.name,
+        ),
+      );
   };
 
   const handleSubmit = async (event: React.ChangeEvent<HTMLFormElement>) => {
@@ -113,9 +134,10 @@ export default function AddProduct() {
     const product: NewProduct = {
       name: newProductName,
       idCategory: selectedCategory,
+      unit,
     };
     try {
-      const response = await fetch("/api/products/add-product", {
+      const response = await listFetch("/api/products/add-product", {
         method: "POST",
         body: JSON.stringify(product),
         headers: {
@@ -128,6 +150,8 @@ export default function AddProduct() {
       }
 
       setNewProductName("");
+      setUnit("un");
+      setUnitChosen(false);
 
       await fetchProducts();
     } catch (error) {
@@ -168,7 +192,16 @@ export default function AddProduct() {
           Categoría
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategoy(e.target.value)}
+            onChange={(e) => {
+              setSelectedCategoy(e.target.value);
+              if (!unitChosen)
+                setUnit(
+                  suggestProductUnit(
+                    newProductName,
+                    categories.find((c) => c.id === e.target.value)?.name,
+                  ),
+                );
+            }}
             className="field mt-2"
             disabled={isSubmitting}
             required
@@ -196,6 +229,23 @@ export default function AddProduct() {
             required
           />
         </label>
+        <label className="text-sm font-medium">
+          Unidad de medida
+          <UnitSelect
+            value={unit}
+            onChange={(value) => {
+              setUnit(value);
+              setUnitChosen(true);
+            }}
+            disabled={isSubmitting}
+          />
+        </label>
+        <p className="text-sm text-zinc-500 lg:col-span-2">
+          Sugerimos la unidad según el producto. Usa kg/g para productos al
+          peso, litros/ml para volumen y unidades para envases o paquetes. Ej.:
+          queso sardo → kg; leche → litros; leche (caja 1 l) → unidades. Puedes
+          cambiarla antes de guardar.
+        </p>
         <div className="lg:col-span-2">
           <button
             type="submit"
@@ -235,6 +285,9 @@ export default function AddProduct() {
               >
                 <span className="min-w-0 break-words text-sm font-medium">
                   {product.name}
+                  <span className="ml-2 text-xs font-normal text-zinc-500">
+                    {unitLabels[product.unit ?? "un"]}
+                  </span>
                 </span>
                 <div className="flex shrink-0 gap-1">
                   <button
@@ -265,6 +318,7 @@ export default function AddProduct() {
           onClose={handleCloseEditModal}
           idProduct={editModalProduct.id}
           nameProduct={editModalProduct.name}
+          unitProduct={editModalProduct.unit ?? "un"}
         />
       )}
       {deleteModalProduct && (

@@ -1,4 +1,5 @@
 "use client";
+import { listFetch } from "@/app/lib/listClient";
 import Modal from "@/shared/components/ui/Modal";
 
 import { useState } from "react";
@@ -33,7 +34,7 @@ const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
         idCategory: idCategory,
         newNameCategory: newNameCategory,
       };
-      const response = await fetch("/api/categories/edit-category", {
+      const response = await listFetch("/api/categories/edit-category", {
         method: "PUT",
         body: JSON.stringify(category),
         headers: {

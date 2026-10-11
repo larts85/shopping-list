@@ -1,0 +1,848 @@
+[
+  {
+    "category": "Verdulería",
+    "name": "Banana",
+    "unit": "kg",
+    "source": "Coto / Carrefour; catálogo existente"
+  },
+  {
+    "category": "Verdulería",
+    "name": "Manzana",
+    "unit": "kg",
+    "source": "Coto / Carrefour; catálogo existente"
+  },
+  {
+    "category": "Verdulería",
+    "name": "Pera",
+    "unit": "kg",
+    "source": "Coto / Carrefour; catálogo existente"
+  },
+  {
+    "category": "Verdulería",
+    "name": "Uvas",
+    "unit": "kg",
+    "source": "Coto / Carrefour; catálogo existente"
+  },
+  {
+    "category": "Verdulería",
+    "name": "Plátano",
+    "unit": "kg",
+    "source": "Coto / Carrefour; catálogo existente"
+  },
+  {
+    "category": "Verdulería",
+    "name": "Tomate",
+    "unit": "kg",
+    "source": "Coto / Carrefour; catálogo existente"
+  },
+  {
+    "category": "Verdulería",
+    "name": "Limón",
+    "unit": "kg",
+    "source": "Coto / Carrefour; catálogo existente"
+  },
+  {
+    "category": "Verdulería",
+    "name": "Jengibre",
+    "unit": "kg",
+    "source": "Coto / Carrefour; catálogo existente"
+  },
+  {
+    "category": "Carnicos",
+    "name": "Carne",
+    "unit": "kg",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Carnicos",
+    "name": "Cerdo",
+    "unit": "kg",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Carnicos",
+    "name": "Pollo",
+    "unit": "kg",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Carnicos",
+    "name": "Chuleta de jamón de cerdo",
+    "unit": "kg",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Carnicos",
+    "name": "Chuleta de paleta de cerdo",
+    "unit": "kg",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Carnicos",
+    "name": "Carré de cerdo",
+    "unit": "kg",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Carnicos",
+    "name": "Osobuco",
+    "unit": "kg",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Carnicos",
+    "name": "Carnaza de novillo",
+    "unit": "kg",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Carnicos",
+    "name": "Cuarto trasero de pollo",
+    "unit": "kg",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Carnicos",
+    "name": "Chorizo de cerdo",
+    "unit": "kg",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Carnicos",
+    "name": "Morcilla",
+    "unit": "kg",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Pescadería",
+    "name": "Filet de merluza",
+    "unit": "kg",
+    "source": "Coto"
+  },
+  {
+    "category": "Lácteos",
+    "name": "Queso Sardo",
+    "unit": "kg",
+    "source": "El Puente"
+  },
+  {
+    "category": "Lácteos",
+    "name": "Queso Mar del Plata",
+    "unit": "kg",
+    "source": "El Puente"
+  },
+  {
+    "category": "Lácteos",
+    "name": "Leche",
+    "unit": "lt",
+    "source": "Coto / Carrefour / Diarco"
+  },
+  {
+    "category": "Lácteos",
+    "name": "Crema de leche",
+    "unit": "ml",
+    "source": "Coto"
+  },
+  {
+    "category": "Lácteos",
+    "name": "Queso crema light (pote 290 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour"
+  },
+  {
+    "category": "Lácteos",
+    "name": "Manteca (pan 200 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour"
+  },
+  {
+    "category": "Lácteos",
+    "name": "Dulce de leche (pote 400 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour"
+  },
+  {
+    "category": "Lácteos",
+    "name": "Leche en polvo (lata 750 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour"
+  },
+  {
+    "category": "Lácteos",
+    "name": "Leche condensada (envase 395 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour"
+  },
+  {
+    "category": "Lácteos",
+    "name": "Actimel (botella 100 ml)",
+    "unit": "un",
+    "source": "Coto / Carrefour"
+  },
+  {
+    "category": "Fiambrería",
+    "name": "Jamón cocido",
+    "unit": "kg",
+    "source": "El Puente"
+  },
+  {
+    "category": "Fiambrería",
+    "name": "Paleta de cerdo",
+    "unit": "kg",
+    "source": "El Puente"
+  },
+  {
+    "category": "Fiambrería",
+    "name": "Salchichón primavera",
+    "unit": "kg",
+    "source": "El Puente"
+  },
+  {
+    "category": "Fiambrería",
+    "name": "Queso barra",
+    "unit": "kg",
+    "source": "El Puente"
+  },
+  {
+    "category": "Fiambrería",
+    "name": "Jamón cocido (paquete 150 g)",
+    "unit": "un",
+    "source": "Carrefour / DIA"
+  },
+  {
+    "category": "Fiambrería",
+    "name": "Salchichas (paquete)",
+    "unit": "un",
+    "source": "Carrefour / DIA"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Agua",
+    "unit": "lt",
+    "source": "DIA / Coto; catálogo existente"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Vino",
+    "unit": "lt",
+    "source": "DIA / Coto; catálogo existente"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Cerveza",
+    "unit": "lt",
+    "source": "DIA / Coto; catálogo existente"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Jugo durazno delicioso",
+    "unit": "lt",
+    "source": "DIA / Coto; catálogo existente"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Jugo manzana",
+    "unit": "lt",
+    "source": "DIA / Coto; catálogo existente"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Agua sin gas (bidón 6,5 l)",
+    "unit": "un",
+    "source": "DIA / Coto / Carrefour"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Agua mineral (botella 2 l)",
+    "unit": "un",
+    "source": "DIA / Coto / Carrefour"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Agua saborizada manzana (botella 2,25 l)",
+    "unit": "un",
+    "source": "DIA / Coto / Carrefour"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Gaseosa cola sin azúcar (botella 2,25 l)",
+    "unit": "un",
+    "source": "DIA / Coto / Carrefour"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Cerveza sin alcohol (lata 473 ml)",
+    "unit": "un",
+    "source": "DIA / Coto / Carrefour"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Cerveza roja (lata 500 ml)",
+    "unit": "un",
+    "source": "DIA / Coto / Carrefour"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Cerveza negra (lata 500 ml)",
+    "unit": "un",
+    "source": "DIA / Coto / Carrefour"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Malta sin alcohol (porrón)",
+    "unit": "un",
+    "source": "DIA / Coto / Carrefour"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Gin (botella 750 ml)",
+    "unit": "un",
+    "source": "DIA / Coto / Carrefour"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Granadina (botella 750 ml)",
+    "unit": "un",
+    "source": "DIA / Coto / Carrefour"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Jugo de naranja (caja 1 l)",
+    "unit": "un",
+    "source": "DIA / Coto / Carrefour"
+  },
+  {
+    "category": "Bebidas",
+    "name": "Jugo naranja y mango (caja 500 ml)",
+    "unit": "un",
+    "source": "DIA / Coto / Carrefour"
+  },
+  {
+    "category": "Almacén",
+    "name": "Arroz parboil (paquete 1 kg)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Arroz parboil (paquete 500 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Azúcar mascabo (paquete 800 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Café tostado molido (paquete 500 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Café instantáneo (frasco)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Sal gruesa (paquete 500 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Maíz pisingallo (paquete 500 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Avena instantánea (paquete 400 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Yerba mate (paquete 500 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Puré de tomate (envase 520 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Porotos colorados (lata 350 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Porotos negros (lata 350 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Atún (lata)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Choclo en granos (lata)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Aceitunas (envase)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Ketchup (envase 500 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Mayonesa liviana (envase 475 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Salsa barbacoa (envase 500 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Mostaza (envase 250 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Salsa de soja (botella 300 ml)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Aceto balsámico (botella 500 ml)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Vinagre de manzana (botella 1 l)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Ajo granulado (sobre 15 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Comino molido (sobre 25 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Orégano (sobre 15 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Rebozador (paquete 1 kg)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Pan rallado (paquete 1 kg)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Galletas de arroz (paquete)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Galletitas de salvado (paquete 624 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Galletitas de chocolate (paquete 170 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Papas fritas (paquete 275 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Nachos (paquete 260 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Almacén",
+    "name": "Gomitas (paquete 35 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Dietética",
+    "name": "Maní tostado sin sal",
+    "unit": "g",
+    "source": "Factura de dietética"
+  },
+  {
+    "category": "Dietética",
+    "name": "Castañas de cajú",
+    "unit": "g",
+    "source": "Factura de dietética"
+  },
+  {
+    "category": "Dietética",
+    "name": "Ciruelas secas",
+    "unit": "g",
+    "source": "Factura de dietética"
+  },
+  {
+    "category": "Dietética",
+    "name": "Pasas de uva",
+    "unit": "g",
+    "source": "Factura de dietética"
+  },
+  {
+    "category": "Dietética",
+    "name": "Cacao amargo",
+    "unit": "g",
+    "source": "Factura de dietética"
+  },
+  {
+    "category": "Dietética",
+    "name": "Almendras",
+    "unit": "g",
+    "source": "Factura de dietética"
+  },
+  {
+    "category": "Dietética",
+    "name": "Nueces",
+    "unit": "g",
+    "source": "Factura de dietética"
+  },
+  {
+    "category": "Dietética",
+    "name": "Porotos negros secos (paquete 1 kg)",
+    "unit": "un",
+    "source": "Factura de dietética / Carrefour"
+  },
+  {
+    "category": "Dietética",
+    "name": "Semillas de girasol (paquete 250 g)",
+    "unit": "un",
+    "source": "Factura de dietética / Carrefour"
+  },
+  {
+    "category": "Panadería",
+    "name": "Pan de salvado (bolsa 560 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / El Puente"
+  },
+  {
+    "category": "Panadería",
+    "name": "Pan de salvado (bolsa 380 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / El Puente"
+  },
+  {
+    "category": "Panadería",
+    "name": "Pan de hamburguesa (paquete 210 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / El Puente"
+  },
+  {
+    "category": "Panadería",
+    "name": "Rapiditas integrales (paquete 275 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / El Puente"
+  },
+  {
+    "category": "Panadería",
+    "name": "Tostadas de salvado (paquete 200 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / El Puente"
+  },
+  {
+    "category": "Panadería",
+    "name": "Madalenas (paquete 175 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / El Puente"
+  },
+  {
+    "category": "Panadería",
+    "name": "Tapas de empanadas (paquete)",
+    "unit": "un",
+    "source": "Coto / Carrefour / El Puente"
+  },
+  {
+    "category": "Panadería",
+    "name": "Pizza de muzzarella",
+    "unit": "un",
+    "source": "Coto / Carrefour / El Puente"
+  },
+  {
+    "category": "Panadería",
+    "name": "Facturas surtidas",
+    "unit": "un",
+    "source": "Coto / Carrefour / El Puente"
+  },
+  {
+    "category": "Congelados",
+    "name": "Papas congeladas (bolsa 700 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Congelados",
+    "name": "Papas congeladas (bolsa 400 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Congelados",
+    "name": "Hamburguesas (caja 320 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Limpieza",
+    "name": "Lavandina (bidón 2 l)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Limpieza",
+    "name": "Detergente (botella)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Limpieza",
+    "name": "Suavizante (botella)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Limpieza",
+    "name": "Jabón en polvo (paquete 800 g)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Limpieza",
+    "name": "Sal para lavavajillas (paquete 1 kg)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Limpieza",
+    "name": "Abrillantador (botella 500 ml)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Limpieza",
+    "name": "Bolsas de residuos 45 × 60 (rollo 20 un)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Limpieza",
+    "name": "Papel higiénico (paquete)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Limpieza",
+    "name": "Rollos de cocina (paquete 3 un)",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Limpieza",
+    "name": "Esponja",
+    "unit": "un",
+    "source": "Coto / Carrefour / DIA"
+  },
+  {
+    "category": "Aseo",
+    "name": "Jabón de tocador (barra 125 g)",
+    "unit": "un",
+    "source": "Coto / DIA"
+  },
+  {
+    "category": "Aseo",
+    "name": "Jabón líquido (envase 220 ml)",
+    "unit": "un",
+    "source": "Coto / DIA"
+  },
+  {
+    "category": "Aseo",
+    "name": "Crema corporal (botella 400 ml)",
+    "unit": "un",
+    "source": "Coto / DIA"
+  },
+  {
+    "category": "Aseo",
+    "name": "Desodorante (aerosol 250 ml)",
+    "unit": "un",
+    "source": "Coto / DIA"
+  },
+  {
+    "category": "Aseo",
+    "name": "Crema dental (pomo 140 g)",
+    "unit": "un",
+    "source": "Coto / DIA"
+  },
+  {
+    "category": "Aseo",
+    "name": "Algodón (paquete 300 g)",
+    "unit": "un",
+    "source": "Coto / DIA"
+  },
+  {
+    "category": "Bebés",
+    "name": "Pañales (pack 26 un)",
+    "unit": "un",
+    "source": "Diarco / facturas de pañales"
+  },
+  {
+    "category": "Bebés",
+    "name": "Óleo calcáreo (botella 250 ml)",
+    "unit": "un",
+    "source": "Diarco / facturas de pañales"
+  },
+  {
+    "category": "Hogar",
+    "name": "Recipiente hermético 1,2 l",
+    "unit": "un",
+    "source": "Coto / facturas de equipamiento"
+  },
+  {
+    "category": "Hogar",
+    "name": "Recipiente hermético 450 ml",
+    "unit": "un",
+    "source": "Coto / facturas de equipamiento"
+  },
+  {
+    "category": "Hogar",
+    "name": "Repasador",
+    "unit": "un",
+    "source": "Coto / facturas de equipamiento"
+  },
+  {
+    "category": "Hogar",
+    "name": "Jarra térmica 2,5 l",
+    "unit": "un",
+    "source": "Coto / facturas de equipamiento"
+  },
+  {
+    "category": "Hogar",
+    "name": "Molde de silicona para freidora de aire",
+    "unit": "un",
+    "source": "Coto / facturas de equipamiento"
+  },
+  {
+    "category": "Hogar",
+    "name": "Papel film (rollo)",
+    "unit": "un",
+    "source": "Coto / facturas de equipamiento"
+  },
+  {
+    "category": "Hogar",
+    "name": "Cinta de embalaje (pack)",
+    "unit": "un",
+    "source": "Coto / facturas de equipamiento"
+  },
+  {
+    "category": "Hogar",
+    "name": "Resma de papel A4",
+    "unit": "un",
+    "source": "Coto / facturas de equipamiento"
+  },
+  {
+    "category": "Ferretería",
+    "name": "Pilas AAA (pack)",
+    "unit": "un",
+    "source": "DIA / facturas de ferretería"
+  },
+  {
+    "category": "Ferretería",
+    "name": "Corredera telescópica 400 mm",
+    "unit": "un",
+    "source": "DIA / facturas de ferretería"
+  },
+  {
+    "category": "Ferretería",
+    "name": "Adhesivo vinílico (envase 500 g)",
+    "unit": "un",
+    "source": "DIA / facturas de ferretería"
+  },
+  {
+    "category": "Ferretería",
+    "name": "Imanes de neodimio (pack 50 un)",
+    "unit": "un",
+    "source": "DIA / facturas de ferretería"
+  },
+  {
+    "category": "Ferretería",
+    "name": "Manguera de descarga de lavarropas 4 m",
+    "unit": "un",
+    "source": "DIA / facturas de ferretería"
+  },
+  {
+    "category": "Ferretería",
+    "name": "Manguera de carga de lavarropas 3 m",
+    "unit": "un",
+    "source": "DIA / facturas de ferretería"
+  },
+  {
+    "category": "Impresión 3D",
+    "name": "Filamento PLA (bobina 1 kg)",
+    "unit": "un",
+    "source": "Facturas de filamento"
+  },
+  {
+    "category": "Impresión 3D",
+    "name": "Filamento PETG (bobina 1 kg)",
+    "unit": "un",
+    "source": "Facturas de filamento"
+  }
+]

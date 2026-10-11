@@ -1,24 +1,30 @@
 "use server";
 import {
   withHousehold,
+  withListEditor,
   text,
   positive,
   requireRow,
   DataError,
 } from "../lib/database";
+import {
+  purchaseValues,
+  requireCompatibleUnit,
+} from "../lib/purchaseValidation";
+import type { Unit } from "../lib/units";
 import type { IList } from "../lib/types";
 export async function addList(): Promise<void> {
-  await withHousehold(async (db, h) => {
+  await withListEditor(async (db, h) => {
     await db.query(
-      "insert into shopping_list(household_id,id_product) select household_id,id from products where household_id=$1 and checked on conflict(household_id,id_product) do nothing",
+      "insert into shopping_list(household_id,id_product,unit) select $1,p.id,p.unit from catalog_products p join list_selections s on s.product_id=p.id where s.household_id=$1 and s.checked and not p.archived on conflict(household_id,id_product) do nothing",
       [h],
     );
   });
 }
-export async function getList(): Promise<IList[]> {
+export async function getList(scope?: string): Promise<IList[]> {
   return withHousehold(async (db, h) => {
     const { rows } = await db.query(
-      `select l.*,p.name,p.id_category from shopping_list l join products p on p.id=l.id_product and p.household_id=l.household_id where l.household_id=$1 order by p.name,l.id`,
+      `select l.*,p.name,p.id_category,p.unit as product_unit from shopping_list l join catalog_products p on p.id=l.id_product where l.household_id=$1 order by p.name,l.id`,
       [h],
     );
     const currency = (n: number) =>
@@ -47,26 +53,38 @@ export async function getList(): Promise<IList[]> {
           ? ""
           : String(Number(r.cantidad) * Number(r.medida)),
       comprado: r.comprado ? "1" : "",
+      unit: r.unit ?? r.product_unit,
+      productUnit: r.product_unit,
     }));
-  });
+  }, scope);
 }
 export async function setBought(
   id: string,
   cantidad: number,
   medida: number,
   precio: number,
+  unit?: Unit,
 ): Promise<void> {
-  await withHousehold(async (db, h) => {
+  const values = purchaseValues(cantidad, medida, unit);
+  const price = positive(precio, true);
+  await withListEditor(async (db, h) => {
+    const product = await db.query(
+      "select p.unit from shopping_list l join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2",
+      [h, text(id)],
+    );
+    requireRow(product.rowCount);
+    if (values.unit) requireCompatibleUnit(values.unit, product.rows[0].unit);
     requireRow(
       (
         await db.query(
-          "update shopping_list set cantidad=$3,medida=$4,precio=$5,comprado=true where household_id=$1 and id=$2",
+          "update shopping_list set cantidad=$3,medida=$4,precio=$5,comprado=true,unit=coalesce($6,unit) where household_id=$1 and id=$2",
           [
             h,
             text(id),
-            positive(cantidad),
-            positive(medida),
-            positive(precio, true),
+            values.cantidad,
+            values.medida,
+            price,
+            values.unit ?? null,
           ],
         )
       ).rowCount,
@@ -88,7 +106,7 @@ export async function shoppingList(): Promise<IList[]> {
   return (await getList()).filter((p) => p.comprado === "1");
 }
 export async function deleteShoppingList(): Promise<void> {
-  await withHousehold(async (db, h) => {
+  await withListEditor(async (db, h) => {
     await db.query(
       "delete from shopping_list where household_id=$1 and comprado",
       [h],
@@ -96,18 +114,40 @@ export async function deleteShoppingList(): Promise<void> {
   });
 }
 export async function updateMultipleProducts(
-  products: { id: string; cantidad: number; medida: number; precio: number }[],
+  products: {
+    id: string;
+    cantidad: number;
+    medida: number;
+    precio: number;
+    unit?: Unit;
+  }[],
 ): Promise<void> {
-  if (!Array.isArray(products)) throw new DataError("Lista inválida");
-  await withHousehold(async (db, h) => {
-    for (const p of products)
+  if (!Array.isArray(products) || products.length > 500)
+    throw new DataError("Lista inválida");
+  const validated = products.map((p) => {
+    if (!p || typeof p !== "object") throw new DataError("Producto inválido");
+    return { id: text(p.id), ...purchaseValues(p.cantidad, p.medida, p.unit) };
+  });
+  await withListEditor(async (db, h) => {
+    for (const p of validated) {
+      const product = await db.query(
+        "select l.comprado,p.unit from shopping_list l join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2",
+        [h, p.id],
+      );
+      requireRow(product.rowCount);
+      if (product.rows[0].comprado)
+        throw new DataError(
+          "Registra nuevamente la compra para cambiar sus cantidades",
+        );
+      if (p.unit) requireCompatibleUnit(p.unit, product.rows[0].unit);
       requireRow(
         (
           await db.query(
-            "update shopping_list set cantidad=$3,medida=$4 where household_id=$1 and id=$2",
-            [h, text(p.id), positive(p.cantidad), positive(p.medida)],
+            "update shopping_list set cantidad=$3,medida=$4,unit=coalesce($5,unit) where household_id=$1 and id=$2",
+            [h, p.id, p.cantidad, p.medida, p.unit ?? null],
           )
         ).rowCount,
       );
+    }
   });
 }

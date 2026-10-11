@@ -1,18 +1,23 @@
+import type { Unit } from "./units";
+
 export interface Product {
   id: string;
   name: string;
   id_category: string;
   checked: boolean;
+  unit?: Unit;
 }
 
 export interface ProductChecked {
   idProduct: string;
   checked: boolean;
+  unit?: Unit;
 }
 
 export interface AddProduct {
   name: string;
   idCategory: string;
+  unit?: Unit;
 }
 
 export interface Category {
@@ -37,4 +42,6 @@ export interface IList {
   precioKg: string;
   kgTotal: string;
   comprado: string;
+  unit?: Unit;
+  productUnit?: Unit;
 }

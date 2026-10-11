@@ -1,8 +1,14 @@
 "use client";
-import { useState, useEffect } from "react";
+import { getActiveListId, setActiveListId } from "@/app/lib/listClient";
+import { listFetch } from "@/app/lib/listClient";
+import { useState, useEffect, useRef } from "react";
 import { ClipLoader } from "react-spinners";
 import BoughtListModal from "./boughtModal";
 import { IList } from "@/app/lib/types";
+import UnitSelect from "@/shared/components/ui/UnitSelect";
+import { compatibleUnits, type Unit } from "@/app/lib/units";
+import SharedListControls from "./sharedListControls";
+import { getHouseholdData } from "@/app/actions/households";
 import { Category } from "@/app/lib/types";
 
 export default function List() {
@@ -10,17 +16,50 @@ export default function List() {
     load();
   }, []);
 
+  const [canEditList, setCanEditList] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [list, setList] = useState<Record<string, IList[]>>({});
   const [listModal, setLisModal] = useState<IList | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const revision = useRef(0);
+  const [dirty, setDirty] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const reload = () => {
+      revision.current++;
+      setDirty({});
+      setLisModal(null);
+      void load();
+    };
+    window.addEventListener("active-list-changed", reload);
+    return () => window.removeEventListener("active-list-changed", reload);
+  }, []);
+
+  useEffect(() => {
+    if (isLoading || listModal || Object.keys(dirty).length) return;
+    const refresh = () => {
+      if (document.visibilityState === "visible")
+        void Promise.all([fetchList(), fetchCategories()]).catch(() =>
+          setError("No se pudo actualizar la lista compartida."),
+        );
+    };
+    const timer = setInterval(refresh, 15000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [isLoading, listModal, dirty]);
 
   async function load() {
     setIsLoading(true);
     setError("");
     try {
+      const data = await getHouseholdData(getActiveListId());
+      setActiveListId(data.household.id);
+      setCanEditList(data.canEditList);
       await Promise.all([fetchList(), fetchCategories()]);
     } catch {
       setError("No pudimos cargar tu lista. Intenta nuevamente.");
@@ -46,12 +85,15 @@ export default function List() {
   }, [categories]);
 
   async function fetchCategories() {
-    const categoriesRespone = await fetch("/api/categories/get-categories", {
-      method: "GET",
-      headers: {
-        "content-type": "application/json",
+    const categoriesRespone = await listFetch(
+      "/api/categories/get-categories",
+      {
+        method: "GET",
+        headers: {
+          "content-type": "application/json",
+        },
       },
-    });
+    );
     if (!categoriesRespone.ok) {
       throw new Error("Error fetching categories");
     }
@@ -61,7 +103,8 @@ export default function List() {
   }
 
   async function fetchList() {
-    const dataFechList = await fetch(
+    const startedAtRevision = revision.current;
+    const dataFechList = await listFetch(
       "/api/list/get-list-products-by-categories",
       {
         method: "GET",
@@ -75,9 +118,12 @@ export default function List() {
     }
     const filteredProductListByCategories = await dataFechList.json();
 
-    setList(filteredProductListByCategories);
+    if (startedAtRevision === revision.current)
+      setList(filteredProductListByCategories);
   }
   const handleOpenModal = (list: IList) => {
+    if (!canEditList) return;
+    revision.current++;
     setLisModal(list);
   };
 
@@ -94,7 +140,16 @@ export default function List() {
         return updatedListProduct;
       });
     }
+    revision.current++;
     setLisModal(null);
+    if (updateList) {
+      setDirty((prev) => {
+        const next = { ...prev };
+        delete next[updateList.id];
+        return next;
+      });
+      void fetchList();
+    }
   };
 
   const toggleCategoryVisibility = (categoryId: string) => {
@@ -109,13 +164,16 @@ export default function List() {
     setError("");
     setStatus("");
     try {
-      const response = await fetch("/api/historical/add-historical", {
+      const response = await listFetch("/api/historical/add-historical", {
         method: "POST",
         headers: { "content-type": "application/json" },
       });
       if (!response.ok) throw new Error("Error cleaning list");
       await fetchList();
-      setStatus("Lista limpiada.");
+      setDirty({});
+      setStatus(
+        "Compra guardada en el historial. Los pendientes siguen en la lista.",
+      );
     } catch {
       setError("No pudimos limpiar la lista. Intenta nuevamente.");
     } finally {
@@ -124,12 +182,22 @@ export default function List() {
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
     productId: string,
     categoryId: string,
     field: string,
   ) => {
     const { value } = e.target;
+    if (
+      field === "cantidad" &&
+      value !== "" &&
+      (!Number.isFinite(Number(value)) || Number(value) <= 0)
+    ) {
+      setError("La cantidad debe ser mayor que cero.");
+      return;
+    }
+    revision.current++;
+    setDirty((prev) => ({ ...prev, [productId]: true }));
     setStatus("");
     setError("");
 
@@ -146,35 +214,38 @@ export default function List() {
     setIsLoading(true);
     setError("");
     setStatus("");
-    // Transformar el diccionario en un array de productos
-    const productsToUpdate = Object.values(list)
+    const changedProducts = Object.values(list)
       .flat()
+      .filter((product) => dirty[product.id] && product.comprado !== "1")
       .map((product) => ({
         id: product.id,
-        cantidad: parseFloat(product.cantidad),
-        medida: parseFloat(product.medida),
+        cantidad: Number(product.cantidad),
+        medida: 1,
         precio: 0,
+        unit: product.unit ?? "un",
       }));
-
-    // Filtrar los productos que tengan valores en los campos 'cantidad' y 'medida'
-    const changedProducts = productsToUpdate.filter((product) => {
-      return product.cantidad > 0 && product.medida > 0;
-    });
-
+    if (
+      changedProducts.some(
+        (p) => !Number.isFinite(p.cantidad) || p.cantidad <= 0,
+      )
+    ) {
+      setError("Todas las cantidades editadas deben ser mayores que cero.");
+      setIsLoading(false);
+      return;
+    }
     try {
       if (changedProducts.length === 0) {
-        setError(
-          "Completa una cantidad y una medida mayores que cero antes de guardar.",
-        );
+        setError("Edita una cantidad o unidad antes de guardar.");
         return;
       }
-      const response = await fetch("/api/list/update-multiple-products", {
+      const response = await listFetch("/api/list/update-multiple-products", {
         method: "PUT",
         body: JSON.stringify(changedProducts),
         headers: { "content-Type": "application/json" },
       });
       if (!response.ok) throw new Error("Error saving list");
       await fetchList();
+      setDirty({});
       setStatus("Cambios guardados.");
     } catch {
       setError("No pudimos guardar los cambios. Intenta nuevamente.");
@@ -189,6 +260,23 @@ export default function List() {
   ).length;
   return (
     <div className="space-y-6">
+      <SharedListControls
+        onSwitch={async () => {
+          setDirty({});
+          await load();
+        }}
+      />
+      {!canEditList && (
+        <p className="text-sm text-zinc-500">
+          Tienes acceso como colaborador. Puedes sugerir cambios al final de la
+          lista.
+        </p>
+      )}
+      <p className="text-sm text-zinc-500">
+        Finaliza la compra para guardar los productos comprados en el historial.
+        La lista compartida se actualiza cada 15 segundos cuando no hay cambios
+        sin guardar.
+      </p>
       {error && (
         <div className="error-notice" role="alert">
           <p>{error}</p>
@@ -216,14 +304,16 @@ export default function List() {
           <div className="flex gap-2">
             <button
               onClick={clean}
-              disabled={products.length === 0}
+              disabled={
+                !canEditList || !products.some((p) => p.comprado === "1")
+              }
               className="btn-secondary"
             >
-              Limpiar lista
+              Finalizar compra
             </button>
             <button
               onClick={save}
-              disabled={products.length === 0}
+              disabled={!canEditList || Object.keys(dirty).length === 0}
               className="btn-primary"
             >
               Guardar cambios
@@ -274,7 +364,7 @@ export default function List() {
                 <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem] gap-2 border-y border-zinc-100 bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-500 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem] sm:gap-2 sm:px-6">
                   <span>Producto</span>
                   <span className="text-center">Cantidad</span>
-                  <span className="text-center">Medida</span>
+                  <span className="text-center">Unidad</span>
                 </div>
                 <ul className="divide-y divide-zinc-100">
                   {list[category.id].map((product) => (
@@ -283,6 +373,7 @@ export default function List() {
                       className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem] sm:gap-2 sm:px-6"
                     >
                       <button
+                        disabled={!canEditList}
                         onClick={() => handleOpenModal(product)}
                         className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg text-left text-sm hover:text-zinc-500 sm:gap-3"
                       >
@@ -307,6 +398,9 @@ export default function List() {
                         aria-label={`Cantidad de ${product.name}`}
                         className="h-10 min-w-0 w-full rounded-lg border border-zinc-300 px-1.5 text-center text-base tabular-nums focus:ring-2 focus:ring-zinc-400 sm:h-9 sm:text-sm"
                         type="number"
+                        min="0"
+                        step="any"
+                        disabled={!canEditList || product.comprado === "1"}
                         value={product.cantidad}
                         onChange={(e) =>
                           handleInputChange(
@@ -317,19 +411,26 @@ export default function List() {
                           )
                         }
                       />
-                      <input
-                        aria-label={`Medida de ${product.name}`}
-                        className="h-10 min-w-0 w-full rounded-lg border border-zinc-300 px-1.5 text-center text-base tabular-nums focus:ring-2 focus:ring-zinc-400 sm:h-9 sm:text-sm"
-                        type="number"
-                        value={product.medida}
-                        onChange={(e) =>
-                          handleInputChange(
-                            e,
-                            product.id,
-                            category.id,
-                            "medida",
-                          )
+                      <UnitSelect
+                        compact
+                        label={`Unidad de ${product.name}`}
+                        value={product.unit ?? "un"}
+                        options={
+                          product.comprado === "1"
+                            ? [product.unit ?? "un"]
+                            : compatibleUnits(product.productUnit ?? "un")
                         }
+                        disabled={!canEditList || product.comprado === "1"}
+                        onChange={(unit: Unit) => {
+                          revision.current++;
+                          setDirty((prev) => ({ ...prev, [product.id]: true }));
+                          setList((prev) => ({
+                            ...prev,
+                            [category.id]: prev[category.id].map((p) =>
+                              p.id === product.id ? { ...p, unit } : p,
+                            ),
+                          }));
+                        }}
                       />
                     </li>
                   ))}
@@ -338,7 +439,7 @@ export default function List() {
             )}
           </section>
         ))}
-      {listModal && (
+      {canEditList && listModal && (
         <BoughtListModal
           isOpen={!!listModal}
           onClose={handleCloseModal}
@@ -347,7 +448,8 @@ export default function List() {
           idProduct={listModal.id_product}
           idCategory={listModal.id_category}
           cantidadp={listModal.cantidad}
-          medidap={listModal.medida}
+          unitp={listModal.unit ?? "un"}
+          productUnit={listModal.productUnit ?? "un"}
         />
       )}
       {isLoading && (
