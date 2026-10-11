@@ -42,10 +42,15 @@ export async function getHouseholdData(scope?: string) {
       ),
       household: (
         await db.query(
-          "select id,name,owner_email from households where id=$1",
+          "select id,slug,name,owner_email from households where id=$1",
           [h],
         )
-      ).rows[0] as { id: string; name: string; owner_email: string },
+      ).rows[0] as {
+        id: string;
+        slug: string;
+        name: string;
+        owner_email: string;
+      },
       members:
         email ===
         (await db.query("select owner_email from households where id=$1", [h]))
@@ -59,16 +64,25 @@ export async function getHouseholdData(scope?: string) {
           : [],
       households: (
         await db.query(
-          "select h.id,h.name,h.owner_email from households h join household_members m on m.household_id=h.id where m.email=$1 order by h.created_at,h.id",
+          "select h.id,h.slug,h.name,h.owner_email from households h join household_members m on m.household_id=h.id where m.email=$1 order by h.created_at,h.id",
           [email],
         )
-      ).rows as { id: string; name: string; owner_email: string }[],
+      ).rows as {
+        id: string;
+        slug: string;
+        name: string;
+        owner_email: string;
+      }[],
       invitations: (
         await db.query(
           "select i.id,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1",
           [email],
         )
-      ).rows as { id: string; name: string; owner_email: string }[],
+      ).rows as {
+        id: string;
+        name: string;
+        owner_email: string;
+      }[],
       pending:
         email ===
         (await db.query("select owner_email from households where id=$1", [h]))
@@ -125,7 +139,7 @@ export async function shareHousehold(
   const email = text(recipient).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new DataError("Email inválido");
-  const name = await withHousehold(async (db, h, owner) => {
+  const list = await withHousehold(async (db, h, owner) => {
     requireRow(
       (
         await db.query(
@@ -147,8 +161,8 @@ export async function shareHousehold(
       "insert into household_invitations(household_id,email) values($1,$2) on conflict do nothing",
       [h, email],
     );
-    return (await db.query("select name from households where id=$1", [h]))
-      .rows[0].name as string;
+    return (await db.query("select name,slug from households where id=$1", [h]))
+      .rows[0] as { name: string; slug: string };
   }, scope);
   const url =
     process.env.APP_URL ||
@@ -157,8 +171,8 @@ export async function shareHousehold(
       : "https://elcarritodelacompra.vercel.app");
   const delivery = await deliverInvitation({
     email,
-    name,
-    url,
+    name: list.name,
+    url: new URL(`/logistic/lists/${list.slug}`, url).href,
     apiKey: process.env.RESEND_API_KEY,
     from: process.env.INVITATION_FROM,
     gmailUser: process.env.GMAIL_USER_EMAIL,
@@ -264,4 +278,40 @@ export async function revokeAccess(
       [h, target],
     );
   }, scope);
+}
+
+// Only return list metadata after membership or an invitation for this identity.
+export async function resolveListSlug(
+  slug: string,
+): Promise<
+  | { kind: "member"; id: string }
+  | { kind: "invitation"; invitationId: string; name: string; owner: string }
+> {
+  if (!/^lista-[0-9a-f]{32}$/.test(slug))
+    throw new DataError("Enlace de lista inválido", 400);
+  const { email } = await identity();
+  return transaction(email, async (db) => {
+    const result = await db.query(
+      `select h.id,h.name,h.owner_email,m.email as member,i.id as invitation
+       from households h
+       left join household_members m on m.household_id=h.id and m.email=$2
+       left join household_invitations i on i.household_id=h.id and i.email=$2
+       where h.slug=$1 and (m.email is not null or i.id is not null)`,
+      [slug, email],
+    );
+    if (!result.rowCount)
+      throw new DataError(
+        "La lista no está disponible o no tienes acceso. Solicita una invitación al propietario.",
+        403,
+      );
+    const list = result.rows[0];
+    return list.member
+      ? { kind: "member", id: list.id }
+      : {
+          kind: "invitation",
+          invitationId: list.invitation,
+          name: list.name,
+          owner: list.owner_email,
+        };
+  });
 }

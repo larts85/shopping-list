@@ -8,7 +8,7 @@ import {
 } from "../../shared/components/ui/Card";
 import { Button, ButtonVariant, ButtonType } from "../../shared";
 
-export function Authenticate() {
+export function Authenticate({ returnTo }: { returnTo?: string }) {
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="text-center">
@@ -26,6 +26,11 @@ export function Authenticate() {
       </CardContent>
       <CardFooter className="flex justify-center">
         <form action={doGoogleLogin} className="w-full">
+          <input
+            type="hidden"
+            name="returnTo"
+            value={returnTo || "/logistic"}
+          />
           <Button
             type={ButtonType.SUBMIT}
             variant={ButtonVariant.PRIMARY}

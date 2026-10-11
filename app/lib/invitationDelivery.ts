@@ -52,7 +52,7 @@ export async function deliverInvitation(
   sendSmtp: SmtpSender = gmailSender,
 ): Promise<InvitationDelivery> {
   const subject = "Invitación a una lista de compras";
-  const content = `Te invitaron a la lista «${message.name}». Inicia sesión con este correo y acepta la invitación: ${message.url}/logistic`;
+  const content = `Te invitaron a la lista «${message.name}». Inicia sesión con este correo y acepta la invitación: ${message.url}`;
   if (
     (!message.apiKey || !message.from) &&
     message.gmailUser &&

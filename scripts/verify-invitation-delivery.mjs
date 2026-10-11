@@ -3,7 +3,7 @@ import { deliverInvitation } from "../app/lib/invitationDelivery.ts";
 const message = {
   email: "qa@example.invalid",
   name: "Lista <de prueba>",
-  url: "https://preview.example.invalid",
+  url: "https://preview.example.invalid/logistic/lists/lista-0123456789abcdef0123456789abcdef",
   apiKey: "fake-test-token",
   from: "QA <sender@example.invalid>",
 };
@@ -30,7 +30,8 @@ assert.equal(
     const payload = JSON.parse(options.body);
     assert.deepEqual(payload.to, ["qa@example.invalid"]);
     assert.equal(payload.from, message.from);
-    assert(payload.text.includes("https://preview.example.invalid/logistic"));
+    assert(payload.text.includes(message.url));
+    assert(!payload.text.includes(message.url + "/logistic"));
     assert(payload.text.includes(message.name));
     return new Response("{}", { status: 200 });
   }),
