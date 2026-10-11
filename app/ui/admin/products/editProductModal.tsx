@@ -1,4 +1,5 @@
 "use client";
+import { listFetch } from "@/app/lib/listClient";
 import Modal from "@/shared/components/ui/Modal";
 
 import { useState, SyntheticEvent } from "react";
@@ -40,7 +41,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
         newNameProduct: newNameProduct,
         unit,
       };
-      const response = await fetch("/api/products/edit-name-product", {
+      const response = await listFetch("/api/products/edit-name-product", {
         method: "PUT",
         body: JSON.stringify(product),
         headers: {

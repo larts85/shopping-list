@@ -1,9 +1,11 @@
 "use client";
+import { getActiveListId, setActiveListId } from "@/app/lib/listClient";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   getHouseholdData,
-  acceptInvitation,
   switchHousehold,
+  createHousehold,
 } from "@/app/actions/households";
 import SharedDataModal from "../data/sharedDataModal";
 type Data = Awaited<ReturnType<typeof getHouseholdData>>;
@@ -16,24 +18,29 @@ export default function SharedListControls({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [name, setName] = useState("");
+  const router = useRouter();
   async function load() {
     try {
-      setData(await getHouseholdData());
+      const d = await getHouseholdData(getActiveListId());
+      setActiveListId(d.household.id);
+      setData(d);
     } catch {
-      setError("No se pudieron cargar las listas compartidas.");
+      setError("No pudimos cargar tus listas.");
     }
   }
   useEffect(() => {
     void load();
   }, []);
-  async function change(action: () => Promise<void>) {
+  async function change(action: () => Promise<unknown>) {
     setBusy(true);
     setError("");
     try {
       await action();
       await load();
       await onSwitch();
+      window.dispatchEvent(new Event("active-list-changed"));
+      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cambiar de lista");
     } finally {
@@ -41,30 +48,32 @@ export default function SharedListControls({
     }
   }
   return (
-    <section className="panel space-y-3" aria-label="Lista compartida">
+    <section className="panel space-y-4" aria-label="Mis listas">
       {error && (
         <p role="alert" className="error-notice">
           {error}
         </p>
       )}
-      {message && <p role="status">{message}</p>}
       {data && (
         <>
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-sm font-medium">
-              Lista del hogar
+              Lista activa
               <select
-                aria-label="Lista del hogar"
+                aria-label="Lista activa"
                 className="field mt-2"
                 value={data.household.id}
                 disabled={busy}
                 onChange={(e) => {
+                  const id = e.target.value;
                   if (
                     window.confirm(
-                      "Cambiar de hogar descarta los cambios sin guardar de esta lista.",
+                      "Cambiar de lista descarta los cambios sin guardar. ¿Continuar?",
                     )
                   )
-                    void change(() => switchHousehold(e.target.value));
+                    void change(() =>
+                      switchHousehold(id).then(() => setActiveListId(id)),
+                    );
                 }}
               >
                 {data.households.map((h) => (
@@ -84,51 +93,60 @@ export default function SharedListControls({
               </button>
             )}
             <a className="text-sm underline" href="/logistic/data">
-              Administrar accesos
+              Accesos y nombre
             </a>
           </div>
           <p className="text-sm text-zinc-500">
-            {data.members.length}{" "}
-            {data.members.length === 1 ? "persona tiene" : "personas tienen"}{" "}
-            acceso a esta lista.
+            {data.memberCount}{" "}
+            {data.memberCount === 1 ? "persona tiene" : "personas tienen"}{" "}
+            acceso. Tu rol: {data.role === "admin" ? "admin de la app" : "user"}
+            .
+            {data.canEditList
+              ? " Puedes gestionar esta lista."
+              : " Puedes verla y sugerir cambios."}
           </p>
-          {data.invitations.map((i) => (
-            <div key={i.id} className="flex flex-wrap gap-3 items-center">
-              <span>
-                Invitación de {i.owner_email} a {i.name}
-              </span>
-              <button
-                className="btn-primary"
-                disabled={busy}
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Aceptar abre el hogar compartido y descarta los cambios sin guardar.",
-                    )
-                  )
-                    void change(() => acceptInvitation(i.id));
-                }}
-              >
-                Aceptar y abrir lista
-              </button>
-            </div>
-          ))}
-          {data.pending.map((i) => (
-            <p key={i.id} className="text-sm">
-              Invitación pendiente: {i.email}
-            </p>
-          ))}
+          <form
+            className="flex flex-wrap items-end gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (
+                window.confirm(
+                  "Crear otra lista conserva la actual y abre la nueva. Se descartarán los cambios sin guardar. ¿Continuar?",
+                )
+              )
+                void change(async () => {
+                  const id = await createHousehold(name, getActiveListId());
+                  setActiveListId(id);
+                  setName("");
+                });
+            }}
+          >
+            <label className="text-sm font-medium">
+              Nombre de la nueva lista
+              <input
+                className="field mt-2"
+                required
+                maxLength={200}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ej.: Supermercado, ferretería…"
+              />
+            </label>
+            <button className="btn-secondary" disabled={busy || !name.trim()}>
+              Crear otra lista
+            </button>
+          </form>
+          <p className="text-sm text-zinc-500">
+            Cada lista conserva sus productos pendientes y compras por separado.
+            La nueva empieza vacía y utiliza el catálogo general de la app.
+          </p>
         </>
       )}
       {open && (
         <SharedDataModal
           isOpen
-          onClose={(shared) => {
+          onClose={() => {
             setOpen(false);
-            if (shared)
-              setMessage(
-                "Invitación guardada. La otra persona puede aceptarla desde su lista.",
-              );
             void load();
           }}
         />

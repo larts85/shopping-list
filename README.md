@@ -1,49 +1,29 @@
-# Home Logistics
+# El carrito de la compra
 
-Aplicación para organizar categorías, productos, listas y compras de hogares compartidos. Google autentica al usuario; Supabase Postgres guarda los datos.
+Next.js App Router, TypeScript y Postgres en Supabase. Usar Yarn y Node 22 o posterior.
 
-## Desarrollo
+## Catálogo y roles
 
-Requiere Node >=22 y Yarn 1.22.22. Copiar `.env.example` a `.env` (privado), configurar OAuth Google y conexión Postgres de Supabase. Usar la CA oficial del proyecto, incluida en `supabase/certs`; TLS siempre verifica el certificado.
+Todas las personas autenticadas consultan el mismo catálogo general de categorías y productos. El rol global se guarda en `app_users`: `larts85@gmail.com` es `admin`; las demás cuentas son `user`. Solo el admin crea, edita o retira recursos del catálogo. Retirar un producto conserva las compras y su historial.
 
-```sh
-yarn deps:install
-yarn typecheck
-yarn lint
-yarn build
-yarn dev
-```
+Un user gestiona sus propias listas: puede tener varias abiertas, seleccionar productos del catálogo, registrar cantidades positivas, unidades compatibles y compras, y consultar su historial. Los permisos sobre una lista son independientes del rol global. Compartir una lista invita a un colaborador que puede verla y sugerir cambios; el propietario los aprueba. Compartir o crear listas no concede administración del catálogo.
 
-Este worktree utiliza http://localhost:2021. Configurar el callback OAuth correspondiente: `http://localhost:2021/api/auth/callback/google`. `dev:clean` limpia únicamente los archivos de este checkout y no mata servidores de otros puertos.
+En **Solicitudes**, un user solicita una categoría o un producto indicando categoría y unidad. La solicitud permanece pendiente sin incorporarse al catálogo. El admin ve todas las solicitudes, sin importar su lista activa; puede aprobarlas o rechazarlas. Una aprobación publica el recurso en el catálogo común. Cada user ve el estado de sus propias solicitudes.
 
-Versiones exactas: Next 16.4, React 19.3, TypeScript 6.0.3, Tailwind 4.3.3 y NextAuth beta32. La instalación congela `yarn.lock`, bloquea lifecycle scripts y comprueba origen HTTPS npm e integridad SHA-512.
+## Autenticación
 
-## Datos y autorización
+NextAuth conserva la sesión del navegador y el callback de Google. En cada inicio de sesión, el servidor intercambia el ID token de Google mediante `Supabase.auth.signInWithIdToken`, valida que la identidad Google y el correo confirmado coincidan, y vincula `app_users.auth_user_id` con `auth.users`. Ningún endpoint acepta sincronizar un correo suministrado por el navegador. Los roles no se toman de `user_metadata` ni de tokens editables; las operaciones consultan la tabla protegida.
 
-`app/lib/database.ts` conecta al pooler Postgres exclusivamente en el servidor. Cada operación autentica la sesión Google y filtra por hogar activo. El email Google debe estar verificado. Las transacciones y bloqueos evitan listas duplicadas y compras archivadas dos veces. Categorías con productos no pueden borrarse; borrar un producto quita su entrada de lista y conserva snapshots históricos.
+Configurar `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `SUPABASE_AUTH_URL` y `SUPABASE_AUTH_PUBLISHABLE_KEY`. El proveedor Google debe estar habilitado en Supabase con el mismo cliente OAuth. Si la verificación en Supabase falla o falta configuración, el login falla cerrado. Los ID tokens, access tokens, refresh tokens y claves privadas no se exponen en la sesión del cliente.
 
-Todas las tablas públicas tienen RLS y los roles `anon` y `authenticated` carecen de privilegios. No hay acceso directo del navegador a la base: la autorización por hogar se aplica en el servidor que usa el usuario Postgres. No publicar la contraseña ni prefijarla con `NEXT_PUBLIC_`.
+## Desarrollo y comprobación
 
-`supabase/migrations` contiene el esquema inicial. El esquema del proyecto actual ya fue aplicado; no ejecutar de nuevo CREATE TABLE. Las versiones `20261010064936` y `20261010071941` ya están registradas como aplicadas en el historial remoto. El CLI debe usar el pooler de sesión (puerto 5432) para sus prepared statements; la aplicación usa el pooler de transacción (6543). Antes de nuevas migraciones, comparar `supabase migration list` y revisar `supabase db push --dry-run`.
+Copiar `.env.example` a un archivo local ignorado y configurar la conexión Postgres. `yarn dev`, `yarn lint`, `yarn typecheck` y `yarn build` son los comandos del proyecto.
 
-## Importación anterior
+`yarn verify:catalog` crea PostgreSQL local descartable mediante PGlite, aplica las migraciones a `preview_lists`, inicia Next en 2037 y prueba las APIs con sesiones QA firmadas. No necesita credenciales cloud, no escribe en Supabase y no envía correos. La migración comprueba la conservación de IDs de listas/compras y snapshots históricos. Los tests de la identidad Google usan un proveedor simulado; el OAuth real requiere configurar Supabase antes de desplegar.
 
-Datos → Autorizar lectura de Google Sheets → pegar enlace/ID → Revisar antes de importar → Importar a Supabase. Solo el propietario puede importar, una vez y en un hogar vacío. Lee `categories`, `products`, `list`, `historical`; conserva planilla, fechas y columnas repetidas, remapea identificadores y guarda todo en una transacción. No escribe en Google.
+## Entornos y envío de invitaciones
 
-El login normal solicita únicamente `openid email profile`. La importación solicita puntualmente Sheets/Drive de solo lectura. Luego las operaciones habituales no dependen de Google Sheets ni de Drive.
+Preview exige `SUPABASE_DB_SCHEMA=preview_lists`; nunca busca tablas de producción si el esquema falta. Las migraciones son para revisión y deben aplicarse al esquema del destino antes de activar el código. Consultar [DEPLOYMENT_NOTES.md](DEPLOYMENT_NOTES.md).
 
-## Hogares compartidos
-
-El propietario invita por email desde Datos. La persona invitada acepta al iniciar sesión con ese mismo email; puede cambiar entre sus hogares. El propietario puede cancelar invitaciones y revocar acceso. No se envían correos ni se modifican permisos de Drive.
-
-## Verificación
-
-Con servidor 2021 y `.env` configurado:
-
-```sh
-yarn verify:supabase
-yarn verify:households
-yarn verify:import
-```
-
-El script crea usuarios y hogares sintéticos identificados por UUID bajo `example.invalid`, utiliza sesiones JWT firmadas con el secreto local y limpia únicamente sus fixtures. Comprueba autenticación, CRUD, aislamiento, cálculos, concurrencia, archivo atómico y todas las páginas. No omite autenticación en la aplicación. `verify:households` comprueba invitación, aceptación, cambio, revocación y una revocación concurrente. `verify:import` ejecuta el importador real con respuestas Sheets sintéticas y Postgres aislado, incluyendo rollback y reimportación. Ver [SUPABASE_VERIFICATION.md](SUPABASE_VERIFICATION.md) para cobertura y límites de las verificaciones.
+Las invitaciones siempre se guardan y aparecen como notificación al ingresar. Para enviar correo, configurar Gmail (`GMAIL_USER_EMAIL`, `GMAIL_APP_PASSWORD`) o Resend (`RESEND_API_KEY`, `INVITATION_FROM`), y `APP_URL` para el enlace. La UI distingue proveedor sin configurar, envío fallido y mensaje aceptado por el proveedor. Sin proveedor ofrece un enlace manual. No se han reutilizado credenciales de otros proyectos en este PR.

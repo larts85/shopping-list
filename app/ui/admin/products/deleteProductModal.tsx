@@ -1,4 +1,5 @@
 "use client";
+import { listFetch } from "@/app/lib/listClient";
 import Modal from "@/shared/components/ui/Modal";
 
 import React, { useState } from "react";
@@ -27,7 +28,7 @@ const DeleteProductModal: React.FC<DeleteProductModalProps> = ({
     setIsSubmitting(true);
     setError("");
     try {
-      const response = await fetch("/api/products/delete-product-by-id", {
+      const response = await listFetch("/api/products/delete-product-by-id", {
         method: "DELETE",
         body: JSON.stringify(idProduct),
         headers: {

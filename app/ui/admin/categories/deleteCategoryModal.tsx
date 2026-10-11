@@ -1,4 +1,5 @@
 "use client";
+import { listFetch } from "@/app/lib/listClient";
 import Modal from "@/shared/components/ui/Modal";
 
 import React, { useState } from "react";
@@ -27,7 +28,7 @@ const DeleteCategoryModal: React.FC<DeleteCategoryModalProps> = ({
     setIsSubmitting(true);
     setError("");
     try {
-      const response = await fetch("/api/categories/delete-category", {
+      const response = await listFetch("/api/categories/delete-category", {
         method: "DELETE",
         body: JSON.stringify(idCategory),
         headers: {

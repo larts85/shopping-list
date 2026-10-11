@@ -1,35 +1,10 @@
 import "server-only";
-import { Pool, PoolClient } from "pg";
-import { readFileSync } from "node:fs";
-import path from "node:path";
+import { databaseSchema } from "./databaseSchema";
+import type { PoolClient } from "pg";
+import { pool } from "./databaseConnection";
 import { auth } from "@/auth";
+import { headers } from "next/headers";
 
-const globalDatabase = globalThis as unknown as { logisticsPool?: Pool };
-function pool() {
-  if (!globalDatabase.logisticsPool) {
-    if (!process.env.SUPABASE_PASSWORD_DB)
-      throw new Error("Falta SUPABASE_PASSWORD_DB");
-    globalDatabase.logisticsPool = new Pool({
-      host:
-        process.env.SUPABASE_DB_HOST || "aws-1-us-west-2.pooler.supabase.com",
-      port: Number(process.env.SUPABASE_DB_PORT || 6543),
-      user: process.env.SUPABASE_DB_USER || "postgres.ntbiypfuelktsjfceqqu",
-      password: process.env.SUPABASE_PASSWORD_DB,
-      database: "postgres",
-      ssl: {
-        rejectUnauthorized: true,
-        ca: readFileSync(
-          path.join(process.cwd(), "supabase/certs/prod-ca-2021.crt"),
-          "utf8",
-        ),
-      },
-      max: 5,
-      connectionTimeoutMillis: 10000,
-      idleTimeoutMillis: 30000,
-    });
-  }
-  return globalDatabase.logisticsPool;
-}
 export class DataError extends Error {
   constructor(
     message: string,
@@ -69,9 +44,18 @@ export async function transaction<T>(
   const db = await pool().connect();
   try {
     await db.query("begin");
+    // Transaction-scoped only: connection reuse cannot leak a preview search_path.
+    // Never include public as a fallback when preview tables are missing.
+    await db.query("select set_config('search_path',$1,true)", [
+      databaseSchema(),
+    ]);
     await db.query("select pg_advisory_xact_lock(hashtextextended($1, 0))", [
       email,
     ]);
+    await db.query(
+      "insert into app_users(email,role) values($1,case when $1='larts85@gmail.com' then 'admin' else 'user' end) on conflict(email) do nothing",
+      [email],
+    );
     const result = await run(db);
     await db.query("commit");
     return result;
@@ -120,10 +104,22 @@ export async function ensureHousehold(
 }
 export async function withHousehold<T>(
   run: (db: PoolClient, household: string, email: string) => Promise<T>,
+  scope?: string,
 ) {
+  const requestedScope =
+    scope ?? (await headers()).get("X-List-ID") ?? undefined;
+  if (
+    requestedScope &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      requestedScope,
+    )
+  )
+    throw new DataError("Lista inválida");
   const { email } = await identity();
   return transaction(email, async (db) => {
-    const household = await ensureHousehold(db, email);
+    const household = requestedScope
+      ? text(requestedScope).toLowerCase()
+      : await ensureHousehold(db, email);
     await db.query("select pg_advisory_xact_lock(hashtextextended($1, 1))", [
       household,
     ]);
@@ -142,4 +138,59 @@ export async function withHousehold<T>(
 }
 export function requireRow(count: number | null) {
   if (!count) throw new DataError("El registro no existe en este hogar", 404);
+}
+
+export type MemberRole = "owner" | "collaborator";
+export async function householdRole(
+  db: PoolClient,
+  household: string,
+  email: string,
+): Promise<MemberRole> {
+  const result = await db.query(
+    "select case when h.owner_email=$2 then 'owner' else 'collaborator' end as role from households h join household_members m on m.household_id=h.id where h.id=$1 and m.email=$2",
+    [household, email],
+  );
+  if (!result.rowCount)
+    throw new DataError("Ya no tienes acceso a esta lista", 403);
+  return result.rows[0].role;
+}
+export async function withListEditor<T>(
+  run: (db: PoolClient, household: string, email: string) => Promise<T>,
+  scope?: string,
+) {
+  return withHousehold(async (db, h, email) => {
+    if ((await householdRole(db, h, email)) !== "owner")
+      throw new DataError(
+        "Solo el propietario puede modificar esta lista. Envía una sugerencia.",
+        403,
+      );
+    return run(db, h, email);
+  }, scope);
+}
+
+export type AppRole = "admin" | "user";
+export async function appRole(db: PoolClient, email: string): Promise<AppRole> {
+  const result = await db.query("select role from app_users where email=$1", [
+    email,
+  ]);
+  return result.rows[0]?.role === "admin" && email === "larts85@gmail.com"
+    ? "admin"
+    : "user";
+}
+export async function withCatalog<T>(
+  run: (db: PoolClient, email: string) => Promise<T>,
+  admin = false,
+) {
+  const { email } = await identity();
+  return transaction(email, async (db) => {
+    if (admin && (await appRole(db, email)) !== "admin")
+      throw new DataError(
+        "Solo el administrador de la app puede modificar el catálogo",
+        403,
+      );
+    await db.query(
+      "select pg_advisory_xact_lock(hashtextextended('global_catalog',2))",
+    );
+    return run(db, email);
+  });
 }

@@ -1,4 +1,9 @@
 "use client";
+import Suggestions from "@/app/ui/list/suggestions";
+import CatalogRequests from "@/app/ui/catalog/catalogRequests";
+import { getHouseholdData } from "@/app/actions/households";
+import { getActiveListId } from "@/app/lib/listClient";
+import { listFetch } from "@/app/lib/listClient";
 import { unitLabels, type Unit } from "@/app/lib/units";
 import { useState, useEffect, useRef, SyntheticEvent } from "react";
 import { ClipLoader } from "react-spinners";
@@ -6,6 +11,20 @@ import { useRouter } from "next/navigation";
 import { Category } from "@/app/lib/types";
 
 export default function Select() {
+  const [canEditList, setCanEditList] = useState<boolean>();
+  useEffect(() => {
+    let active = true;
+    void getHouseholdData(getActiveListId())
+      .then((d) => {
+        if (active) setCanEditList(d.canEditList);
+      })
+      .catch(() => {
+        if (active) setCanEditList(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
   const [categories, setCategories] = useState<Category[]>([]);
@@ -32,12 +51,15 @@ export default function Select() {
 
   async function fetchCategories() {
     try {
-      const categoriesRespone = await fetch("/api/categories/get-categories", {
-        method: "GET",
-        headers: {
-          "content-type": "application/json",
+      const categoriesRespone = await listFetch(
+        "/api/categories/get-categories",
+        {
+          method: "GET",
+          headers: {
+            "content-type": "application/json",
+          },
         },
-      });
+      );
       if (!categoriesRespone.ok) {
         throw new Error("Error fetching categories");
       }
@@ -64,11 +86,14 @@ export default function Select() {
     if (!selectedCategory) return;
     const requestId = ++productRequest.current;
     try {
-      const response = await fetch("/api/products/get-products-by-category", {
-        method: "POST",
-        headers: { "Content-type": "application/json" },
-        body: JSON.stringify({ id_category: selectedCategory }),
-      });
+      const response = await listFetch(
+        "/api/products/get-products-by-category",
+        {
+          method: "POST",
+          headers: { "Content-type": "application/json" },
+          body: JSON.stringify({ id_category: selectedCategory }),
+        },
+      );
       if (!response.ok) throw new Error("Error fetching products");
       const data = await response.json();
       if (requestId !== productRequest.current) return;
@@ -112,7 +137,7 @@ export default function Select() {
     setProducts(allcheckedProducts);
 
     try {
-      const productsResponse = await fetch(
+      const productsResponse = await listFetch(
         "/api/products/edit-checked-products",
         {
           method: "PUT",
@@ -157,7 +182,7 @@ export default function Select() {
     };
 
     try {
-      const productsResponse = await fetch(
+      const productsResponse = await listFetch(
         "/api/products/edit-checked-product",
         {
           method: "PUT",
@@ -182,7 +207,7 @@ export default function Select() {
     setIsLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/list/add-list", {
+      const response = await listFetch("/api/list/add-list", {
         method: "POST",
         headers: {
           "Content-type": "application/json",
@@ -200,8 +225,18 @@ export default function Select() {
     }
   };
 
+  if (canEditList === undefined)
+    return <p role="status">Comprobando permisos…</p>;
+  if (!canEditList)
+    return (
+      <>
+        <Suggestions />
+        <CatalogRequests />
+      </>
+    );
   return (
     <div className="space-y-6">
+      <CatalogRequests />
       {error && (
         <div role="alert" className="error-notice">
           <p>{error}</p>

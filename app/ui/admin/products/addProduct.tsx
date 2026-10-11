@@ -1,4 +1,5 @@
 "use client";
+import { listFetch } from "@/app/lib/listClient";
 import { useState, useEffect, useRef, SyntheticEvent } from "react";
 import { ClipLoader } from "react-spinners";
 import { capitalize } from "../../utils/capitalize";
@@ -59,12 +60,15 @@ export default function AddProduct() {
 
   async function fetchCategories() {
     try {
-      const categoriesRespone = await fetch("/api/categories/get-categories", {
-        method: "GET",
-        headers: {
-          "content-type": "application/json",
+      const categoriesRespone = await listFetch(
+        "/api/categories/get-categories",
+        {
+          method: "GET",
+          headers: {
+            "content-type": "application/json",
+          },
         },
-      });
+      );
       if (!categoriesRespone.ok) {
         throw new Error("Error fetching categories");
       }
@@ -88,11 +92,14 @@ export default function AddProduct() {
     const requestId = ++productRequest.current;
     setError("");
     try {
-      const response = await fetch("/api/products/get-products-by-category", {
-        method: "POST",
-        headers: { "Content-type": "application/json" },
-        body: JSON.stringify({ id_category: selectedCategory }),
-      });
+      const response = await listFetch(
+        "/api/products/get-products-by-category",
+        {
+          method: "POST",
+          headers: { "Content-type": "application/json" },
+          body: JSON.stringify({ id_category: selectedCategory }),
+        },
+      );
       if (!response.ok) throw new Error("Error fetching products");
       const data = await response.json();
       if (requestId === productRequest.current) setProducts(data);
@@ -130,7 +137,7 @@ export default function AddProduct() {
       unit,
     };
     try {
-      const response = await fetch("/api/products/add-product", {
+      const response = await listFetch("/api/products/add-product", {
         method: "POST",
         body: JSON.stringify(product),
         headers: {
