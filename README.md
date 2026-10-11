@@ -27,3 +27,8 @@ Copiar `.env.example` a un archivo local ignorado y configurar la conexión Post
 Preview exige `SUPABASE_DB_SCHEMA=preview_lists`; nunca busca tablas de producción si el esquema falta. Las migraciones son para revisión y deben aplicarse al esquema del destino antes de activar el código. Consultar [DEPLOYMENT_NOTES.md](DEPLOYMENT_NOTES.md).
 
 Las invitaciones siempre se guardan y aparecen como notificación al ingresar. Para enviar correo, configurar Gmail (`GMAIL_USER_EMAIL`, `GMAIL_APP_PASSWORD`) o Resend (`RESEND_API_KEY`, `INVITATION_FROM`), y `APP_URL` para el enlace. La UI distingue proveedor sin configurar, envío fallido y mensaje aceptado por el proveedor. Sin proveedor ofrece un enlace manual. No se han reutilizado credenciales de otros proyectos en este PR.
+
+## Agente de desarrollo
+
+Ver [configuración de Codex](.codex/README.md) para las skills, workflows y reglas
+de trabajo de este repo.
