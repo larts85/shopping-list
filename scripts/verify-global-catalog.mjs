@@ -172,6 +172,60 @@ try {
     if (next.exitCode !== null) throw new Error(output);
     await new Promise((r) => setTimeout(r, 500));
   }
+  await req("/api/households?view=home", "GET", undefined, "", 401);
+  const emptyHome = await req(
+    "/api/households?view=home",
+    "GET",
+    undefined,
+    outsider,
+  );
+  assert.deepEqual(emptyHome.lists, []);
+  assert.deepEqual(emptyHome.invitations, []);
+  await req("/api/households?view=home", "GET", undefined, outsider);
+  await req("/api/households", "GET", undefined, outsider, 409);
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.households where owner_email=$1",
+        [outsider],
+      )
+    ).rows[0].n,
+    0,
+  );
+  checks += 3;
+  await req(
+    "/api/households",
+    "POST",
+    { action: "create", name: " " },
+    outsider,
+    400,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "create", name: "x".repeat(201) },
+    outsider,
+    400,
+  );
+  const recipientCreated = await req(
+    "/api/households",
+    "POST",
+    { action: "create" },
+    outsider,
+  );
+  const recipientHome = await req(
+    "/api/households?view=home",
+    "GET",
+    undefined,
+    outsider,
+  );
+  assert.equal(recipientHome.lists.length, 1);
+  assert.equal(recipientHome.lists[0].slug, recipientCreated.slug);
+  assert.equal(
+    recipientHome.lists[0].name,
+    `Compras ${new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())}`,
+  );
+  checks += 3;
   const linkedPath = `/api/households?slug=${linkedSlug}`;
   assert.deepEqual(await req(linkedPath), { kind: "member", id: homeB });
   await req(linkedPath, "GET", undefined, outsider, 403);
@@ -435,6 +489,21 @@ try {
     { action: "switch", id: recipientBefore.household.id },
     outsider,
   );
+  const ownerIndex = await req("/api/households?view=home");
+  assert.equal(
+    ownerIndex.lists.filter((list) => list.owner_email === user).length,
+    2,
+  );
+  const pendingIndex = await req(
+    "/api/households?view=home",
+    "GET",
+    undefined,
+    outsider,
+  );
+  assert.equal(pendingIndex.lists.length, 1);
+  assert.equal(pendingIndex.invitations.length, 1);
+  assert.equal(pendingIndex.invitations[0].slug, secondSlug);
+  checks += 4;
   const sharedPath = `/api/households?slug=${secondSlug}`;
   const invitationLink = await req(sharedPath, "GET", undefined, outsider);
   assert.equal(invitationLink.kind, "invitation");
@@ -471,7 +540,30 @@ try {
   );
   assert.equal(selectedShared.household.slug, secondSlug);
   checks++;
-  const shared = await req("/api/households", "GET", undefined, outsider);
+  const unchangedOwn = await req("/api/households", "GET", undefined, outsider);
+  assert.equal(unchangedOwn.household.id, recipientBefore.household.id);
+  const acceptedIndex = await req(
+    "/api/households?view=home",
+    "GET",
+    undefined,
+    outsider,
+  );
+  assert.equal(acceptedIndex.lists.length, 2);
+  assert.equal(acceptedIndex.invitations.length, 0);
+  assert.ok(
+    acceptedIndex.lists.some(
+      (list) => list.slug === secondSlug && list.owner_email === user,
+    ),
+  );
+  checks += 4;
+  const shared = await req(
+    "/api/households",
+    "GET",
+    undefined,
+    outsider,
+    200,
+    second,
+  );
   assert.equal(shared.role, "user");
   assert.equal(shared.canEditList, false);
   checks += 2;

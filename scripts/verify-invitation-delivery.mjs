@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { defaultListName } from "../app/lib/listName.ts";
 import { listShareUrl } from "../app/lib/listShareUrl.ts";
 import { deliverInvitation } from "../app/lib/invitationDelivery.ts";
 const message = {
@@ -133,3 +134,13 @@ assert.equal(
   `https://production.example.invalid/logistic/lists/${slug}`,
 );
 console.log("4 invitation environment isolation checks passed");
+
+assert.equal(
+  defaultListName(new Date("2026-10-12T02:59:59Z")),
+  "Compras 11/10/2026",
+);
+assert.equal(
+  defaultListName(new Date("2026-10-12T03:00:00Z")),
+  "Compras 12/10/2026",
+);
+console.log("2 Argentine calendar boundary checks passed");

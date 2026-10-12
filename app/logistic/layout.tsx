@@ -1,5 +1,4 @@
 import Menu from "../ui/menu";
-import InvitationBanner from "../ui/list/invitationBanner";
 import ListAccessProvider from "../ui/list/listAccessProvider";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
@@ -23,10 +22,7 @@ export default async function Layout({
         tabIndex={-1}
         className="mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-12"
       >
-        <ListAccessProvider>
-          <InvitationBanner />
-          {children}
-        </ListAccessProvider>
+        <ListAccessProvider>{children}</ListAccessProvider>
       </div>
     </div>
   );
