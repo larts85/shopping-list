@@ -16,7 +16,9 @@ const admin = "larts85@gmail.com",
   outsider = "new-user@example.invalid";
 const homeA = randomUUID(),
   homeB = randomUUID();
-const origin = "http://localhost:2037";
+const testPort = process.env.TEST_PORT || "2037";
+const databasePort = Number(process.env.TEST_DB_PORT || 55437);
+const origin = `http://localhost:${testPort}`;
 const secret = "local-qa-only-secret-never-used-in-cloud";
 const cookie = async (email) =>
   `authjs.session-token=${await encode({ secret, salt: "authjs.session-token", token: { email, name: "QA" }, maxAge: 600 })}`;
@@ -130,13 +132,13 @@ try {
   server = new PGLiteSocketServer({
     db,
     host: "127.0.0.1",
-    port: 55437,
+    port: databasePort,
     maxConnections: 20,
   });
   await server.start();
   next = spawn(
     process.execPath,
-    ["node_modules/next/dist/bin/next", "dev", "-p", "2037", "--webpack"],
+    ["node_modules/next/dist/bin/next", "dev", "-p", testPort, "--webpack"],
     {
       env: {
         ...process.env,
@@ -144,7 +146,7 @@ try {
         NEXTAUTH_SECRET: secret,
         AUTH_TRUST_HOST: "true",
         SUPABASE_DB_HOST: "127.0.0.1",
-        SUPABASE_DB_PORT: "55437",
+        SUPABASE_DB_PORT: String(databasePort),
         SUPABASE_DB_USER: "postgres",
         SUPABASE_PASSWORD_DB: "local-test",
         SUPABASE_DB_SCHEMA: "preview_lists",
@@ -576,6 +578,14 @@ try {
     second,
   );
   await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [list[0].id] },
+    outsider,
+    403,
+    second,
+  );
+  await req(
     "/api/suggestions",
     "POST",
     { kind: "add", productId: newProduct.id, quantity: 2, unit: "un" },
@@ -618,14 +628,158 @@ try {
     200,
     own.household.id,
   );
+  const beforePartial = (
+    await db.query(
+      "select name,slug from preview_lists.households where id=$1",
+      [own.household.id],
+    )
+  ).rows[0];
   await req(
-    "/api/historical/add-historical",
+    "/api/products/edit-checked-product",
+    "PUT",
+    { idProduct: newProduct.id, checked: true },
+    user,
+    200,
+    own.household.id,
+  );
+  await req(
+    "/api/list/add-list",
     "POST",
     undefined,
     user,
     200,
     own.household.id,
   );
+  const pendingItem = (
+    await req(
+      "/api/list/get-list",
+      "GET",
+      undefined,
+      user,
+      200,
+      own.household.id,
+    )
+  ).find((item) => item.id_product === newProduct.id);
+  const partialBody = { productIds: [list[0].id] };
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [] },
+    user,
+    400,
+    own.household.id,
+  );
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [list[0].id, list[0].id] },
+    user,
+    400,
+    own.household.id,
+  );
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [pendingItem.id] },
+    user,
+    409,
+    own.household.id,
+  );
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    partialBody,
+    user,
+    409,
+    second,
+  );
+  // Force failure after snapshots and selections changed: everything must roll back.
+  const historyBefore = (
+    await db.query(
+      "select count(*)::int n from preview_lists.historical where household_id=$1",
+      [own.household.id],
+    )
+  ).rows[0].n;
+  await db.exec(`create function preview_lists.reject_partial_delete() returns trigger language plpgsql as $$ begin raise exception 'forced local rollback'; end $$;
+    create trigger reject_partial_delete before delete on preview_lists.shopping_list for each row execute function preview_lists.reject_partial_delete();`);
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    partialBody,
+    user,
+    500,
+    own.household.id,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.historical where household_id=$1",
+        [own.household.id],
+      )
+    ).rows[0].n,
+    historyBefore,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select checked from preview_lists.list_selections where household_id=$1 and product_id=$2",
+        [own.household.id, list[0].id_product],
+      )
+    ).rows[0].checked,
+    true,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id=$2",
+        [own.household.id, list[0].id],
+      )
+    ).rows[0].n,
+    1,
+  );
+  await db.exec(
+    "drop trigger reject_partial_delete on preview_lists.shopping_list; drop function preview_lists.reject_partial_delete();",
+  );
+  checks += 3;
+  const archiveResponses = await Promise.all(
+    [0, 1].map(async () => {
+      const response = await fetch(origin + "/api/historical/add-historical", {
+        method: "POST",
+        headers: {
+          cookie: await cookie(user),
+          "content-type": "application/json",
+          "X-List-ID": own.household.id,
+        },
+        body: JSON.stringify(partialBody),
+      });
+      return { status: response.status, result: await response.json() };
+    }),
+  );
+  assert.deepEqual(archiveResponses.map((r) => r.status).sort(), [200, 409]);
+  const completed = archiveResponses.find((r) => r.status === 200).result;
+  assert.match(
+    completed.purchaseName,
+    /^Masaje lista \[\d{2}\/\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\]$/,
+  );
+  assert.deepEqual(
+    (
+      await db.query(
+        "select name,slug from preview_lists.households where id=$1",
+        [own.household.id],
+      )
+    ).rows[0],
+    beforePartial,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select checked from preview_lists.list_selections where household_id=$1 and product_id=$2",
+        [own.household.id, pendingItem.id_product],
+      )
+    ).rows[0].checked,
+    true,
+  );
+  checks += 4;
   const history = await req(
     "/api/historical/get-historical",
     "GET",
@@ -634,8 +788,55 @@ try {
     200,
     own.household.id,
   );
-  assert.ok(history.items.some((i) => i.purchase.name === "Queso"));
-  checks++;
+  const archived = history.items.find((i) => i.purchase.name === "Queso");
+  assert.ok(archived);
+  assert.equal(archived.purchase.purchase_name, completed.purchaseName);
+  assert.equal(archived.purchase.purchase_id, completed.purchaseId);
+  assert.equal(archived.purchase.list_name, beforePartial.name);
+  const time = new Intl.DateTimeFormat("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(archived.purchasedAt));
+  const part = (type) => time.find((p) => p.type === type).value;
+  assert.equal(
+    completed.purchaseName,
+    `${beforePartial.name} [${part("day")}/${part("month")}/${part("year")}-${part("hour")}:${part("minute")}:${part("second")}]`,
+  );
+  checks += 5;
+  const remaining = await req(
+    "/api/list/get-list",
+    "GET",
+    undefined,
+    user,
+    200,
+    own.household.id,
+  );
+  assert.deepEqual(
+    remaining.map((item) => item.id),
+    [pendingItem.id],
+  );
+  await req(
+    "/api/list/set-bought",
+    "PUT",
+    { idList: pendingItem.id, cantidad: 2, medida: 1, precio: 0, unit: "un" },
+    user,
+    200,
+    own.household.id,
+  );
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    partialBody,
+    user,
+    409,
+    own.household.id,
+  );
   assert.equal(
     (
       await req(
@@ -646,10 +847,23 @@ try {
         200,
         own.household.id,
       )
-    ).length,
-    0,
+    )[0].id,
+    pendingItem.id,
   );
-  checks++;
+  assert.equal(
+    (
+      await req(
+        "/api/historical/get-historical",
+        "GET",
+        undefined,
+        user,
+        200,
+        own.household.id,
+      )
+    ).items.length,
+    history.items.length,
+  );
+  checks += 3;
   await req(
     "/api/products/delete-product-by-id",
     "DELETE",
