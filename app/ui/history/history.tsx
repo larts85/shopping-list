@@ -1,4 +1,5 @@
 "use client";
+import { listFetch } from "@/app/lib/listClient";
 import { useEffect, useState } from "react";
 import { isUnit } from "@/app/lib/units";
 type Item = {
@@ -18,17 +19,23 @@ const currency = (value: string | number | null | undefined) => {
 };
 function purchaseDate(item: Item) {
   const legacy = item.purchase.fecha;
-  // Google Sheets exports dates as days since 1899-12-30.
-  const serial = typeof legacy === "number" ? legacy :
-    typeof legacy === "string" && /^\d+(\.\d+)?$/.test(legacy) ? Number(legacy) : null;
+  // Preserve numeric dates stored in older historical snapshots.
+  const serial =
+    typeof legacy === "number"
+      ? legacy
+      : typeof legacy === "string" && /^\d+(\.\d+)?$/.test(legacy)
+        ? Number(legacy)
+        : null;
   if (serial !== null && serial > 0 && serial < 100000) {
     return new Intl.DateTimeFormat("es-AR", {
-      dateStyle: "long", timeZone: "UTC",
+      dateStyle: "long",
+      timeZone: "UTC",
     }).format(new Date(Date.UTC(1899, 11, 30) + Math.floor(serial) * 86400000));
   }
   if (legacy) return String(legacy);
   return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "long", timeZone: "America/Argentina/Buenos_Aires",
+    dateStyle: "long",
+    timeZone: "America/Argentina/Buenos_Aires",
   }).format(new Date(item.purchasedAt));
 }
 export default function History() {
@@ -43,7 +50,7 @@ export default function History() {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(
+      const response = await listFetch(
         `/api/historical/get-historical?page=${next}`,
       );
       if (!response.ok) throw new Error("No se pudo cargar el historial.");

@@ -1,4 +1,5 @@
 "use client";
+import { listFetch } from "@/app/lib/listClient";
 
 import { useState, SyntheticEvent } from "react";
 import { capitalize } from "../../utils/capitalize";
@@ -27,7 +28,7 @@ export default function AddCategory() {
     setIsSubmitting(true);
     setError("");
     try {
-      const response = await fetch("/api/categories/add-category", {
+      const response = await listFetch("/api/categories/add-category", {
         method: "POST",
         body: JSON.stringify(formData),
         headers: {

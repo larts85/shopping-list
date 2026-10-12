@@ -1,4 +1,5 @@
 "use client";
+import { listFetch } from "@/app/lib/listClient";
 import Modal from "@/shared/components/ui/Modal";
 import { useState } from "react";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
@@ -64,7 +65,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         unit,
         precio: Number(precio),
       };
-      const response = await fetch("/api/list/set-bought", {
+      const response = await listFetch("/api/list/set-bought", {
         method: "PUT",
         body: JSON.stringify(propsBought),
         headers: {

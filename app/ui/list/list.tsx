@@ -1,4 +1,6 @@
 "use client";
+import { getActiveListId, setActiveListId } from "@/app/lib/listClient";
+import { listFetch } from "@/app/lib/listClient";
 import { useState, useEffect, useRef } from "react";
 import { ClipLoader } from "react-spinners";
 import BoughtListModal from "./boughtModal";
@@ -6,6 +8,7 @@ import { IList } from "@/app/lib/types";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
 import { compatibleUnits, type Unit } from "@/app/lib/units";
 import SharedListControls from "./sharedListControls";
+import { getHouseholdData } from "@/app/actions/households";
 import { Category } from "@/app/lib/types";
 
 export default function List() {
@@ -13,6 +16,7 @@ export default function List() {
     load();
   }, []);
 
+  const [canEditList, setCanEditList] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [list, setList] = useState<Record<string, IList[]>>({});
   const [listModal, setLisModal] = useState<IList | null>(null);
@@ -21,6 +25,17 @@ export default function List() {
   const [status, setStatus] = useState("");
   const revision = useRef(0);
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const reload = () => {
+      revision.current++;
+      setDirty({});
+      setLisModal(null);
+      void load();
+    };
+    window.addEventListener("active-list-changed", reload);
+    return () => window.removeEventListener("active-list-changed", reload);
+  }, []);
 
   useEffect(() => {
     if (isLoading || listModal || Object.keys(dirty).length) return;
@@ -42,6 +57,9 @@ export default function List() {
     setIsLoading(true);
     setError("");
     try {
+      const data = await getHouseholdData(getActiveListId());
+      setActiveListId(data.household.id);
+      setCanEditList(data.canEditList);
       await Promise.all([fetchList(), fetchCategories()]);
     } catch {
       setError("No pudimos cargar tu lista. Intenta nuevamente.");
@@ -67,12 +85,15 @@ export default function List() {
   }, [categories]);
 
   async function fetchCategories() {
-    const categoriesRespone = await fetch("/api/categories/get-categories", {
-      method: "GET",
-      headers: {
-        "content-type": "application/json",
+    const categoriesRespone = await listFetch(
+      "/api/categories/get-categories",
+      {
+        method: "GET",
+        headers: {
+          "content-type": "application/json",
+        },
       },
-    });
+    );
     if (!categoriesRespone.ok) {
       throw new Error("Error fetching categories");
     }
@@ -83,7 +104,7 @@ export default function List() {
 
   async function fetchList() {
     const startedAtRevision = revision.current;
-    const dataFechList = await fetch(
+    const dataFechList = await listFetch(
       "/api/list/get-list-products-by-categories",
       {
         method: "GET",
@@ -101,6 +122,7 @@ export default function List() {
       setList(filteredProductListByCategories);
   }
   const handleOpenModal = (list: IList) => {
+    if (!canEditList) return;
     revision.current++;
     setLisModal(list);
   };
@@ -142,7 +164,7 @@ export default function List() {
     setError("");
     setStatus("");
     try {
-      const response = await fetch("/api/historical/add-historical", {
+      const response = await listFetch("/api/historical/add-historical", {
         method: "POST",
         headers: { "content-type": "application/json" },
       });
@@ -216,7 +238,7 @@ export default function List() {
         setError("Edita una cantidad o unidad antes de guardar.");
         return;
       }
-      const response = await fetch("/api/list/update-multiple-products", {
+      const response = await listFetch("/api/list/update-multiple-products", {
         method: "PUT",
         body: JSON.stringify(changedProducts),
         headers: { "content-Type": "application/json" },
@@ -244,6 +266,12 @@ export default function List() {
           await load();
         }}
       />
+      {!canEditList && (
+        <p className="text-sm text-zinc-500">
+          Tienes acceso como colaborador. Puedes sugerir cambios al final de la
+          lista.
+        </p>
+      )}
       <p className="text-sm text-zinc-500">
         Finaliza la compra para guardar los productos comprados en el historial.
         La lista compartida se actualiza cada 15 segundos cuando no hay cambios
@@ -276,14 +304,16 @@ export default function List() {
           <div className="flex gap-2">
             <button
               onClick={clean}
-              disabled={!products.some((p) => p.comprado === "1")}
+              disabled={
+                !canEditList || !products.some((p) => p.comprado === "1")
+              }
               className="btn-secondary"
             >
               Finalizar compra
             </button>
             <button
               onClick={save}
-              disabled={Object.keys(dirty).length === 0}
+              disabled={!canEditList || Object.keys(dirty).length === 0}
               className="btn-primary"
             >
               Guardar cambios
@@ -343,6 +373,7 @@ export default function List() {
                       className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem] sm:gap-2 sm:px-6"
                     >
                       <button
+                        disabled={!canEditList}
                         onClick={() => handleOpenModal(product)}
                         className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg text-left text-sm hover:text-zinc-500 sm:gap-3"
                       >
@@ -369,7 +400,7 @@ export default function List() {
                         type="number"
                         min="0"
                         step="any"
-                        disabled={product.comprado === "1"}
+                        disabled={!canEditList || product.comprado === "1"}
                         value={product.cantidad}
                         onChange={(e) =>
                           handleInputChange(
@@ -389,7 +420,7 @@ export default function List() {
                             ? [product.unit ?? "un"]
                             : compatibleUnits(product.productUnit ?? "un")
                         }
-                        disabled={product.comprado === "1"}
+                        disabled={!canEditList || product.comprado === "1"}
                         onChange={(unit: Unit) => {
                           revision.current++;
                           setDirty((prev) => ({ ...prev, [product.id]: true }));
@@ -408,7 +439,7 @@ export default function List() {
             )}
           </section>
         ))}
-      {listModal && (
+      {canEditList && listModal && (
         <BoughtListModal
           isOpen={!!listModal}
           onClose={handleCloseModal}

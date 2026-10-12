@@ -1,11 +1,15 @@
-# Autenticación Google
+# Google y Supabase Auth
 
-NextAuth v5 autentica mediante Google OAuth con sesión JWT y duración de 12 horas. Configurar `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` y `AUTH_SECRET` en `.env` privado. `NEXTAUTH_SECRET` legado también es reconocido; mantener una única fuente coherente.
+El navegador inicia OAuth mediante NextAuth. El callback Google permanece en `/api/auth/callback/google`. El servidor verifica el email confirmado y transmite el ID token a Supabase Auth mediante `signInWithIdToken`. Supabase crea o recupera la identidad en `auth.users`; su UUID se vincula a `app_users`. La sesión NextAuth contiene solo el identificador y datos de perfil.
 
-Registrar en Google Cloud el origen y callback por entorno: desarrollo de este worktree `http://localhost:2021` y `http://localhost:2021/api/auth/callback/google`. Producción debe utilizar su dominio HTTPS real.
+Configurar el proveedor Google de Supabase con el mismo cliente OAuth que NextAuth y las variables server-side `SUPABASE_AUTH_URL` y `SUPABASE_AUTH_PUBLISHABLE_KEY`. No se utiliza una clave `service_role` ni un endpoint público de sincronización de perfiles. No habilitar `skip_nonce_check` para resolver errores. El login falla si falta la configuración o si Supabase rechaza el token o devuelve otro correo/proveedor.
 
-El login solicita `openid email profile` y exige `email_verified`. El usuario inicia sesión y cierra sesión mediante Server Actions. Las rutas `/logistic` comprueban sesión en layout y cada acción/API vuelve a autenticar y autorizar por hogar.
+El callback de develop autorizado en Google es:
+`https://home-logistics-git-develop-larts85s-projects.vercel.app/api/auth/callback/google`.
+El de producción es:
+`https://elcarritodelacompra.vercel.app/api/auth/callback/google`.
+Los dominios de otras ramas deben registrarse antes de probar su login.
 
-La importación histórica es opcional y solicita Sheets y Drive con scopes readonly mediante consentimiento explícito. Habilitar esas APIs solo para importar/buscar la planilla. No requiere Gmail ni acceso de escritura a Drive. Conservar la planilla original. La base operativa es Supabase, no Google Sheets.
+Los permisos globales residen en `app_users.role`, protegida de `anon` y `authenticated`; solo `larts85@gmail.com` puede tener `admin`. Los permisos de propietario/colaborador de una lista no conceden ese rol. Ninguna operación confía en `user_metadata` ni en un rol enviado por el cliente.
 
-Los tokens OAuth se conservan en la sesión JWT cifrada; nunca registrarlos ni incluir secretos en Git. La callback de sesión existente incorpora accessToken/idToken; evitar imprimir respuestas completas de `/api/auth/session`. La conexión Supabase y su contraseña permanecen en código server-only con TLS verificado.
+Documentación: [Google en Supabase](https://supabase.com/docs/guides/auth/social-login/auth-google).

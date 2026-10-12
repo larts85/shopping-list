@@ -1,14 +1,13 @@
-import List from "../ui/list/list";
+import HomeLists from "../ui/list/homeLists";
+import { defaultListName } from "../lib/listName";
 export default function Page() {
   return (
     <main>
-      <h1 className="page-heading">Mi lista de compras</h1>
+      <h1 className="page-heading">Home</h1>
       <p className="page-description">
-        Todo lo que necesitas, organizado por categoría.
+        Tus listas en curso, compartidas e invitaciones.
       </p>
-      <div className="mt-8 space-y-6">
-        <List />
-      </div>
+      <HomeLists defaultName={defaultListName()} />
     </main>
   );
 }

@@ -1,13 +1,18 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { getActiveListId } from "@/app/lib/listClient";
+import type { getHomeLists } from "@/app/actions/households";
+import { getCurrentUser } from "@/app/actions/profile";
 
 const mainLinks = [
-  { href: "/logistic", label: "Mi lista" },
+  { href: "/logistic", label: "Home" },
   { href: "/logistic/add", label: "Agregar" },
   { href: "/logistic/admin", label: "Administrar" },
+  { href: "/logistic/catalog", label: "Solicitudes" },
   { href: "/logistic/history", label: "Historial" },
-  { href: "/logistic/data", label: "Datos" },
+  { href: "/logistic/data", label: "Accesos" },
 ];
 const adminLinks = [
   { href: "/logistic/admin/categories", label: "Categorías" },
@@ -15,12 +20,47 @@ const adminLinks = [
 ];
 export default function NavLinks({ admin = false }: { admin?: boolean }) {
   const pathname = usePathname();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [listHref, setListHref] = useState("");
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const d = await getCurrentUser();
+        if (active) setIsAdmin(d.role === "admin");
+        const response = await fetch("/api/households?view=home", {
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const data: Awaited<ReturnType<typeof getHomeLists>> =
+            await response.json();
+          const list = data.lists.find((list) => list.id === getActiveListId());
+          if (active) setListHref(list ? `/logistic/lists/${list.slug}` : "");
+        }
+      } catch {
+        if (active) setIsAdmin(false);
+      }
+    };
+    void refresh();
+    window.addEventListener("active-list-changed", refresh);
+    return () => {
+      active = false;
+      window.removeEventListener("active-list-changed", refresh);
+    };
+  }, [pathname]);
   return (
     <nav
       aria-label={admin ? "Administración" : "Navegación principal"}
-      className={admin ? "flex gap-2 sm:flex-col" : "grid grid-cols-5 gap-1"}
+      className={admin ? "flex gap-2 sm:flex-col" : "flex flex-wrap gap-1"}
     >
-      {(admin ? adminLinks : mainLinks).map(({ href, label }) => {
+      {(admin
+        ? adminLinks
+        : [
+            ...mainLinks.slice(0, 1),
+            ...(listHref ? [{ href: listHref, label: "Lista" }] : []),
+            ...mainLinks.slice(1),
+          ].filter((l) => isAdmin || l.href !== "/logistic/admin")
+      ).map(({ href, label }) => {
         const active =
           pathname === href ||
           (href === "/logistic/admin" && pathname.startsWith(`${href}/`));

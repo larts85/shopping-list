@@ -1,4 +1,5 @@
 "use client";
+import { listFetch } from "@/app/lib/listClient";
 import { useEffect, useState } from "react";
 import { BiEditAlt } from "react-icons/bi";
 import { RiDeleteBin6Line } from "react-icons/ri";
@@ -33,10 +34,13 @@ export default function ListCategories() {
   const fetchCategories = async () => {
     setError("");
     try {
-      const categoriesResponse = await fetch("/api/categories/get-categories", {
-        method: "GET",
-        headers: { "content-type": "application/json" },
-      });
+      const categoriesResponse = await listFetch(
+        "/api/categories/get-categories",
+        {
+          method: "GET",
+          headers: { "content-type": "application/json" },
+        },
+      );
       if (!categoriesResponse.ok) {
         throw new Error("Error fetching categories");
       }
