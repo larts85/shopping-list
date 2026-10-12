@@ -1,6 +1,7 @@
 "use server";
 import {
   withHousehold,
+  withListItemEditor,
   withListEditor,
   text,
   positive,
@@ -14,7 +15,7 @@ import {
 import type { Unit } from "../lib/units";
 import type { IList } from "../lib/types";
 export async function addList(): Promise<void> {
-  await withListEditor(async (db, h) => {
+  await withListItemEditor(async (db, h) => {
     await db.query(
       "insert into shopping_list(household_id,id_product,unit) select $1,p.id,p.unit from catalog_products p join list_selections s on s.product_id=p.id where s.household_id=$1 and s.checked and not p.archived on conflict(household_id,id_product) do nothing",
       [h],
@@ -128,7 +129,7 @@ export async function updateMultipleProducts(
     if (!p || typeof p !== "object") throw new DataError("Producto inválido");
     return { id: text(p.id), ...purchaseValues(p.cantidad, p.medida, p.unit) };
   });
-  await withListEditor(async (db, h) => {
+  await withListItemEditor(async (db, h) => {
     for (const p of validated) {
       const product = await db.query(
         "select l.comprado,p.unit from shopping_list l join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2",

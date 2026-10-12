@@ -1,6 +1,7 @@
 "use server";
 import {
   withHousehold,
+  withListItemEditor,
   withListEditor,
   withCatalog,
   text,
@@ -117,14 +118,14 @@ async function selectProduct(
 }
 export async function editCheckedProduct(p: ProductChecked): Promise<void> {
   if (typeof p.checked !== "boolean") throw new DataError("Selección inválida");
-  await withListEditor(async (db, h) =>
+  await withListItemEditor(async (db, h) =>
     selectProduct(db, h, p.idProduct, p.checked),
   );
 }
 export async function editCheckedProducts(products: Product[]): Promise<void> {
   if (!Array.isArray(products) || products.length > 500)
     throw new DataError("Productos inválidos");
-  await withListEditor(async (db, h) => {
+  await withListItemEditor(async (db, h) => {
     for (const p of products) {
       if (typeof p.checked !== "boolean")
         throw new DataError("Selección inválida");
