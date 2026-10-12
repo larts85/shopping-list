@@ -53,7 +53,7 @@ export default function Suggestions({
         getProducts(getActiveListId()),
         getList(getActiveListId()),
       ]);
-      setOwner(data.canEditList);
+      setOwner(data.canManageList);
       setItems(suggestions);
       setProducts(catalog);
       setListed(
