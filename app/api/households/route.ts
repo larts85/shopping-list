@@ -26,7 +26,7 @@ export async function GET(request: Request) {
       slug !== null ? await resolveListSlug(slug) : await getHouseholdData(),
     );
   } catch (e) {
-    return apiError(e);
+    return apiError(e, request);
   }
 }
 export async function POST(request: Request) {
@@ -70,6 +70,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ result: result ?? null });
   } catch (e) {
-    return apiError(e);
+    return apiError(e, request);
   }
 }
