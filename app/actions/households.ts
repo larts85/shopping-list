@@ -1,4 +1,5 @@
 "use server";
+import { listShareUrl } from "../lib/listShareUrl";
 import { deliverInvitation } from "../lib/invitationDelivery";
 import {
   withHousehold,
@@ -135,7 +136,11 @@ export async function renameHousehold(
 export async function shareHousehold(
   recipient: string,
   scope?: string,
-): Promise<{ delivery: "not_configured" | "sent" | "failed"; email: string }> {
+): Promise<{
+  delivery: "not_configured" | "sent" | "failed";
+  email: string;
+  slug: string;
+}> {
   const email = text(recipient).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new DataError("Email inválido");
@@ -164,22 +169,17 @@ export async function shareHousehold(
     return (await db.query("select name,slug from households where id=$1", [h]))
       .rows[0] as { name: string; slug: string };
   }, scope);
-  const url =
-    process.env.APP_URL ||
-    (process.env.VERCEL_ENV === "preview"
-      ? "https://home-logistics-git-develop-larts85s-projects.vercel.app"
-      : "https://elcarritodelacompra.vercel.app");
   const delivery = await deliverInvitation({
     email,
     name: list.name,
-    url: new URL(`/logistic/lists/${list.slug}`, url).href,
+    url: listShareUrl(list.slug),
     apiKey: process.env.RESEND_API_KEY,
     from: process.env.INVITATION_FROM,
     gmailUser: process.env.GMAIL_USER_EMAIL,
     gmailPassword: process.env.GMAIL_APP_PASSWORD,
   });
   console.info(`list_invitation delivery=${delivery}`);
-  return { delivery, email };
+  return { delivery, email, slug: list.slug };
 }
 export async function acceptInvitation(id: string): Promise<void> {
   const { email } = await identity();

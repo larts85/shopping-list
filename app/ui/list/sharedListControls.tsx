@@ -158,10 +158,10 @@ export default function SharedListControls({
             </button>
           </form>
           <p className="text-sm text-zinc-500">
-            El enlace requiere acceso o una invitación para el correo de quien
-            lo abre. Cada lista conserva sus productos pendientes y compras por
-            separado. La nueva empieza vacía y utiliza el catálogo general de la
-            app.
+            Copiar el enlace no crea una invitación. El propietario debe invitar
+            el correo de Google de la persona desde Compartir lista. Cada lista
+            conserva sus productos pendientes y compras por separado. La nueva
+            empieza vacía y utiliza el catálogo general de la app.
           </p>
         </>
       )}

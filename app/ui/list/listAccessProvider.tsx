@@ -56,15 +56,24 @@ export default function ListAccessProvider({
         }
         const active =
           linked?.kind === "member" ? linked.id : getActiveListId();
-        const data = active
-          ? await getHouseholdData(active).catch(() => {
-              if (slug)
-                throw new Error(
-                  "La lista no está disponible o no tienes acceso. Solicita una invitación al propietario.",
-                );
-              return getHouseholdData();
-            })
-          : await getHouseholdData();
+        let data: Awaited<ReturnType<typeof getHouseholdData>>;
+        if (linked?.kind === "member") {
+          const response = await fetch("/api/households", {
+            cache: "no-store",
+            headers: { "X-List-ID": linked.id },
+          });
+          const result = await response.json();
+          if (!response.ok)
+            throw new Error(
+              result.error ||
+                "No pudimos cargar esta lista. Intenta nuevamente.",
+            );
+          data = result;
+        } else {
+          data = active
+            ? await getHouseholdData(active).catch(() => getHouseholdData())
+            : await getHouseholdData();
+        }
         if (cancelled) return;
         setActiveListId(data.household.id);
         setReadyPath(pathname);

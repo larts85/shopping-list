@@ -410,7 +410,7 @@ try {
     user,
     404,
   );
-  await req(
+  const sharing = await req(
     "/api/households",
     "POST",
     { action: "share", email: outsider },
@@ -420,6 +420,21 @@ try {
   );
   const secondSlug = (await req("/api/households")).household.slug;
   assert.notEqual(secondSlug, linkedSlug);
+  assert.equal(sharing.result.slug, secondSlug);
+  checks++;
+  const recipientBefore = await req(
+    "/api/households",
+    "GET",
+    undefined,
+    outsider,
+  );
+  assert.notEqual(recipientBefore.household.id, second);
+  await req(
+    "/api/households",
+    "POST",
+    { action: "switch", id: recipientBefore.household.id },
+    outsider,
+  );
   const sharedPath = `/api/households?slug=${secondSlug}`;
   const invitationLink = await req(sharedPath, "GET", undefined, outsider);
   assert.equal(invitationLink.kind, "invitation");
@@ -446,6 +461,16 @@ try {
     kind: "member",
     id: second,
   });
+  const selectedShared = await req(
+    "/api/households",
+    "GET",
+    undefined,
+    outsider,
+    200,
+    second,
+  );
+  assert.equal(selectedShared.household.slug, secondSlug);
+  checks++;
   const shared = await req("/api/households", "GET", undefined, outsider);
   assert.equal(shared.role, "user");
   assert.equal(shared.canEditList, false);

@@ -13,9 +13,8 @@ export default function SharedDataModal({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [delivery, setDelivery] = useState("");
+  const [link, setLink] = useState("");
   if (!isOpen) return null;
-  const link =
-    typeof window !== "undefined" ? `${window.location.origin}/logistic` : "";
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div
@@ -41,6 +40,13 @@ export default function SharedDataModal({
               setError("");
               try {
                 const result = await shareHousehold(email, getActiveListId());
+                setLink(
+                  new URL(
+                    `/logistic/lists/${result.slug}`,
+                    window.location.origin,
+                  ).href,
+                );
+                setEmail(result.email);
                 setDelivery(result.delivery);
               } catch (e) {
                 setError(
