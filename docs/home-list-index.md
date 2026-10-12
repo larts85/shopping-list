@@ -21,6 +21,8 @@ Se usaron exclusivamente fixtures example.invalid y base efímera, con sesiones 
 
 ## Entrega
 
-Rama local codex/fix-shared-list-opening en /private/tmp/home-logistics-list-slugs. Incluye el commit anterior e7b5e4a de corrección de enlaces/invitaciones y los cambios de Home. No se publicó, abrió PR, mergeó ni desplegó esta ampliación. El preview de PR13 sigue con la versión anterior. La publicación de un nuevo preview requiere integración coordinada; esta entrega no cambió OAuth, datos, esquema ni configuración remotos.
+Los cambios e7b5e4a y 4d6ab6b se publicaron en PR14 y se integraron a develop mediante 3d26df5. La release del 11/10/2026 incluye esta ampliación y todos los cambios de develop desde la producción anterior b8bd56b.
+
+La base de producción quedó preparada con la migración transaccional 20261012022304 production_lists_catalog_roles_slugs: 5 listas y sus nombres conservados, 5 slugs únicos, 159 productos, 7 compras, 7 históricos, 5 membresías y 2 invitaciones intactos. Las tablas originales y el respaldo privado production_backup_20261012 se conservan. SUPABASE_AUTH_URL y SUPABASE_AUTH_PUBLISHABLE_KEY están configuradas para Production y Preview. La comprobación del deployment y los flujos remotos se registra en el PR de release; estas validaciones locales no sustituyen la verificación de producción.
 
 El caso exacto de rechazo reportado sigue pendiente del enlace y correo usados. La lectura de preview anterior encontró listas sin invitados/colaboradores; no se concedió acceso sin invitación para intentar resolverlo.
