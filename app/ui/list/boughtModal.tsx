@@ -16,6 +16,7 @@ interface ListModalProps {
   cantidadp: string;
   unitp: Unit;
   productUnit: Unit;
+  availableUnits: Unit[];
 }
 
 const BoughtListModal: React.FC<ListModalProps> = ({
@@ -28,8 +29,10 @@ const BoughtListModal: React.FC<ListModalProps> = ({
   cantidadp,
   unitp,
   productUnit,
+  availableUnits,
 }) => {
-  const unitMatches = compatibleUnits(productUnit).includes(unitp);
+  const options = availableUnits.length ? availableUnits : compatibleUnits(productUnit);
+  const unitMatches = options.includes(unitp);
   const [cantidad, setCantidad] = useState<number | string>(
     unitMatches ? cantidadp : "",
   );
@@ -161,7 +164,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
             <UnitSelect
               value={unit}
               onChange={setUnit}
-              options={compatibleUnits(productUnit)}
+              options={options}
               disabled={isLoading}
             />
           </label>

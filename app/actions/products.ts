@@ -8,7 +8,7 @@ import {
   requireRow,
   DataError,
 } from "../lib/database";
-import { isUnit } from "../lib/units";
+import { compatibleUnits, isUnit, isValidAvailableUnits } from "../lib/units";
 import { suggestProductUnit } from "../lib/productUnits";
 import type { Unit } from "../lib/units";
 import type { Product, ProductChecked, AddProduct } from "../lib/types";
@@ -17,18 +17,23 @@ export interface EditProductParams {
   newNameProduct: string;
   idCategory?: string;
   unit?: Unit;
+  availableUnits?: Unit[];
 }
 export async function getProducts(scope?: string): Promise<Product[]> {
-  return withHousehold(
+  const products = await withHousehold(
     async (db, h) =>
       (
         await db.query(
-          "select p.id,p.name,p.id_category,coalesce(s.checked,false) checked,p.unit from catalog_products p left join list_selections s on s.product_id=p.id and s.household_id=$1 where not p.archived order by p.name,p.id",
+          "select p.id,p.name,p.id_category,coalesce(s.checked,false) checked,p.unit,p.available_units from catalog_products p left join list_selections s on s.product_id=p.id and s.household_id=$1 where not p.archived order by p.name,p.id",
           [h],
         )
       ).rows,
     scope,
   );
+  return products.map(({ available_units, ...product }) => ({
+      ...product,
+      availableUnits: available_units,
+    }));
 }
 export async function addProduct(p: AddProduct): Promise<void> {
   if (p.unit !== undefined && !isUnit(p.unit))
@@ -39,12 +44,17 @@ export async function addProduct(p: AddProduct): Promise<void> {
       [text(p.idCategory)],
     );
     requireRow(category.rowCount);
+    const unit = p.unit ?? suggestProductUnit(p.name, category.rows[0].name);
+    const availableUnits = p.availableUnits ?? compatibleUnits(unit);
+    if (!isValidAvailableUnits(availableUnits, unit))
+      throw new DataError("Unidades disponibles inválidas");
     await db.query(
-      "insert into catalog_products(name,id_category,unit) values($1,$2,$3)",
+      "insert into catalog_products(name,id_category,unit,available_units) values($1,$2,$3,$4)",
       [
         text(p.name),
         p.idCategory,
-        p.unit ?? suggestProductUnit(p.name, category.rows[0].name),
+        unit,
+        availableUnits,
       ],
     );
   }, true);
@@ -72,8 +82,16 @@ export async function editNameProduct(p: EditProductParams): Promise<void> {
   if (p.idCategory !== undefined && !text(p.idCategory))
     throw new DataError("Categoría inválida");
   await withCatalog(async (db) => {
+    const nextUnit = p.unit;
+    const nextAvailableUnits = p.availableUnits;
+    if (
+      nextUnit !== undefined &&
+      nextAvailableUnits !== undefined &&
+      !isValidAvailableUnits(nextAvailableUnits, nextUnit)
+    )
+      throw new DataError("Unidades disponibles inválidas");
     const previous = await db.query(
-      "select unit from catalog_products where id=$1 and not archived for update",
+      "select unit,available_units from catalog_products where id=$1 and not archived for update",
       [text(p.idProduct)],
     );
     requireRow(previous.rowCount);
@@ -84,27 +102,109 @@ export async function editNameProduct(p: EditProductParams): Promise<void> {
       );
       requireRow(category.rowCount);
     }
-    if (p.unit !== undefined && p.unit !== previous.rows[0].unit) {
-      if (
-        (
-          await db.query("select 1 from shopping_list where id_product=$1", [
-            p.idProduct,
-          ])
-        ).rowCount
-      )
+    const availableUnits =
+      nextAvailableUnits ?? previous.rows[0].available_units;
+    const unit = nextUnit ?? previous.rows[0].unit;
+    if (!isValidAvailableUnits(availableUnits, unit))
+      throw new DataError("La unidad principal debe estar disponible");
+    if (nextAvailableUnits !== undefined || nextUnit !== undefined) {
+      const incompatible = await db.query(
+        "select 1 from shopping_list where id_product=$1 and unit is not null and not (unit=any($2::text[])) limit 1",
+        [p.idProduct, availableUnits],
+      );
+      if (incompatible.rowCount)
         throw new DataError(
-          "No se puede cambiar la unidad mientras haya compras activas de este producto",
+          "No puedes quitar una unidad que ya está seleccionada en una lista activa",
           409,
         );
     }
     requireRow(
       (
         await db.query(
-          "update catalog_products set name=$2,unit=coalesce($3,unit),id_category=coalesce($4,id_category) where id=$1 and not archived",
-          [p.idProduct, text(p.newNameProduct), p.unit ?? null, p.idCategory ? text(p.idCategory) : null],
+          "update catalog_products set name=$2,unit=$3,available_units=$4,id_category=coalesce($5,id_category) where id=$1 and not archived",
+          [p.idProduct, text(p.newNameProduct), unit, availableUnits, p.idCategory ? text(p.idCategory) : null],
         )
       ).rowCount,
     );
+  }, true);
+}
+
+export interface BulkEditProductsInput {
+  productIds: string[];
+  idCategory?: string;
+  unit?: Unit;
+  availableUnits?: Unit[];
+  action?: "update" | "delete";
+}
+
+export async function bulkEditProducts(input: BulkEditProductsInput): Promise<void> {
+  if (!input || !Array.isArray(input.productIds) || !input.productIds.length || input.productIds.length > 500)
+    throw new DataError("Selecciona entre 1 y 500 productos");
+  const ids = [...new Set(input.productIds.map((id) => text(id)))];
+  if (ids.length !== input.productIds.length)
+    throw new DataError("La selección contiene productos repetidos");
+  if (input.action !== undefined && input.action !== "update" && input.action !== "delete")
+    throw new DataError("Acción inválida");
+  if (input.action === "delete") {
+    await withCatalog(async (db) => {
+      const archived = await db.query(
+        "update catalog_products set archived=true where id=any($1::text[]) and not archived returning id",
+        [ids],
+      );
+      if (archived.rowCount !== ids.length)
+        throw new DataError("Uno o más productos ya no existen", 404);
+    }, true);
+    return;
+  }
+  if (input.unit !== undefined && !isUnit(input.unit))
+    throw new DataError("Unidad principal inválida");
+  if (
+    input.availableUnits !== undefined &&
+    (!Array.isArray(input.availableUnits) ||
+      !input.availableUnits.length ||
+      input.availableUnits.length > 5 ||
+      input.availableUnits.some((unit) => !isUnit(unit)) ||
+      new Set(input.availableUnits).size !== input.availableUnits.length)
+  )
+    throw new DataError("Unidades disponibles inválidas");
+  if (!input.idCategory && input.unit === undefined && input.availableUnits === undefined)
+    throw new DataError("Indica una categoría o las unidades para aplicar");
+  await withCatalog(async (db) => {
+    const products = await db.query(
+      "select id,unit,available_units from catalog_products where id=any($1::text[]) and not archived for update",
+      [ids],
+    );
+    if (products.rowCount !== ids.length)
+      throw new DataError("Uno o más productos ya no existen", 404);
+    if (input.idCategory) {
+      const category = await db.query(
+        "select 1 from catalog_categories where id=$1 and not archived",
+        [text(input.idCategory)],
+      );
+      requireRow(category.rowCount);
+    }
+    for (const product of products.rows) {
+      const availableUnits = input.availableUnits ?? product.available_units;
+      const unit = input.unit ??
+        (availableUnits.includes(product.unit) ? product.unit : availableUnits[0]);
+      if (!isValidAvailableUnits(availableUnits, unit))
+        throw new DataError("La unidad principal debe estar disponible");
+      if (input.availableUnits !== undefined) {
+        const incompatible = await db.query(
+          "select 1 from shopping_list where id_product=$1 and unit is not null and not (unit=any($2::text[])) limit 1",
+          [product.id, availableUnits],
+        );
+        if (incompatible.rowCount)
+          throw new DataError(
+            "No puedes quitar unidades que ya están seleccionadas en listas activas",
+            409,
+          );
+      }
+      await db.query(
+        "update catalog_products set id_category=coalesce($2,id_category),unit=$3,available_units=$4 where id=$1",
+        [product.id, input.idCategory ? text(input.idCategory) : null, unit, availableUnits],
+      );
+    }
   }, true);
 }
 async function selectProduct(

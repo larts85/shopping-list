@@ -115,6 +115,15 @@ try {
       "preview_lists.",
     ),
   );
+  const availableUnitsMigration = migrationNames.find((n) =>
+    n.includes("product_available_units"),
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/" + availableUnitsMigration, "utf8").replaceAll(
+      "public.",
+      "preview_lists.",
+    ),
+  );
   const protection = (
     await db.query(
       "select relrowsecurity as rls, has_table_privilege('anon','preview_lists.list_name_suggestions','select') as anon_read, has_table_privilege('authenticated','preview_lists.list_name_suggestions','insert') as authenticated_write from pg_class where oid='preview_lists.list_name_suggestions'::regclass",
@@ -653,6 +662,66 @@ try {
   ).find((p) => p.name === "Tornillos");
   assert.ok(newProduct);
   checks++;
+  const bulkProducts = ["old-product", newProduct.id];
+  await req(
+    "/api/products/bulk-edit-products",
+    "PUT",
+    { productIds: bulkProducts, idCategory: category.id },
+    user,
+    403,
+  );
+  await req(
+    "/api/products/bulk-edit-products",
+    "PUT",
+    {
+      productIds: bulkProducts,
+      idCategory: category.id,
+      availableUnits: ["un", "kg", "lt"],
+    },
+    admin,
+  );
+  const bulkUpdated = (await req("/api/products/get-products", "GET", undefined, outsider))
+    .filter((p) => bulkProducts.includes(p.id));
+  assert.equal(bulkUpdated.length, 2);
+  assert.ok(bulkUpdated.every((p) => p.id_category === category.id));
+  assert.ok(bulkUpdated.every((p) => p.availableUnits.includes("lt")));
+  checks += 3;
+  await req(
+    "/api/products/bulk-edit-products",
+    "PUT",
+    { productIds: ["old-product"], availableUnits: ["lt"] },
+    admin,
+    409,
+  );
+  const bulkDeleteNames = ["Lote para borrar uno", "Lote para borrar dos"];
+  for (const name of bulkDeleteNames)
+    await req(
+      "/api/products/add-product",
+      "POST",
+      {
+        name,
+        idCategory: category.id,
+        unit: "kg",
+        availableUnits: ["kg", "lt"],
+      },
+      admin,
+    );
+  const bulkDeleteProducts = (await req("/api/products/get-products", "GET", undefined, outsider))
+    .filter((p) => bulkDeleteNames.includes(p.name));
+  assert.equal(bulkDeleteProducts.length, 2);
+  assert.ok(bulkDeleteProducts.every((p) => p.availableUnits.includes("lt")));
+  await req(
+    "/api/products/bulk-edit-products",
+    "PUT",
+    { productIds: bulkDeleteProducts.map((p) => p.id), action: "delete" },
+    admin,
+  );
+  assert.ok(
+    !(await req("/api/products/get-products", "GET", undefined, outsider)).some(
+      (p) => bulkDeleteNames.includes(p.name),
+    ),
+  );
+  checks += 3;
   await req("/api/catalog-requests", "POST", {
     kind: "product",
     name: "Rechazar",

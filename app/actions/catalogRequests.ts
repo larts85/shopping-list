@@ -6,7 +6,7 @@ import {
   DataError,
   requireRow,
 } from "../lib/database";
-import { isUnit, type Unit } from "../lib/units";
+import { compatibleUnits, isUnit, type Unit } from "../lib/units";
 export interface CatalogRequestInput {
   kind: "category" | "product";
   name: string;
@@ -117,8 +117,8 @@ export async function reviewCatalogRequest(
           existing.rows[0]?.id ??
           (
             await db.query(
-              "insert into catalog_products(name,id_category,unit) values($1,$2,$3) returning id",
-              [request.name, request.category_id, request.unit],
+              "insert into catalog_products(name,id_category,unit,available_units) values($1,$2,$3,$4) returning id",
+              [request.name, request.category_id, request.unit, compatibleUnits(request.unit)],
             )
           ).rows[0].id;
       }

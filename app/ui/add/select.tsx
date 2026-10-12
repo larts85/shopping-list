@@ -1,30 +1,17 @@
 "use client";
-import Link from "next/link";
-import { getHouseholdData } from "@/app/actions/households";
-import { getActiveListId } from "@/app/lib/listClient";
 import { listFetch } from "@/app/lib/listClient";
 import { unitLabels, type Unit } from "@/app/lib/units";
 import { useState, useEffect, useRef, SyntheticEvent } from "react";
 import { ClipLoader } from "react-spinners";
-import { useRouter } from "next/navigation";
 import { Category } from "@/app/lib/types";
 import BulkPaste from "./bulkPaste";
 
-export default function Select() {
-  const [canEditList, setCanEditList] = useState<boolean>();
-  useEffect(() => {
-    let active = true;
-    void getHouseholdData(getActiveListId())
-      .then((d) => {
-        if (active) setCanEditList(d.canEditList);
-      })
-      .catch(() => {
-        if (active) setCanEditList(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+interface SelectProps {
+  listName: string;
+  onAdded: () => Promise<void>;
+}
+
+export default function Select({ listName, onAdded }: SelectProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [mode, setMode] = useState<"category" | "bulk">("category");
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
@@ -47,8 +34,6 @@ export default function Select() {
     setProducts([]);
     fetchProducts();
   }, [selectedCategory]);
-
-  const router = useRouter();
 
   async function fetchCategories() {
     try {
@@ -216,8 +201,7 @@ export default function Select() {
       });
 
       if (!response.ok) throw new Error("Error adding list");
-      const active = await getHouseholdData(getActiveListId());
-      router.push(`/lists/${active.household.slug}`);
+      await onAdded();
     } catch {
       setError(
         "No pudimos agregar los productos a la lista. Intenta nuevamente.",
@@ -227,20 +211,16 @@ export default function Select() {
     }
   };
 
-  if (canEditList === undefined)
-    return <p role="status">Comprobando permisos…</p>;
-  if (!canEditList)
-    return (
-      <p className="panel">
-        Puedes proponer cambios en esta lista desde{" "}
-        <Link className="underline" href="/catalog">
-          Solicitudes
-        </Link>
-        .
-      </p>
-    );
   return (
     <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-zinc-900">
+          Agregar productos
+        </h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          Se agregarán a <strong className="text-zinc-700">{listName}</strong>.
+        </p>
+      </div>
       <div className="flex border-b border-zinc-200">
         <button
           type="button"
@@ -267,7 +247,11 @@ export default function Select() {
       </div>
 
       {mode === "bulk" ? (
-        <BulkPaste categories={categories} products={products} />
+        <BulkPaste
+          categories={categories}
+          products={products}
+          onAdded={onAdded}
+        />
       ) : (
         <>
           {error && (

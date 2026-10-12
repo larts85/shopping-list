@@ -135,7 +135,7 @@ export default function Suggestions({
             });
           }}
         >
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 items-center">
             <label>
               Tipo
               <select
@@ -191,7 +191,7 @@ export default function Suggestions({
                 <UnitSelect
                   label="Unidad de la sugerencia"
                   value={unit}
-                  options={compatibleUnits(product?.unit ?? "un")}
+                  options={product?.availableUnits ?? compatibleUnits(product?.unit ?? "un")}
                   onChange={setUnit}
                 />
               </>

@@ -10,9 +10,9 @@ import {
 } from "../lib/database";
 import {
   purchaseValues,
-  requireCompatibleUnit,
+  requireAvailableUnit,
 } from "../lib/purchaseValidation";
-import { isUnit, type Unit } from "../lib/units";
+import { compatibleUnits, isUnit, type Unit } from "../lib/units";
 import type { IList } from "../lib/types";
 export async function addList(): Promise<void> {
   await withListItemEditor(async (db, h) => {
@@ -25,7 +25,7 @@ export async function addList(): Promise<void> {
 export async function getList(scope?: string): Promise<IList[]> {
   return withHousehold(async (db, h) => {
     const { rows } = await db.query(
-      `select l.*,p.name,p.id_category,p.unit as product_unit from shopping_list l join catalog_products p on p.id=l.id_product where l.household_id=$1 order by p.name,l.id`,
+      `select l.*,p.name,p.id_category,p.unit as product_unit,p.available_units from shopping_list l join catalog_products p on p.id=l.id_product where l.household_id=$1 order by p.name,l.id`,
       [h],
     );
     const currency = (n: number) =>
@@ -56,6 +56,7 @@ export async function getList(scope?: string): Promise<IList[]> {
       comprado: r.comprado ? "1" : "",
       unit: r.unit ?? r.product_unit,
       productUnit: r.product_unit,
+      availableUnits: r.available_units,
     }));
   }, scope);
 }
@@ -70,11 +71,12 @@ export async function setBought(
   const price = positive(precio, true);
   await withListEditor(async (db, h) => {
     const product = await db.query(
-      "select p.unit from shopping_list l join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2",
+      "select p.available_units from shopping_list l join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2",
       [h, text(id)],
     );
     requireRow(product.rowCount);
-    if (values.unit) requireCompatibleUnit(values.unit, product.rows[0].unit);
+    if (values.unit)
+      requireAvailableUnit(values.unit, product.rows[0].available_units);
     requireRow(
       (
         await db.query(
@@ -132,7 +134,7 @@ export async function updateMultipleProducts(
   await withListItemEditor(async (db, h) => {
     for (const p of validated) {
       const product = await db.query(
-        "select l.comprado,p.unit from shopping_list l join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2",
+        "select l.comprado,p.available_units from shopping_list l join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2",
         [h, p.id],
       );
       requireRow(product.rowCount);
@@ -140,7 +142,8 @@ export async function updateMultipleProducts(
         throw new DataError(
           "Registra nuevamente la compra para cambiar sus cantidades",
         );
-      if (p.unit) requireCompatibleUnit(p.unit, product.rows[0].unit);
+      if (p.unit)
+        requireAvailableUnit(p.unit, product.rows[0].available_units);
       requireRow(
         (
           await db.query(
@@ -217,7 +220,7 @@ export async function bulkAddToList(
       const name = text(item.name);
       const idCategory = text(item.idCategory);
       const cantidad = item.cantidad ? positive(item.cantidad, false) : 1;
-      const unit: Unit =
+      const requestedUnit: Unit =
         item.unit && isUnit(item.unit) ? item.unit : "un";
 
       const catCheck = await db.query(
@@ -228,16 +231,20 @@ export async function bulkAddToList(
 
       let productId: string;
       const existing = await db.query(
-        "select id, unit from catalog_products where lower(trim(name)) = lower(trim($1)) and not archived order by id limit 1",
+        "select id, unit, available_units from catalog_products where lower(trim(name)) = lower(trim($1)) and not archived order by id limit 1",
         [name],
       );
 
+      let unit = requestedUnit;
       if (existing.rowCount && existing.rows[0]) {
         productId = existing.rows[0].id;
+        if (!existing.rows[0].available_units.includes(requestedUnit))
+          unit = existing.rows[0].unit;
       } else {
+        const availableUnits = compatibleUnits(requestedUnit);
         const inserted = await db.query(
-          "insert into catalog_products(name, id_category, unit) values($1, $2, $3) returning id",
-          [name, idCategory, unit],
+          "insert into catalog_products(name, id_category, unit, available_units) values($1, $2, $3, $4) returning id",
+          [name, idCategory, requestedUnit, availableUnits],
         );
         productId = inserted.rows[0].id;
       }
