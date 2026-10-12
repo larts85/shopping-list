@@ -13,9 +13,9 @@ export default function SharedDataModal({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [delivery, setDelivery] = useState("");
+  const [link, setLink] = useState("");
+  const [copied, setCopied] = useState(false);
   if (!isOpen) return null;
-  const link =
-    typeof window !== "undefined" ? `${window.location.origin}/logistic` : "";
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div
@@ -41,6 +41,13 @@ export default function SharedDataModal({
               setError("");
               try {
                 const result = await shareHousehold(email, getActiveListId());
+                setLink(
+                  new URL(
+                    `/logistic/lists/${result.slug}`,
+                    window.location.origin,
+                  ).href,
+                );
+                setEmail(result.email);
                 setDelivery(result.delivery);
               } catch (e) {
                 setError(
@@ -92,6 +99,24 @@ export default function SharedDataModal({
               Enlace para ingresar
               <input readOnly className="field mt-2" value={link} />
             </label>
+            <button
+              className="btn-secondary"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(link);
+                  setCopied(true);
+                } catch {
+                  setError("No pudimos copiar el enlace.");
+                }
+              }}
+            >
+              {copied ? "Enlace copiado" : "Copiar enlace de la invitación"}
+            </button>
+            {error && (
+              <p role="alert" className="error-notice">
+                {error}
+              </p>
+            )}
             <a
               className="btn-secondary inline-flex"
               href={`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("Invitación a una lista de compras")}&body=${encodeURIComponent(`Te invité a mi lista de compras. Ingresa con este correo y acepta la invitación: ${link}`)}`}

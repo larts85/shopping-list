@@ -1,4 +1,6 @@
 "use server";
+import { defaultListName } from "../lib/listName";
+import { listShareUrl } from "../lib/listShareUrl";
 import { deliverInvitation } from "../lib/invitationDelivery";
 import {
   withHousehold,
@@ -97,29 +99,47 @@ export async function getHouseholdData(scope?: string) {
     };
   }, scope);
 }
+export async function getHomeLists() {
+  const { email } = await identity();
+  return transaction(email, async (db) => ({
+    email,
+    lists: (
+      await db.query(
+        "select h.id,h.slug,h.name,h.owner_email from households h join household_members m on m.household_id=h.id where m.email=$1 order by h.created_at,h.id",
+        [email],
+      )
+    ).rows as { id: string; slug: string; name: string; owner_email: string }[],
+    invitations: (
+      await db.query(
+        "select i.id,h.slug,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1 order by h.created_at,i.id",
+        [email],
+      )
+    ).rows as { id: string; slug: string; name: string; owner_email: string }[],
+  }));
+}
+
 export async function createHousehold(
-  name: string,
-  scope?: string,
-): Promise<string> {
-  const label = text(name);
-  return withHousehold(async (db, _source, email) => {
+  name?: string,
+): Promise<{ id: string; slug: string }> {
+  const label = name === undefined ? defaultListName() : text(name);
+  const { email } = await identity();
+  return transaction(email, async (db) => {
     const {
       rows: [home],
     } = await db.query(
-      "insert into households(owner_email,name) values($1,$2) returning id",
+      "insert into households(owner_email,name) values($1,$2) returning id,slug",
       [email, label],
     );
-    const h: string = home.id;
     await db.query(
       "insert into household_members(household_id,email,role) values($1,$2,'suggester')",
-      [h, email],
+      [home.id, email],
     );
     await db.query(
-      "update user_preferences set household_id=$2 where email=$1",
-      [email, h],
+      "insert into user_preferences(email,household_id) values($1,$2) on conflict(email) do update set household_id=excluded.household_id",
+      [email, home.id],
     );
-    return h;
-  }, scope);
+    return home as { id: string; slug: string };
+  });
 }
 export async function renameHousehold(
   name: string,
@@ -135,7 +155,11 @@ export async function renameHousehold(
 export async function shareHousehold(
   recipient: string,
   scope?: string,
-): Promise<{ delivery: "not_configured" | "sent" | "failed"; email: string }> {
+): Promise<{
+  delivery: "not_configured" | "sent" | "failed";
+  email: string;
+  slug: string;
+}> {
   const email = text(recipient).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new DataError("Email inválido");
@@ -164,28 +188,25 @@ export async function shareHousehold(
     return (await db.query("select name,slug from households where id=$1", [h]))
       .rows[0] as { name: string; slug: string };
   }, scope);
-  const url =
-    process.env.APP_URL ||
-    (process.env.VERCEL_ENV === "preview"
-      ? "https://home-logistics-git-develop-larts85s-projects.vercel.app"
-      : "https://elcarritodelacompra.vercel.app");
   const delivery = await deliverInvitation({
     email,
     name: list.name,
-    url: new URL(`/logistic/lists/${list.slug}`, url).href,
+    url: listShareUrl(list.slug),
     apiKey: process.env.RESEND_API_KEY,
     from: process.env.INVITATION_FROM,
     gmailUser: process.env.GMAIL_USER_EMAIL,
     gmailPassword: process.env.GMAIL_APP_PASSWORD,
   });
   console.info(`list_invitation delivery=${delivery}`);
-  return { delivery, email };
+  return { delivery, email, slug: list.slug };
 }
-export async function acceptInvitation(id: string): Promise<void> {
+export async function acceptInvitation(
+  id: string,
+): Promise<{ id: string; slug: string }> {
   const { email } = await identity();
-  await transaction(email, async (db) => {
+  return transaction(email, async (db) => {
     const invite = await db.query(
-      "select household_id from household_invitations where id::text=$1 and email=$2",
+      "select i.household_id,h.slug from household_invitations i join households h on h.id=i.household_id where i.id::text=$1 and i.email=$2",
       [text(id), email],
     );
     requireRow(invite.rowCount);
@@ -204,13 +225,10 @@ export async function acceptInvitation(id: string): Promise<void> {
       [h, email],
     );
     await db.query(
-      "insert into user_preferences(email,household_id) values($1,$2) on conflict(email) do update set household_id=excluded.household_id",
-      [email, h],
-    );
-    await db.query(
       "delete from household_invitations where id::text=$1 and email=$2",
       [id, email],
     );
+    return { id: h, slug: invite.rows[0].slug };
   });
 }
 export async function declineInvitation(id: string): Promise<void> {

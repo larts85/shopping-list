@@ -29,6 +29,7 @@ export default function Suggestions({
 }: {
   onChange?: () => Promise<void>;
 }) {
+  const [hasList, setHasList] = useState(false);
   const [items, setItems] = useState<ListSuggestion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [listed, setListed] = useState<string[]>([]);
@@ -42,6 +43,9 @@ export default function Suggestions({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   async function load() {
+    const active = getActiveListId();
+    setHasList(Boolean(active));
+    if (!active) return;
     try {
       const [data, suggestions, catalog, list] = await Promise.all([
         getHouseholdData(getActiveListId()),
@@ -88,14 +92,20 @@ export default function Suggestions({
   const choices = products.filter(
     (p) => kind === "add" || listed.includes(p.id),
   );
+  if (!hasList)
+    return (
+      <p className="text-sm text-zinc-500">
+        Elige una lista desde Home para ver sus sugerencias.
+      </p>
+    );
   return (
     <section className="panel space-y-4" aria-label="Sugerencias de la lista">
       <h2 className="text-xl font-semibold">
         {owner ? "Revisar sugerencias" : "Sugerir cambios"}
       </h2>
       <p className="text-sm text-zinc-500">
-        Las sugerencias no modifican la lista hasta que el propietario de la lista las
-        aprueba.
+        Las sugerencias no modifican la lista hasta que el propietario de la
+        lista las aprueba.
       </p>
       {error && (
         <p role="alert" className="error-notice">
@@ -201,7 +211,9 @@ export default function Suggestions({
           </button>
         </form>
       )}
-      <h3 className="text-lg font-semibold">Historial de sugerencias de la lista</h3>
+      <h3 className="text-lg font-semibold">
+        Historial de sugerencias de la lista
+      </h3>
       <ul className="divide-y divide-zinc-200">
         {items.map((s) => (
           <li key={s.id} className="py-3 space-y-2">

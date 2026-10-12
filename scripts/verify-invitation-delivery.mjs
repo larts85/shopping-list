@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { defaultListName } from "../app/lib/listName.ts";
+import { listShareUrl } from "../app/lib/listShareUrl.ts";
 import { deliverInvitation } from "../app/lib/invitationDelivery.ts";
 const message = {
   email: "qa@example.invalid",
@@ -98,3 +100,47 @@ assert.equal(
   "not_configured",
 );
 console.log("8 offline Gmail checks passed; no messages sent");
+
+const slug = "lista-0123456789abcdef0123456789abcdef";
+assert.equal(
+  listShareUrl(slug, {
+    VERCEL_ENV: "preview",
+    VERCEL_BRANCH_URL: "current-branch.vercel.app",
+    VERCEL_URL: "immutable.vercel.app",
+    APP_URL: "https://production.example.invalid",
+  }),
+  `https://current-branch.vercel.app/logistic/lists/${slug}`,
+);
+assert.equal(
+  listShareUrl(slug, {
+    VERCEL_ENV: "preview",
+    VERCEL_URL: "immutable.vercel.app",
+    APP_URL: "https://production.example.invalid",
+  }),
+  `https://immutable.vercel.app/logistic/lists/${slug}`,
+);
+assert.equal(
+  listShareUrl(slug, {
+    VERCEL_ENV: "preview",
+    APP_URL: "https://production.example.invalid",
+  }),
+  `https://home-logistics-git-develop-larts85s-projects.vercel.app/logistic/lists/${slug}`,
+);
+assert.equal(
+  listShareUrl(slug, {
+    VERCEL_ENV: "production",
+    APP_URL: "https://production.example.invalid",
+  }),
+  `https://production.example.invalid/logistic/lists/${slug}`,
+);
+console.log("4 invitation environment isolation checks passed");
+
+assert.equal(
+  defaultListName(new Date("2026-10-12T02:59:59Z")),
+  "Compras 11/10/2026",
+);
+assert.equal(
+  defaultListName(new Date("2026-10-12T03:00:00Z")),
+  "Compras 12/10/2026",
+);
+console.log("2 Argentine calendar boundary checks passed");

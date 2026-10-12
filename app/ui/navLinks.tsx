@@ -2,10 +2,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { getActiveListId } from "@/app/lib/listClient";
+import type { getHomeLists } from "@/app/actions/households";
 import { getCurrentUser } from "@/app/actions/profile";
 
 const mainLinks = [
-  { href: "/logistic", label: "Mi lista" },
+  { href: "/logistic", label: "Home" },
   { href: "/logistic/add", label: "Agregar" },
   { href: "/logistic/admin", label: "Administrar" },
   { href: "/logistic/catalog", label: "Solicitudes" },
@@ -19,12 +21,22 @@ const adminLinks = [
 export default function NavLinks({ admin = false }: { admin?: boolean }) {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [listHref, setListHref] = useState("");
   useEffect(() => {
     let active = true;
     const refresh = async () => {
       try {
         const d = await getCurrentUser();
         if (active) setIsAdmin(d.role === "admin");
+        const response = await fetch("/api/households?view=home", {
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const data: Awaited<ReturnType<typeof getHomeLists>> =
+            await response.json();
+          const list = data.lists.find((list) => list.id === getActiveListId());
+          if (active) setListHref(list ? `/logistic/lists/${list.slug}` : "");
+        }
       } catch {
         if (active) setIsAdmin(false);
       }
@@ -43,7 +55,11 @@ export default function NavLinks({ admin = false }: { admin?: boolean }) {
     >
       {(admin
         ? adminLinks
-        : mainLinks.filter((l) => isAdmin || l.href !== "/logistic/admin")
+        : [
+            ...mainLinks.slice(0, 1),
+            ...(listHref ? [{ href: listHref, label: "Lista" }] : []),
+            ...mainLinks.slice(1),
+          ].filter((l) => isAdmin || l.href !== "/logistic/admin")
       ).map(({ href, label }) => {
         const active =
           pathname === href ||

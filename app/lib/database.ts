@@ -87,20 +87,10 @@ export async function ensureHousehold(
     );
     return id;
   }
-  const home = await db.query(
-    "insert into households(owner_email) values($1) returning id",
-    [email],
+  throw new DataError(
+    "No tienes una lista activa. Crea una lista desde Home para continuar.",
+    409,
   );
-  const id = home.rows[0].id;
-  await db.query(
-    "insert into household_members(household_id,email) values($1,$2)",
-    [id, email],
-  );
-  await db.query(
-    "insert into user_preferences(email,household_id) values($1,$2) on conflict(email) do update set household_id=excluded.household_id",
-    [email, id],
-  );
-  return id;
 }
 export async function withHousehold<T>(
   run: (db: PoolClient, household: string, email: string) => Promise<T>,

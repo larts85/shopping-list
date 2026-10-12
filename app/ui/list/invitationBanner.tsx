@@ -1,6 +1,5 @@
 "use client";
 import { setActiveListId } from "@/app/lib/listClient";
-import { getHouseholdData } from "@/app/actions/households";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -49,12 +48,13 @@ export default function InvitationBanner() {
     setBusy(true);
     setError("");
     try {
-      await (accept ? acceptInvitation(id) : declineInvitation(id));
+      const accepted = accept ? await acceptInvitation(id) : undefined;
+      if (!accept) await declineInvitation(id);
       setInvites(await getPendingInvitations());
-      if (accept) {
-        setActiveListId((await getHouseholdData()).household.id);
+      if (accepted) {
+        setActiveListId(accepted.id);
         window.dispatchEvent(new Event("active-list-changed"));
-        router.push("/logistic");
+        router.push(`/logistic/lists/${accepted.slug}`);
         router.refresh();
       }
     } catch {

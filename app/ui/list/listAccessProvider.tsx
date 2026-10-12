@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import InvitationBanner from "./invitationBanner";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import type { resolveListSlug } from "@/app/actions/households";
@@ -26,6 +28,10 @@ export default function ListAccessProvider({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const requiresList =
+    pathname !== "/logistic" &&
+    pathname !== "/logistic/catalog" &&
+    !pathname.startsWith("/logistic/admin");
   const slug = pathname.startsWith("/logistic/lists/")
     ? pathname.slice("/logistic/lists/".length)
     : undefined;
@@ -42,6 +48,7 @@ export default function ListAccessProvider({
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (!requiresList) return;
     let cancelled = false;
     async function initialize() {
       try {
@@ -56,15 +63,31 @@ export default function ListAccessProvider({
         }
         const active =
           linked?.kind === "member" ? linked.id : getActiveListId();
-        const data = active
-          ? await getHouseholdData(active).catch(() => {
-              if (slug)
-                throw new Error(
-                  "La lista no está disponible o no tienes acceso. Solicita una invitación al propietario.",
-                );
-              return getHouseholdData();
-            })
-          : await getHouseholdData();
+        let data: Awaited<ReturnType<typeof getHouseholdData>>;
+        if (linked?.kind === "member") {
+          const response = await fetch("/api/households", {
+            cache: "no-store",
+            headers: { "X-List-ID": linked.id },
+          });
+          const result = await response.json();
+          if (!response.ok)
+            throw new Error(
+              result.error ||
+                "No pudimos cargar esta lista. Intenta nuevamente.",
+            );
+          data = result;
+        } else {
+          let response = await fetch("/api/households", {
+            cache: "no-store",
+            headers: active ? { "X-List-ID": active } : {},
+          });
+          if (!response.ok && active)
+            response = await fetch("/api/households", { cache: "no-store" });
+          const result = await response.json();
+          if (!response.ok)
+            throw new Error(result.error || "No pudimos cargar tus listas.");
+          data = result;
+        }
         if (cancelled) return;
         setActiveListId(data.household.id);
         setReadyPath(pathname);
@@ -82,8 +105,9 @@ export default function ListAccessProvider({
     return () => {
       cancelled = true;
     };
-  }, [attempt, pathname, slug]);
+  }, [attempt, pathname, slug, requiresList]);
 
+  if (!requiresList) return children;
   if (invitation)
     return (
       <section className="panel space-y-3">
@@ -114,11 +138,20 @@ export default function ListAccessProvider({
         </button>
       </section>
     );
-  if (readyPath === pathname && !error) return children;
+  if (readyPath === pathname && !error)
+    return (
+      <>
+        <InvitationBanner />
+        {children}
+      </>
+    );
   if (error)
     return (
       <div role="alert" className="space-y-3">
         <p>{error}</p>
+        <Link href="/logistic" className="text-sm underline">
+          Volver a Home
+        </Link>
         <button
           className="rounded-xl border px-4 py-2"
           onClick={() => {
