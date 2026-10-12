@@ -8,7 +8,7 @@ import {
   requireRow,
   DataError,
 } from "../lib/database";
-import { requireCompatibleUnit } from "../lib/purchaseValidation";
+import { requireAvailableUnit } from "../lib/purchaseValidation";
 import { isUnit, type Unit } from "../lib/units";
 export interface SuggestionInput {
   kind: "add" | "quantity" | "remove";
@@ -44,12 +44,12 @@ export async function submitSuggestion(
     throw new DataError("Unidad inválida");
   await withHousehold(async (db, h, email) => {
     const product = await db.query(
-      "select unit from catalog_products where id=$1 and not archived",
+      "select available_units from catalog_products where id=$1 and not archived",
       [productId],
     );
     requireRow(product.rowCount);
     if (input.kind !== "remove")
-      requireCompatibleUnit(input.unit!, product.rows[0].unit);
+      requireAvailableUnit(input.unit!, product.rows[0].available_units);
     if (input.kind !== "add")
       requireRow(
         (
@@ -99,7 +99,7 @@ export async function reviewSuggestion(
     throw new DataError("Decisión inválida");
   await withListEditor(async (db, h, email) => {
     const result = await db.query(
-      "select s.*,p.unit as product_unit from list_suggestions s join catalog_products p on p.id=s.product_id where s.household_id=$1 and s.id::text=$2 for update of s",
+      "select s.*,p.available_units as product_available_units from list_suggestions s join catalog_products p on p.id=s.product_id where s.household_id=$1 and s.id::text=$2 for update of s",
       [h, text(id)],
     );
     requireRow(result.rowCount);
@@ -115,7 +115,8 @@ export async function reviewSuggestion(
           )
         ).rowCount,
       );
-      if (s.kind !== "remove") requireCompatibleUnit(s.unit, s.product_unit);
+      if (s.kind !== "remove")
+        requireAvailableUnit(s.unit, s.product_available_units);
       if (s.kind === "add") {
         if (
           (

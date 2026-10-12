@@ -15,3 +15,20 @@ export function compatibleUnits(unit: Unit): Unit[] {
   if (unit === "lt" || unit === "ml") return ["lt", "ml"];
   return ["un"];
 }
+
+export function isValidAvailableUnits(
+  value: unknown,
+  baseUnit: Unit,
+): value is Unit[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > units.length)
+    return false;
+  if (
+    value.some((item) => !isUnit(item)) ||
+    new Set(value).size !== value.length
+  )
+    return false;
+  const selected = value as Unit[];
+  if (!selected.includes(baseUnit))
+    return false;
+  return true;
+}

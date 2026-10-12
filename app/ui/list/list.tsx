@@ -3,6 +3,7 @@ import { getActiveListId, setActiveListId } from "@/app/lib/listClient";
 import { listFetch } from "@/app/lib/listClient";
 import { useState, useEffect, useRef } from "react";
 import { ClipLoader } from "react-spinners";
+import { RiDeleteBin6Line } from "react-icons/ri";
 import Modal from "@/shared/components/ui/Modal";
 import { completedPurchaseName } from "@/app/lib/completedPurchase";
 import BoughtListModal from "./boughtModal";
@@ -12,6 +13,16 @@ import { compatibleUnits, type Unit } from "@/app/lib/units";
 import SharedListControls from "./sharedListControls";
 import { getHouseholdData } from "@/app/actions/households";
 import { Category } from "@/app/lib/types";
+import Select from "@/app/ui/add/select";
+
+interface PendingProductUpdate {
+  key: string;
+  id: string;
+  householdId?: string;
+  cantidad: number;
+  unit: Unit;
+  version: number;
+}
 
 export default function List() {
   useEffect(() => {
@@ -20,6 +31,8 @@ export default function List() {
 
   const [canEditList, setCanEditList] = useState(false);
   const [canManageList, setCanManageList] = useState(false);
+  const [householdName, setHouseholdName] = useState("");
+  const [isAddItemsOpen, setIsAddItemsOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [list, setList] = useState<Record<string, IList[]>>({});
   const [listModal, setLisModal] = useState<IList | null>(null);
@@ -34,14 +47,21 @@ export default function List() {
     listId: string;
   } | null>(null);
   const [purchaseBusy, setPurchaseBusy] = useState(false);
-  const [dirty, setDirty] = useState<Record<string, boolean>>({});
+  const [pendingSaveCount, setPendingSaveCount] = useState(0);
+  const [isSavingEdits, setIsSavingEdits] = useState(false);
+  const [autoSaveError, setAutoSaveError] = useState("");
+  const pendingProductUpdates = useRef<Record<string, PendingProductUpdate>>(
+    {},
+  );
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isSavingEditsRef = useRef(false);
 
   useEffect(() => {
     const reload = () => {
       revision.current++;
-      setDirty({});
       setLisModal(null);
       setPurchaseConfirmation(null);
+      setIsAddItemsOpen(false);
       void load();
     };
     window.addEventListener("active-list-changed", reload);
@@ -51,10 +71,12 @@ export default function List() {
   useEffect(() => {
     if (
       isLoading ||
+      isAddItemsOpen ||
       listModal ||
       purchaseBusy ||
       purchaseConfirmation ||
-      Object.keys(dirty).length
+      pendingSaveCount > 0 ||
+      isSavingEdits
     )
       return;
     const refresh = () => {
@@ -63,13 +85,19 @@ export default function List() {
           setError("No se pudo actualizar la lista compartida."),
         );
     };
-    const timer = setInterval(refresh, 15000);
     window.addEventListener("focus", refresh);
     return () => {
-      clearInterval(timer);
       window.removeEventListener("focus", refresh);
     };
-  }, [isLoading, listModal, dirty, purchaseBusy, purchaseConfirmation]);
+  }, [
+    isLoading,
+    isAddItemsOpen,
+    listModal,
+    pendingSaveCount,
+    isSavingEdits,
+    purchaseBusy,
+    purchaseConfirmation,
+  ]);
 
   async function load() {
     setIsLoading(true);
@@ -79,6 +107,7 @@ export default function List() {
       setActiveListId(data.household.id);
       setCanEditList(data.canEditList);
       setCanManageList(data.canManageList);
+      setHouseholdName(data.household.name);
       await Promise.all([fetchList(), fetchCategories()]);
     } catch {
       setError("No pudimos cargar tu lista. Intenta nuevamente.");
@@ -140,11 +169,143 @@ export default function List() {
     if (startedAtRevision === revision.current)
       setList(filteredProductListByCategories);
   }
+
+  function scheduleProductUpdate(
+    product: IList,
+    changes: { cantidad?: number; unit?: Unit },
+  ) {
+    const householdId = getActiveListId();
+    const key = `${householdId ?? ""}:${product.id}`;
+    const previous = pendingProductUpdates.current[key] ?? {
+      key,
+      id: product.id,
+      householdId,
+      cantidad: Number(product.cantidad),
+      unit: product.unit ?? "un",
+      version: 0,
+    };
+    pendingProductUpdates.current[key] = {
+      ...previous,
+      ...changes,
+      version: previous.version + 1,
+    };
+    setPendingSaveCount(Object.keys(pendingProductUpdates.current).length);
+    setAutoSaveError("");
+    setError("");
+    setStatus("Guardando cambios…");
+    revision.current++;
+
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      void flushProductUpdates();
+    }, 500);
+  }
+
+  async function flushProductUpdates() {
+    if (isSavingEditsRef.current) return;
+    const updates = Object.values(pendingProductUpdates.current);
+    if (!updates.length) return;
+    if (updates.some((update) => !Number.isFinite(update.cantidad) || update.cantidad <= 0)) {
+      setStatus("Ingresa una cantidad mayor que cero para guardar los cambios.");
+      return;
+    }
+
+    isSavingEditsRef.current = true;
+    setIsSavingEdits(true);
+    setAutoSaveError("");
+    setStatus("Guardando cambios…");
+    let succeeded = false;
+    try {
+      const byHousehold = new Map<string, PendingProductUpdate[]>();
+      for (const update of updates) {
+        const householdKey = update.householdId ?? "";
+        const group = byHousehold.get(householdKey) ?? [];
+        group.push(update);
+        byHousehold.set(householdKey, group);
+      }
+
+      await Promise.all(
+        [...byHousehold.entries()].map(async ([householdKey, group]) => {
+          const response = await fetch("/api/list/update-multiple-products", {
+            method: "PUT",
+            headers: {
+              "content-type": "application/json",
+              ...(householdKey ? { "X-List-ID": householdKey } : {}),
+            },
+            body: JSON.stringify(
+              group.map(({ id, cantidad, unit }) => ({
+                id,
+                cantidad,
+                medida: 1,
+                precio: 0,
+                unit,
+              })),
+            ),
+          });
+          if (!response.ok) {
+            const result = await response.json().catch(() => ({}));
+            throw new Error(
+              result.error || "No pudimos guardar los cambios automáticamente.",
+            );
+          }
+        }),
+      );
+
+      succeeded = true;
+      for (const update of updates) {
+        const latest = pendingProductUpdates.current[update.key];
+        if (latest?.version === update.version)
+          delete pendingProductUpdates.current[update.key];
+      }
+      setPendingSaveCount(Object.keys(pendingProductUpdates.current).length);
+      setStatus(
+        Object.keys(pendingProductUpdates.current).length
+          ? "Guardando cambios…"
+          : "Cambios guardados automáticamente.",
+      );
+    } catch (error) {
+      setAutoSaveError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos guardar los cambios automáticamente.",
+      );
+      setStatus("");
+    } finally {
+      isSavingEditsRef.current = false;
+      setIsSavingEdits(false);
+      const hasPendingEdits =
+        Object.keys(pendingProductUpdates.current).length > 0;
+      if (succeeded && hasPendingEdits) {
+        if (saveTimer.current) clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(() => {
+          saveTimer.current = null;
+          void flushProductUpdates();
+        }, 0);
+      }
+    }
+  }
+
+  function retryProductUpdates() {
+    setAutoSaveError("");
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      void flushProductUpdates();
+    }, 0);
+  }
+
   const mutateCart = async (
     method: "DELETE" | "PATCH",
     target: { productId?: string; categoryId?: string; id?: string },
   ) => {
-    if (!canEditList || isLoading || submitting.current || purchaseConfirmation)
+    if (
+      !canEditList ||
+      isLoading ||
+      submitting.current ||
+      purchaseConfirmation ||
+      pendingSaveCount > 0
+    )
       return;
     submitting.current = true;
     revision.current++;
@@ -171,14 +332,6 @@ export default function List() {
         getActiveListId() !== selectedListId
       )
         return;
-      const affected = target.categoryId
-        ? (list[target.categoryId] ?? []).map((product) => product.id)
-        : [target.productId ?? target.id!];
-      setDirty((previous) => {
-        const next = { ...previous };
-        affected.forEach((id) => delete next[id]);
-        return next;
-      });
       const responseList = await fetch(
         "/api/list/get-list-products-by-categories",
         { headers: selectedListId ? { "X-List-ID": selectedListId } : {} },
@@ -193,20 +346,7 @@ export default function List() {
         getActiveListId() !== selectedListId
       )
         return;
-      // Preserve unrelated edits that have not been saved yet.
-      setList((previous) =>
-        Object.fromEntries(
-          Object.entries(updated).map(([categoryId, products]) => [
-            categoryId,
-            products.map((product) =>
-              dirty[product.id] && !affected.includes(product.id)
-                ? (previous[categoryId]?.find((old) => old.id === product.id) ??
-                  product)
-                : product,
-            ),
-          ]),
-        ),
-      );
+      setList(updated);
       setStatus(
         method === "PATCH"
           ? "Artículo desmarcado. Sigue pendiente en el carrito."
@@ -235,7 +375,13 @@ export default function List() {
   };
 
   const handleOpenModal = (list: IList) => {
-    if (!canEditList || isLoading || submitting.current || purchaseConfirmation)
+    if (
+      !canEditList ||
+      isLoading ||
+      submitting.current ||
+      purchaseConfirmation ||
+      pendingSaveCount > 0
+    )
       return;
     if (list.comprado === "1") {
       void mutateCart("PATCH", { id: list.id });
@@ -261,14 +407,7 @@ export default function List() {
     }
     revision.current++;
     setLisModal(null);
-    if (updateList) {
-      setDirty((prev) => {
-        const next = { ...prev };
-        delete next[updateList.id];
-        return next;
-      });
-      void fetchList();
-    }
+    if (updateList) void fetchList();
   };
 
   const toggleCategoryVisibility = (categoryId: string) => {
@@ -279,7 +418,7 @@ export default function List() {
   };
 
   const openPurchaseConfirmation = async () => {
-    if (!canManageList || submitting.current || Object.keys(dirty).length)
+    if (!canManageList || submitting.current || pendingSaveCount > 0)
       return;
     const ids = Object.values(list)
       .flat()
@@ -356,18 +495,18 @@ export default function List() {
   ) => {
     if (submitting.current) return;
     const { value } = e.target;
+    if (field === "cantidad" && value === "") return;
     if (
       field === "cantidad" &&
-      value !== "" &&
       (!Number.isFinite(Number(value)) || Number(value) <= 0)
     ) {
       setError("La cantidad debe ser mayor que cero.");
       return;
     }
     revision.current++;
-    setDirty((prev) => ({ ...prev, [productId]: true }));
     setStatus("");
     setError("");
+    const product = list[categoryId]?.find((item) => item.id === productId);
 
     setList((prevList) => {
       const updatedList = { ...prevList };
@@ -376,51 +515,11 @@ export default function List() {
       );
       return updatedList;
     });
-  };
-
-  const save = async () => {
-    if (submitting.current) return;
-    setIsLoading(true);
-    setError("");
-    setStatus("");
-    const changedProducts = Object.values(list)
-      .flat()
-      .filter((product) => dirty[product.id] && product.comprado !== "1")
-      .map((product) => ({
-        id: product.id,
-        cantidad: Number(product.cantidad),
-        medida: 1,
-        precio: 0,
+    if (product && field === "cantidad")
+      scheduleProductUpdate(product, {
+        cantidad: Number(value),
         unit: product.unit ?? "un",
-      }));
-    if (
-      changedProducts.some(
-        (p) => !Number.isFinite(p.cantidad) || p.cantidad <= 0,
-      )
-    ) {
-      setError("Todas las cantidades editadas deben ser mayores que cero.");
-      setIsLoading(false);
-      return;
-    }
-    try {
-      if (changedProducts.length === 0) {
-        setError("Edita una cantidad o unidad antes de guardar.");
-        return;
-      }
-      const response = await listFetch("/api/list/update-multiple-products", {
-        method: "PUT",
-        body: JSON.stringify(changedProducts),
-        headers: { "content-Type": "application/json" },
       });
-      if (!response.ok) throw new Error("Error saving list");
-      await fetchList();
-      setDirty({});
-      setStatus("Cambios guardados.");
-    } catch {
-      setError("No pudimos guardar los cambios. Intenta nuevamente.");
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const products = Object.values(list).flat();
@@ -429,22 +528,60 @@ export default function List() {
   ).length;
   return (
     <div className="space-y-6">
-      <SharedListControls
-        onSwitch={async () => {
-          setDirty({});
-          await load();
-        }}
-      />
+      <SharedListControls onSwitch={load} />
       {!canEditList && (
         <p className="text-sm text-zinc-500">
           Tienes acceso como colaborador. Puedes sugerir cambios al final de la
           lista.
         </p>
       )}
+      {canEditList && (
+        <>
+          <div className="panel flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="font-semibold">¿Falta algún producto?</h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                Se agregará a <strong>{householdName || "tu lista activa"}</strong>.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn-primary"
+              aria-expanded={isAddItemsOpen}
+              aria-controls="add-products-panel"
+              disabled={isLoading || pendingSaveCount > 0 || isSavingEdits}
+              onClick={() => setIsAddItemsOpen((open) => !open)}
+            >
+              {isAddItemsOpen ? "Cerrar" : "Agregar productos"}
+            </button>
+          </div>
+          {pendingSaveCount > 0 && (
+            <p className="text-sm text-zinc-500">
+              Espera a que se guarden los cambios antes de agregar productos.
+            </p>
+          )}
+          {isAddItemsOpen && (
+            <section
+              id="add-products-panel"
+              className="panel"
+              aria-label={`Agregar productos a ${householdName}`}
+            >
+              <Select
+                listName={householdName}
+                onAdded={async () => {
+                  await Promise.all([fetchList(), fetchCategories()]);
+                  setStatus(`Productos agregados a ${householdName}.`);
+                  setIsAddItemsOpen(false);
+                }}
+              />
+            </section>
+          )}
+        </>
+      )}
       <p className="text-sm text-zinc-500">
         Finaliza la compra para guardar los productos comprados en el historial.
-        La lista compartida se actualiza cada 15 segundos cuando no hay cambios
-        sin guardar.
+        Los cambios se guardan automáticamente; al volver a esta pestaña se
+        sincroniza la lista compartida.
       </p>
       {error && (
         <div className="error-notice" role="alert">
@@ -460,6 +597,19 @@ export default function List() {
         <p role="status" className="text-sm text-zinc-600">
           {status}
         </p>
+      )}
+      {autoSaveError && (
+        <div className="error-notice" role="alert">
+          <p>{autoSaveError}</p>
+          <button
+            type="button"
+            className="btn-secondary mt-3"
+            disabled={isSavingEdits}
+            onClick={retryProductUpdates}
+          >
+            Reintentar guardado
+          </button>
+        </div>
       )}
       {!isLoading && (
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -477,20 +627,12 @@ export default function List() {
                 !canManageList ||
                 purchaseBusy ||
                 boughtCount === 0 ||
-                Object.keys(dirty).length > 0
+                pendingSaveCount > 0 ||
+                isSavingEdits
               }
               className="btn-secondary"
             >
               Finalizar compra parcial
-            </button>
-            <button
-              onClick={save}
-              disabled={
-                !canEditList || purchaseBusy || Object.keys(dirty).length === 0
-              }
-              className="btn-primary"
-            >
-              Guardar cambios
             </button>
           </div>
         </div>
@@ -503,9 +645,13 @@ export default function List() {
           <p className="mt-2">
             Agrega los productos que necesitas para tu próxima compra.
           </p>
-          <a href="/add" className="btn-primary mt-6">
+          <button
+            type="button"
+            className="btn-primary mt-6"
+            onClick={() => setIsAddItemsOpen(true)}
+          >
             Agregar productos
-          </a>
+          </button>
         </div>
       )}
       {categories
@@ -540,7 +686,8 @@ export default function List() {
                   !canEditList ||
                   isLoading ||
                   purchaseBusy ||
-                  !!purchaseConfirmation
+                  !!purchaseConfirmation ||
+                  pendingSaveCount > 0
                 }
                 aria-label={`Eliminar categoría ${category.name} de este carrito`}
                 onClick={() =>
@@ -552,7 +699,7 @@ export default function List() {
             </div>
             {visibleCategories[category.id] && (
               <div id={`category-${category.id}`}>
-                <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem] gap-2 border-y border-zinc-100 bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-500 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem] sm:gap-2 sm:px-6">
+                <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] gap-2 border-y border-zinc-100 bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-500 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] sm:gap-2 sm:px-6">
                   <span>Producto</span>
                   <span className="text-center">Cantidad</span>
                   <span className="text-center">Unidad</span>
@@ -561,7 +708,7 @@ export default function List() {
                   {list[category.id].map((product) => (
                     <li
                       key={product.id}
-                      className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem] sm:gap-2 sm:px-6"
+                      className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] sm:gap-2 sm:px-6"
                     >
                       <button
                         disabled={
@@ -569,6 +716,7 @@ export default function List() {
                           isLoading ||
                           purchaseBusy ||
                           !!purchaseConfirmation ||
+                          pendingSaveCount > 0 ||
                           (product.comprado !== "1" && !canManageList)
                         }
                         onClick={() => handleOpenModal(product)}
@@ -618,11 +766,10 @@ export default function List() {
                         compact
                         label={`Unidad de ${product.name}`}
                         value={product.unit ?? "un"}
-                        options={
-                          product.comprado === "1"
+                        options={product.availableUnits ??
+                          (product.comprado === "1"
                             ? [product.unit ?? "un"]
-                            : compatibleUnits(product.productUnit ?? "un")
-                        }
+                            : compatibleUnits(product.productUnit ?? "un"))}
                         disabled={
                           !canEditList ||
                           isLoading ||
@@ -633,29 +780,37 @@ export default function List() {
                         onChange={(unit: Unit) => {
                           if (submitting.current) return;
                           revision.current++;
-                          setDirty((prev) => ({ ...prev, [product.id]: true }));
+                          setStatus("");
+                          setError("");
                           setList((prev) => ({
                             ...prev,
                             [category.id]: prev[category.id].map((p) =>
                               p.id === product.id ? { ...p, unit } : p,
                             ),
                           }));
+                          scheduleProductUpdate(product, {
+                            cantidad: Number(product.cantidad),
+                            unit,
+                          });
                         }}
                       />
                       <button
-                        className="col-span-3 justify-self-end rounded-lg border border-zinc-300 px-2 py-1 text-xs"
+                        type="button"
+                        className="flex size-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={
                           !canEditList ||
                           isLoading ||
                           purchaseBusy ||
-                          !!purchaseConfirmation
+                          !!purchaseConfirmation ||
+                          pendingSaveCount > 0
                         }
                         aria-label={`Eliminar ${product.name} de este carrito`}
                         onClick={() =>
                           removeItems({ productId: product.id }, product.name)
                         }
+                        title={`Eliminar ${product.name} de este carrito`}
                       >
-                        Eliminar
+                        <RiDeleteBin6Line aria-hidden="true" size={20} />
                       </button>
                     </li>
                   ))}
@@ -664,11 +819,6 @@ export default function List() {
             )}
           </section>
         ))}
-      {Object.keys(dirty).length > 0 && (
-        <p className="text-sm text-zinc-500">
-          Guarda los cambios pendientes antes de finalizar una compra parcial.
-        </p>
-      )}
       {purchaseConfirmation && (
         <Modal
           isOpen
@@ -729,6 +879,7 @@ export default function List() {
           cantidadp={listModal.cantidad}
           unitp={listModal.unit ?? "un"}
           productUnit={listModal.productUnit ?? "un"}
+          availableUnits={listModal.availableUnits ?? [listModal.productUnit ?? "un"]}
         />
       )}
       {isLoading && (

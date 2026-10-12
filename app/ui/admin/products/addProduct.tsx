@@ -7,9 +7,10 @@ import { RiDeleteBin6Line } from "react-icons/ri";
 import DeleteProductModal from "./deleteProductModal";
 import { BiEditAlt } from "react-icons/bi";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
-import { unitLabels, type Unit } from "@/app/lib/units";
+import { compatibleUnits, unitLabels, type Unit } from "@/app/lib/units";
 import { suggestProductUnit } from "@/app/lib/productUnits";
 import EditProductModal from "./editProductModal";
+import AvailableUnitsField from "./availableUnitsField";
 interface Category {
   id: string;
   name: string;
@@ -21,12 +22,14 @@ interface Product {
   id_category: string;
   checked: boolean;
   unit?: Unit;
+  availableUnits?: Unit[];
 }
 
 export interface NewProduct {
   name: string;
   idCategory: string;
   unit: Unit;
+  availableUnits: Unit[];
 }
 
 export default function AddProduct() {
@@ -38,6 +41,7 @@ export default function AddProduct() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [unit, setUnit] = useState<Unit>("un");
+  const [availableUnits, setAvailableUnits] = useState<Unit[]>(["un"]);
   const [unitChosen, setUnitChosen] = useState(false);
   const [newProductName, setNewProductName] = useState<string>("");
   const [editModalProduct, setEditModalProduct] = useState<Product | null>(
@@ -46,6 +50,11 @@ export default function AddProduct() {
   const [deleteModalProduct, deleteEditModalProduct] = useState<Product | null>(
     null,
   );
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [bulkCategoryId, setBulkCategoryId] = useState("");
+  const [bulkUnits, setBulkUnits] = useState<Unit[]>(["un"]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState("");
 
   useEffect(() => {
     fetchCategories();
@@ -53,6 +62,8 @@ export default function AddProduct() {
 
   useEffect(() => {
     if (!selectedCategory) return;
+    setBulkCategoryId(selectedCategory);
+    setSelectedProductIds([]);
     setIsLoading(true);
     setProducts([]);
     fetchProducts();
@@ -117,13 +128,14 @@ export default function AddProduct() {
     const target = event.target as HTMLInputElement;
     const nameCategory = capitalize(target.value);
     setNewProductName(nameCategory);
-    if (!unitChosen)
-      setUnit(
-        suggestProductUnit(
+    if (!unitChosen) {
+      const suggestedUnit = suggestProductUnit(
           nameCategory,
           categories.find((c) => c.id === selectedCategory)?.name,
-        ),
-      );
+        );
+      setUnit(suggestedUnit);
+      setAvailableUnits(compatibleUnits(suggestedUnit));
+    }
   };
 
   const handleSubmit = async (event: React.ChangeEvent<HTMLFormElement>) => {
@@ -135,6 +147,7 @@ export default function AddProduct() {
       name: newProductName,
       idCategory: selectedCategory,
       unit,
+      availableUnits,
     };
     try {
       const response = await listFetch("/api/products/add-product", {
@@ -151,6 +164,7 @@ export default function AddProduct() {
 
       setNewProductName("");
       setUnit("un");
+      setAvailableUnits(["un"]);
       setUnitChosen(false);
 
       await fetchProducts();
@@ -180,6 +194,43 @@ export default function AddProduct() {
     await fetchProducts();
   };
 
+  async function runBulkEdit(payload: Record<string, unknown>) {
+    if (!selectedProductIds.length || bulkBusy) return;
+    setBulkBusy(true);
+    setBulkError("");
+    try {
+      const response = await listFetch("/api/products/bulk-edit-products", {
+        method: "PUT",
+        body: JSON.stringify({ productIds: selectedProductIds, ...payload }),
+        headers: { "Content-Type": "application/json" },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(result.error || "No pudimos actualizar los productos.");
+      setSelectedProductIds([]);
+      await fetchProducts();
+    } catch (error) {
+      setBulkError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos actualizar los productos.",
+      );
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  function toggleProduct(id: string, checked: boolean) {
+    setSelectedProductIds((current) =>
+      checked
+        ? [...new Set([...current, id])]
+        : current.filter((selectedId) => selectedId !== id),
+    );
+  }
+
+  const allProductsSelected =
+    products.length > 0 && products.every((product) => selectedProductIds.includes(product.id));
+
   return (
     <div className="space-y-6">
       {error && (
@@ -194,13 +245,14 @@ export default function AddProduct() {
             value={selectedCategory}
             onChange={(e) => {
               setSelectedCategoy(e.target.value);
-              if (!unitChosen)
-                setUnit(
-                  suggestProductUnit(
-                    newProductName,
-                    categories.find((c) => c.id === e.target.value)?.name,
-                  ),
+              if (!unitChosen) {
+                const suggestedUnit = suggestProductUnit(
+                  newProductName,
+                  categories.find((c) => c.id === e.target.value)?.name,
                 );
+                setUnit(suggestedUnit);
+                setAvailableUnits(compatibleUnits(suggestedUnit));
+              }
             }}
             className="field mt-2"
             disabled={isSubmitting}
@@ -235,11 +287,22 @@ export default function AddProduct() {
             value={unit}
             onChange={(value) => {
               setUnit(value);
+              setAvailableUnits((current) =>
+                current.includes(value) ? current : [...current, value],
+              );
               setUnitChosen(true);
             }}
             disabled={isSubmitting}
           />
         </label>
+        <div className="lg:col-span-2">
+          <AvailableUnitsField
+            selected={availableUnits}
+            onChange={setAvailableUnits}
+            requiredUnit={unit}
+            disabled={isSubmitting}
+          />
+        </div>
         <p className="text-sm text-zinc-500 lg:col-span-2">
           Sugerimos la unidad según el producto. Usa kg/g para productos al
           peso, litros/ml para volumen y unidades para envases o paquetes. Ej.:
@@ -271,25 +334,124 @@ export default function AddProduct() {
       )}
       {!isLoading && products.length > 0 && (
         <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-          <h2 className="border-b border-zinc-100 px-5 py-4 font-semibold">
-            Productos{" "}
-            <span className="ml-2 text-sm font-normal text-zinc-400">
-              {products.length}
-            </span>
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-5 py-4">
+            <h2 className="font-semibold">
+              Productos{" "}
+              <span className="ml-2 text-sm font-normal text-zinc-400">
+                {products.length}
+              </span>
+            </h2>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={allProductsSelected}
+                disabled={bulkBusy}
+                onChange={(event) =>
+                  setSelectedProductIds(
+                    event.target.checked ? products.map((product) => product.id) : [],
+                  )
+                }
+              />
+              Seleccionar todos
+            </label>
+          </div>
+          {selectedProductIds.length > 0 && (
+            <div className="space-y-4 border-b border-zinc-100 bg-zinc-50 p-5">
+              <p className="text-sm font-medium">
+                {selectedProductIds.length} productos seleccionados
+              </p>
+              {bulkError && (
+                <p role="alert" className="error-notice">
+                  {bulkError}
+                </p>
+              )}
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="text-sm font-medium">
+                  Cambiar categoría
+                  <select
+                    className="field mt-2"
+                    value={bulkCategoryId}
+                    disabled={bulkBusy}
+                    onChange={(event) => setBulkCategoryId(event.target.value)}
+                  >
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={bulkBusy}
+                  onClick={() => void runBulkEdit({ idCategory: bulkCategoryId })}
+                >
+                  Aplicar categoría
+                </button>
+              </div>
+              <AvailableUnitsField
+                selected={bulkUnits}
+                onChange={setBulkUnits}
+                disabled={bulkBusy}
+              />
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={bulkBusy || bulkUnits.length === 0}
+                  onClick={() => void runBulkEdit({ availableUnits: bulkUnits })}
+                >
+                  Aplicar unidades
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary text-red-700 hover:bg-red-50"
+                  disabled={bulkBusy}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `¿Eliminar ${selectedProductIds.length} productos del catálogo? No se borrarán las compras anteriores.`,
+                      )
+                    )
+                      void runBulkEdit({ action: "delete" });
+                  }}
+                >
+                  {bulkBusy ? "Actualizando…" : "Eliminar seleccionados"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={bulkBusy}
+                  onClick={() => setSelectedProductIds([])}
+                >
+                  Limpiar selección
+                </button>
+              </div>
+            </div>
+          )}
           <ul className="divide-y divide-zinc-100">
             {products.map((product) => (
               <li
                 key={product.id}
-                className="flex items-center justify-between gap-3 px-5 py-3"
+                className="flex items-center gap-3 px-5 py-3"
               >
+                <input
+                  type="checkbox"
+                  aria-label={`Seleccionar ${product.name}`}
+                  checked={selectedProductIds.includes(product.id)}
+                  disabled={bulkBusy}
+                  onChange={(event) => toggleProduct(product.id, event.target.checked)}
+                />
                 <span className="min-w-0 break-words text-sm font-medium">
                   {product.name}
                   <span className="ml-2 text-xs font-normal text-zinc-500">
-                    {unitLabels[product.unit ?? "un"]}
+                    {(product.availableUnits ?? [product.unit ?? "un"])
+                      .map((unit) => unitLabels[unit])
+                      .join(" / ")}
                   </span>
                 </span>
-                <div className="flex shrink-0 gap-1">
+                <div className="ml-auto flex shrink-0 gap-1">
                   <button
                     type="button"
                     className="icon-button"
@@ -319,6 +481,9 @@ export default function AddProduct() {
           idProduct={editModalProduct.id}
           nameProduct={editModalProduct.name}
           unitProduct={editModalProduct.unit ?? "un"}
+          availableUnitsProduct={
+            editModalProduct.availableUnits ?? [editModalProduct.unit ?? "un"]
+          }
           categories={categories}
           idCategory={editModalProduct.id_category}
         />

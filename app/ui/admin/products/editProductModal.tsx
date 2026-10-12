@@ -6,6 +6,7 @@ import { useState, SyntheticEvent } from "react";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
 import type { Unit } from "@/app/lib/units";
 import { capitalize } from "../../utils/capitalize";
+import AvailableUnitsField from "./availableUnitsField";
 
 interface EditProductModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface EditProductModalProps {
   idProduct: string;
   nameProduct: string;
   unitProduct: Unit;
+  availableUnitsProduct: Unit[];
   categories: { id: string; name: string }[];
   idCategory: string;
 }
@@ -23,10 +25,12 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
   idProduct,
   nameProduct,
   unitProduct,
+  availableUnitsProduct,
   categories,
   idCategory,
 }) => {
   const [unit, setUnit] = useState<Unit>(unitProduct);
+  const [availableUnits, setAvailableUnits] = useState<Unit[]>(availableUnitsProduct);
   const [newNameProduct, setNewNameProduct] = useState(nameProduct);
   const [categoryId, setCategoryId] = useState(idCategory);
 
@@ -45,6 +49,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
         idProduct: idProduct,
         newNameProduct: newNameProduct,
         unit,
+        availableUnits,
         idCategory: categoryId,
       };
       const response = await listFetch("/api/products/edit-name-product", {
@@ -54,10 +59,19 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
           "content-Type": "application/json",
         },
       });
-      if (!response.ok) throw new Error("Request failed");
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(
+          result.error || "No pudimos completar el cambio. Intenta nuevamente.",
+        );
+      }
       onClose();
-    } catch {
-      setError("No pudimos completar el cambio. Intenta nuevamente.");
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos completar el cambio. Intenta nuevamente.",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -111,8 +125,23 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
         </label>
         <label className="block text-sm font-medium">
           Unidad de medida
-          <UnitSelect value={unit} onChange={setUnit} disabled={isSubmitting} />
+          <UnitSelect
+            value={unit}
+            onChange={(value) => {
+              setUnit(value);
+              setAvailableUnits((current) =>
+                current.includes(value) ? current : [...current, value],
+              );
+            }}
+            disabled={isSubmitting}
+          />
         </label>
+        <AvailableUnitsField
+          selected={availableUnits}
+          onChange={setAvailableUnits}
+          requiredUnit={unit}
+          disabled={isSubmitting}
+        />
         <div className="flex justify-end space-x-4">
           <button
             type="button"

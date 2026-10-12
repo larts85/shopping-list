@@ -1,14 +1,8 @@
-import Select from "../../ui/add/select";
+import RedirectToActiveList from "@/app/ui/add/redirectToActiveList";
 export default function Page() {
   return (
     <main>
-      <h1 className="page-heading">¿Qué hace falta?</h1>
-      <p className="page-description">
-        Elige una categoría o pega un listado para tu próxima compra.
-      </p>
-      <div className="mt-8 space-y-6">
-        <Select />
-      </div>
+      <RedirectToActiveList />
     </main>
   );
 }

@@ -13,12 +13,15 @@ export default function SharedListControls({
   const [data, setData] = useState<Data>();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   async function load() {
     try {
       setData(await getHouseholdData(getActiveListId()));
       setError("");
     } catch {
       setError("No pudimos cargar los accesos de la lista.");
+    } finally {
+      setIsLoading(false);
     }
   }
   useEffect(() => {
@@ -35,6 +38,13 @@ export default function SharedListControls({
       window.removeEventListener("active-list-changed", refresh);
     };
   }, []);
+  if (isLoading && !data && !error) {
+    return (
+      <p role="status" className="loading-state">
+        Cargando accesos de la lista…
+      </p>
+    );
+  }
   return (
     <section className="panel space-y-4" aria-label="Accesos de la lista">
       {error && (
@@ -46,7 +56,7 @@ export default function SharedListControls({
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-xl font-semibold">{data.household.name}</h2>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 items-center">
               <Link className="btn-secondary" href="/">
                 Carritos
               </Link>

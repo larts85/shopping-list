@@ -8,7 +8,6 @@ import { getCurrentUser } from "@/app/actions/profile";
 
 const mainLinks = [
   { href: "/", label: "Carritos" },
-  { href: "/add", label: "Agregar" },
   { href: "/admin", label: "Administrar" },
   { href: "/catalog", label: "Solicitudes" },
   { href: "/history", label: "Historial" },
