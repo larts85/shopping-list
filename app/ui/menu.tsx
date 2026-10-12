@@ -13,7 +13,7 @@ export default async function Menu() {
       <div className="mx-auto max-w-6xl px-4 sm:px-8">
         <div className="flex min-h-20 items-center justify-between gap-3">
           <Link
-            href="/logistic"
+            href="/"
             className="flex items-center gap-3 font-semibold tracking-tight"
           >
             <span

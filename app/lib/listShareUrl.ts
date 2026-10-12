@@ -10,5 +10,5 @@ export function listShareUrl(
         ? `https://${previewHost}`
         : "https://home-logistics-git-develop-larts85s-projects.vercel.app"
       : environment.APP_URL || "https://elcarritodelacompra.vercel.app";
-  return new URL(`/logistic/lists/${slug}`, base).href;
+  return new URL(`/lists/${slug}`, base).href;
 }

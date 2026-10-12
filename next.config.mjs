@@ -16,6 +16,12 @@ if (process.env.VERCEL_ENV === "production") {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async redirects() {
+    return [
+      { source: "/logistic", destination: "/", permanent: true },
+      { source: "/logistic/:path+", destination: "/:path+", permanent: true },
+    ];
+  },
   outputFileTracingIncludes: { "/*": ["./supabase/certs/prod-ca-2021.crt"] },
   env: {
     NEXT_PUBLIC_BASE_URL: process.env.VERCEL_URL

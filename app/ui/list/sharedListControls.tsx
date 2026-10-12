@@ -35,15 +35,15 @@ export default function SharedListControls({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-xl font-semibold">{data.household.name}</h2>
             <div className="flex flex-wrap gap-3">
-              <Link className="btn-secondary" href="/logistic">
-                Home
+              <Link className="btn-secondary" href="/">
+                Carritos
               </Link>
               {data.canEditList && (
                 <button className="btn-secondary" onClick={() => setOpen(true)}>
                   Compartir lista
                 </button>
               )}
-              <Link className="text-sm underline" href="/logistic/data">
+              <Link className="text-sm underline" href="/data">
                 Accesos y nombre
               </Link>
             </div>

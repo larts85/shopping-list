@@ -151,3 +151,38 @@ export async function updateMultipleProducts(
     }
   });
 }
+
+export async function removeCartItems(target: {
+  productId?: string;
+  categoryId?: string;
+}): Promise<void> {
+  if (!target || Boolean(target.productId) === Boolean(target.categoryId))
+    throw new DataError("Indica un artículo o una categoría");
+  const id = text(target.productId ?? target.categoryId);
+  await withListEditor(async (db, h) => {
+    // Remove only cart rows and their local selections, never global catalog rows.
+    const removed = await db.query(
+      `delete from shopping_list l where l.household_id=$1 and ${target.productId ? "l.id=$2" : "l.id_product in (select id from catalog_products where id_category=$2)"} returning id_product`,
+      [h, id],
+    );
+    requireRow(removed.rowCount);
+    await db.query(
+      "delete from list_selections where household_id=$1 and product_id=any($2::text[])",
+      [h, removed.rows.map((row) => row.id_product)],
+    );
+  });
+}
+
+export async function unmarkCartItem(id: string): Promise<void> {
+  const productId = text(id);
+  await withListEditor(async (db, h) => {
+    requireRow(
+      (
+        await db.query(
+          "update shopping_list set comprado=false where household_id=$1 and id=$2",
+          [h, productId],
+        )
+      ).rowCount,
+    );
+  });
+}

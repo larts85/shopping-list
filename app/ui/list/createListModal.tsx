@@ -32,7 +32,7 @@ export default function CreateListModal({
       setActiveListId(result.result);
       window.dispatchEvent(new Event("active-list-changed"));
       onClose();
-      router.push(`/logistic/lists/${result.slug}`);
+      router.push(`/lists/${result.slug}`);
       router.refresh();
     } catch (error) {
       setError(
