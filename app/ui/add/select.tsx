@@ -8,6 +8,7 @@ import { useState, useEffect, useRef, SyntheticEvent } from "react";
 import { ClipLoader } from "react-spinners";
 import { useRouter } from "next/navigation";
 import { Category } from "@/app/lib/types";
+import BulkPaste from "./bulkPaste";
 
 export default function Select() {
   const [canEditList, setCanEditList] = useState<boolean>();
@@ -25,6 +26,7 @@ export default function Select() {
     };
   }, []);
   const [isLoading, setIsLoading] = useState(true);
+  const [mode, setMode] = useState<"category" | "bulk">("category");
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -239,115 +241,149 @@ export default function Select() {
     );
   return (
     <div className="space-y-6">
-      {error && (
-        <div role="alert" className="error-notice">
-          <p>{error}</p>
-          <button
-            className="btn-secondary mt-3"
-            onClick={() => {
-              setError("");
-              setIsLoading(true);
-              selectedCategory ? fetchProducts() : fetchCategories();
-            }}
-          >
-            Reintentar
-          </button>
-        </div>
-      )}
-      <div className="panel flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <label className="w-full text-sm font-medium sm:max-w-sm">
-          Categoría
-          <select
-            value={selectedCategory}
-            onChange={handleSelectChange}
-            className="field mt-2"
-            disabled={isUpdating}
-          >
-            <option value="" disabled>
-              Selecciona una categoría
-            </option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="flex border-b border-zinc-200">
         <button
-          onClick={createList}
-          disabled={isLoading || isUpdating || !selectedCategory}
-          className="btn-primary"
+          type="button"
+          onClick={() => setMode("category")}
+          className={`min-h-11 border-b-2 px-5 py-2.5 text-sm font-medium transition-colors ${
+            mode === "category"
+              ? "border-zinc-900 font-semibold text-zinc-900"
+              : "border-transparent text-zinc-500 hover:text-zinc-700"
+          }`}
         >
-          Agregar a mi lista
+          Por categoría
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("bulk")}
+          className={`min-h-11 border-b-2 px-5 py-2.5 text-sm font-medium transition-colors ${
+            mode === "bulk"
+              ? "border-zinc-900 font-semibold text-zinc-900"
+              : "border-transparent text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          Pegar listado
         </button>
       </div>
-      {!selectedCategory && !isLoading && !error && (
-        <div className="empty-state">
-          <p className="font-semibold text-zinc-900">
-            Empecemos por una categoría.
-          </p>
-          <p className="mt-2">
-            Selecciona una opción para ver tus productos habituales.
-          </p>
-        </div>
-      )}
-      {!isLoading && products.length > 0 && (
-        <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-4">
-            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
-              <input
-                ref={(input) => {
-                  if (input)
-                    input.indeterminate = selectedCount > 0 && !allChecked;
+
+      {mode === "bulk" ? (
+        <BulkPaste categories={categories} products={products} />
+      ) : (
+        <>
+          {error && (
+            <div role="alert" className="error-notice">
+              <p>{error}</p>
+              <button
+                className="btn-secondary mt-3"
+                onClick={() => {
+                  setError("");
+                  setIsLoading(true);
+                  selectedCategory ? fetchProducts() : fetchCategories();
                 }}
-                type="checkbox"
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
+          <div className="panel flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <label className="w-full text-sm font-medium sm:max-w-sm">
+              Categoría
+              <select
+                value={selectedCategory}
+                onChange={handleSelectChange}
+                className="field mt-2"
                 disabled={isUpdating}
-                checked={allChecked}
-                onChange={handleAllChecked}
-              />
-              Seleccionar todos
+              >
+                <option value="" disabled>
+                  Selecciona una categoría
+                </option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
             </label>
-            <span className="text-xs text-zinc-500">
-              {selectedCount}{" "}
-              {selectedCount === 1 ? "seleccionado" : "seleccionados"}
-            </span>
+            <button
+              onClick={createList}
+              disabled={isLoading || isUpdating || !selectedCategory}
+              className="btn-primary"
+            >
+              Agregar a mi lista
+            </button>
           </div>
-          <ul className="divide-y divide-zinc-100">
-            {products.map((product) => (
-              <li key={product.id}>
-                <label
-                  className={`flex min-h-16 cursor-pointer items-center gap-3 px-5 py-4 text-sm transition-colors hover:bg-zinc-50 ${product.checked ? "bg-zinc-50 font-medium" : ""}`}
-                >
+          {!selectedCategory && !isLoading && !error && (
+            <div className="empty-state">
+              <p className="font-semibold text-zinc-900">
+                Empecemos por una categoría.
+              </p>
+              <p className="mt-2">
+                Selecciona una opción para ver tus productos habituales.
+              </p>
+            </div>
+          )}
+          {!isLoading && products.length > 0 && (
+            <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-4">
+                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
                   <input
-                    id={product.id}
+                    ref={(input) => {
+                      if (input)
+                        input.indeterminate = selectedCount > 0 && !allChecked;
+                    }}
                     type="checkbox"
-                    onChange={handleCheckboxChange}
                     disabled={isUpdating}
-                    checked={product.checked}
+                    checked={allChecked}
+                    onChange={handleAllChecked}
                   />
-                  <span className="break-words">
-                    {product.name}
-                    <span className="ml-2 text-xs text-zinc-500">
-                      {unitLabels[product.unit ?? "un"]}
-                    </span>
-                  </span>
+                  Seleccionar todos
                 </label>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {selectedCategory && !isLoading && !error && products.length === 0 && (
-        <div className="empty-state">
-          Todavía no hay productos en esta categoría. Puedes agregarlos desde
-          Administración.
-        </div>
-      )}
-      {isLoading && (
-        <div role="status" className="loading-state">
-          <ClipLoader size={24} color="#3f3f46" loading={isLoading} />
-          <span>Cargando productos…</span>
-        </div>
+                <span className="text-xs text-zinc-500">
+                  {selectedCount}{" "}
+                  {selectedCount === 1 ? "seleccionado" : "seleccionados"}
+                </span>
+              </div>
+              <ul className="divide-y divide-zinc-100">
+                {products.map((product) => (
+                  <li key={product.id}>
+                    <label
+                      className={`flex min-h-16 cursor-pointer items-center gap-3 px-5 py-4 text-sm transition-colors hover:bg-zinc-50 ${product.checked ? "bg-zinc-50 font-medium" : ""}`}
+                    >
+                      <input
+                        id={product.id}
+                        type="checkbox"
+                        onChange={handleCheckboxChange}
+                        disabled={isUpdating}
+                        checked={product.checked}
+                      />
+                      <span className="wrap-break-word">
+                        {product.name}
+                        <span className="ml-2 text-xs text-zinc-500">
+                          {unitLabels[product.unit ?? "un"]}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {selectedCategory &&
+            !isLoading &&
+            !error &&
+            products.length === 0 && (
+              <div className="empty-state">
+                Todavía no hay productos en esta categoría. Puedes agregarlos
+                desde Administración.
+              </div>
+            )}
+          {isLoading && (
+            <div role="status" className="loading-state">
+              <ClipLoader size={24} color="#3f3f46" loading={isLoading} />
+              <span>Cargando productos…</span>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

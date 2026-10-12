@@ -153,6 +153,25 @@ export async function createHousehold(
     return home as { id: string; slug: string };
   });
 }
+export async function deleteHousehold(id: string): Promise<void> {
+  const householdId = text(id);
+  await withHousehold(async (db, household, email) => {
+    const owned = await db.query(
+      "select 1 from households where id=$1 and owner_email=$2 for update",
+      [household, email],
+    );
+    if (!owned.rowCount)
+      throw new DataError("Solo el propietario puede eliminar esta lista", 403);
+    await db.query("delete from user_preferences where household_id=$1", [
+      household,
+    ]);
+    requireRow(
+      (
+        await db.query("delete from households where id=$1", [household])
+      ).rowCount,
+    );
+  }, householdId);
+}
 export async function renameHousehold(
   name: string,
   scope?: string,

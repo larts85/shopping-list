@@ -12,7 +12,7 @@ import {
   purchaseValues,
   requireCompatibleUnit,
 } from "../lib/purchaseValidation";
-import type { Unit } from "../lib/units";
+import { isUnit, type Unit } from "../lib/units";
 import type { IList } from "../lib/types";
 export async function addList(): Promise<void> {
   await withListItemEditor(async (db, h) => {
@@ -187,3 +187,82 @@ export async function unmarkCartItem(id: string): Promise<void> {
     );
   });
 }
+
+export interface BulkAddItem {
+  name: string;
+  idCategory: string;
+  cantidad?: number;
+  unit?: Unit;
+}
+
+export async function bulkAddToList(
+  items: BulkAddItem[],
+  scope?: string,
+): Promise<{ added: number }> {
+  if (!Array.isArray(items) || items.length === 0 || items.length > 500) {
+    throw new DataError("Listado de artículos inválido");
+  }
+
+  return withListItemEditor(async (db, h) => {
+    await db.query(
+      "select pg_advisory_xact_lock(hashtextextended('global_catalog', 2))",
+    );
+
+    let addedCount = 0;
+
+    for (const item of items) {
+      if (!item || typeof item !== "object") {
+        throw new DataError("Artículo inválido");
+      }
+      const name = text(item.name);
+      const idCategory = text(item.idCategory);
+      const cantidad = item.cantidad ? positive(item.cantidad, false) : 1;
+      const unit: Unit =
+        item.unit && isUnit(item.unit) ? item.unit : "un";
+
+      const catCheck = await db.query(
+        "select name from catalog_categories where id=$1 and not archived",
+        [idCategory],
+      );
+      requireRow(catCheck.rowCount);
+
+      let productId: string;
+      const existing = await db.query(
+        "select id, unit from catalog_products where lower(trim(name)) = lower(trim($1)) and not archived order by id limit 1",
+        [name],
+      );
+
+      if (existing.rowCount && existing.rows[0]) {
+        productId = existing.rows[0].id;
+      } else {
+        const inserted = await db.query(
+          "insert into catalog_products(name, id_category, unit) values($1, $2, $3) returning id",
+          [name, idCategory, unit],
+        );
+        productId = inserted.rows[0].id;
+      }
+
+      await db.query(
+        "insert into list_selections(household_id, product_id, checked) values($1, $2, true) on conflict(household_id, product_id) do update set checked = true",
+        [h, productId],
+      );
+
+      await db.query(
+        `insert into shopping_list(household_id, id_product, cantidad, medida, unit)
+         values($1, $2, $3, 1, $4)
+         on conflict(household_id, id_product)
+         do update set
+           cantidad = case
+             when shopping_list.comprado then shopping_list.cantidad
+             else coalesce(excluded.cantidad, shopping_list.cantidad)
+           end`,
+        [h, productId, cantidad, unit],
+      );
+
+      addedCount++;
+    }
+
+    return { added: addedCount };
+  }, scope);
+}
+

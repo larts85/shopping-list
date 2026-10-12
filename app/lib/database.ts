@@ -60,6 +60,23 @@ export async function transaction<T>(
     await db.query("commit");
     return result;
   } catch (error) {
+    if (!(error instanceof DataError)) {
+      const details = error as {
+        code?: string;
+        constraint?: string;
+        name?: string;
+        message?: string;
+        stack?: string;
+      };
+      console.error("Database transaction failed", {
+        schema: databaseSchema(),
+        errorName: details?.name,
+        errorCode: details?.code,
+        constraint: details?.constraint,
+        message: details?.message,
+        stack: details?.stack,
+      });
+    }
     await db.query("rollback");
     throw error;
   } finally {

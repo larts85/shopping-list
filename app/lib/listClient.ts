@@ -7,6 +7,9 @@ export function getActiveListId(): string | undefined {
 export function setActiveListId(id: string) {
   window.sessionStorage.setItem(key, id);
 }
+export function clearActiveListId() {
+  window.sessionStorage.removeItem(key);
+}
 export function listFetch(input: RequestInfo | URL, init?: RequestInit) {
   const headers = new Headers(init?.headers);
   const id = getActiveListId();

@@ -5,6 +5,7 @@ import {
   getHomeLists,
   resolveListSlug,
   createHousehold,
+  deleteHousehold,
   shareHousehold,
   acceptInvitation,
   declineInvitation,
@@ -15,6 +16,7 @@ import {
   suggestHouseholdName,
   reviewHouseholdName,
 } from "@/app/actions/households";
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -25,7 +27,7 @@ export async function GET(request: Request) {
       slug !== null ? await resolveListSlug(slug) : await getHouseholdData(),
     );
   } catch (e) {
-    return apiError(e);
+    return apiError(e, request);
   }
 }
 export async function POST(request: Request) {
@@ -37,6 +39,9 @@ export async function POST(request: Request) {
         const created = await createHousehold(b.name);
         return NextResponse.json({ result: created.id, slug: created.slug });
       }
+      case "delete":
+        await deleteHousehold(b.id);
+        break;
       case "share":
         result = await shareHousehold(b.email);
         break;
@@ -69,6 +74,6 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ result: result ?? null });
   } catch (e) {
-    return apiError(e);
+    return apiError(e, request);
   }
 }
