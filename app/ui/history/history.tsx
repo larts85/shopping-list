@@ -69,7 +69,10 @@ export default function History() {
   }, []);
   const groups = items.reduce(
     (acc, item) => {
-      const key = purchaseDate(item);
+      const key =
+        typeof item.purchase.purchase_id === "string"
+          ? item.purchase.purchase_id
+          : purchaseDate(item);
       (acc[key] ||= []).push(item);
       return acc;
     },
@@ -97,12 +100,23 @@ export default function History() {
       {!busy && !error && !items.length && (
         <div className="empty-state">
           Todavía no hay compras finalizadas. Marca productos como comprados y
-          pulsa Finalizar compra en Mi lista.
+          pulsa Finalizar compra parcial en Mi lista.
         </div>
       )}
       {Object.entries(groups).map(([date, purchases]) => (
         <section key={date} className="panel">
-          <h2 className="text-lg font-semibold mb-4">{date}</h2>
+          <h2 className="text-lg font-semibold mb-4 break-words">
+            {String(purchases[0].purchase.purchase_name ?? date)}
+          </h2>
+          {purchases[0].purchase.purchase_id && (
+            <p className="text-sm text-zinc-500 mb-4">
+              {new Intl.DateTimeFormat("es-AR", {
+                dateStyle: "long",
+                timeStyle: "medium",
+                timeZone: "America/Argentina/Buenos_Aires",
+              }).format(new Date(purchases[0].purchasedAt))}
+            </p>
+          )}
           <ul className="divide-y divide-zinc-100">
             {purchases.map((item) => (
               <li

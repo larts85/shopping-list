@@ -7,6 +7,8 @@ import {
   getHouseholdData,
   revokeAccess,
   renameHousehold,
+  suggestHouseholdName,
+  reviewHouseholdName,
 } from "../../actions/households";
 type Data = Awaited<ReturnType<typeof getHouseholdData>>;
 export default function SharedData() {
@@ -17,17 +19,29 @@ export default function SharedData() {
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const router = useRouter();
-  async function load() {
+  async function load(resetName = true) {
     try {
       const d = await getHouseholdData(getActiveListId());
       setData(d);
-      setName(d.household.name);
+      setError("");
+      if (resetName) setName(d.household.name);
     } catch {
       setError("No se pudieron cargar los accesos.");
     }
   }
   useEffect(() => {
     void load();
+    const refresh = () => {
+      void load(false);
+    };
+    const interval = window.setInterval(refresh, 15000);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("active-list-changed", refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("active-list-changed", refresh);
+    };
   }, []);
   async function run(action: () => Promise<unknown>) {
     setBusy(true);
@@ -69,29 +83,89 @@ export default function SharedData() {
               Rol en la aplicación: <strong>Administrador</strong>.
             </p>
           )}
-          {owner && (
-            <form
-              className="flex flex-wrap gap-3 items-end"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void run(() => renameHousehold(name, getActiveListId()));
-              }}
-            >
-              <label>
-                Nombre de la lista
-                <input
-                  className="field mt-2"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  maxLength={200}
-                />
-              </label>
-              <button className="btn-secondary" disabled={busy}>
-                Guardar nombre
-              </button>
-            </form>
-          )}
+          <form
+            className="flex flex-wrap gap-3 items-end"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void run(() =>
+                owner
+                  ? renameHousehold(name, getActiveListId())
+                  : suggestHouseholdName(name, getActiveListId()),
+              );
+            }}
+          >
+            <label>
+              {owner ? "Nombre de la lista" : "Proponer nombre de la lista"}
+              <input
+                className="field mt-2"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                maxLength={200}
+              />
+            </label>
+            <button className="btn-secondary" disabled={busy}>
+              {owner ? "Guardar nombre" : "Enviar sugerencia de nombre"}
+            </button>
+          </form>
+          <section aria-label="Sugerencias de nombre" className="space-y-3">
+            <h3 className="font-semibold">Sugerencias de nombre</h3>
+            <p className="text-sm">
+              El propietario decide si cambia el nombre de la lista.
+            </p>
+            {data.nameSuggestions.map((suggestion) => (
+              <div key={suggestion.id} className="space-y-2">
+                <p>
+                  {suggestion.name} · {suggestion.email} ·{" "}
+                  {suggestion.status === "pending"
+                    ? "Pendiente"
+                    : suggestion.status === "approved"
+                      ? "Aprobada"
+                      : "Rechazada"}
+                </p>
+                {owner && suggestion.status === "pending" && (
+                  <div className="flex gap-3">
+                    <button
+                      className="btn-primary"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(() =>
+                          reviewHouseholdName(
+                            suggestion.id,
+                            "approve",
+                            getActiveListId(),
+                          ),
+                        )
+                      }
+                    >
+                      Aprobar nombre
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(() =>
+                          reviewHouseholdName(
+                            suggestion.id,
+                            "reject",
+                            getActiveListId(),
+                          ),
+                        )
+                      }
+                    >
+                      Rechazar nombre
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {!data.nameSuggestions.length && (
+              <p className="text-sm">No hay sugerencias de nombre.</p>
+            )}
+          </section>
+          <p className="text-sm">
+            {data.memberCount} personas con membresía activa.
+          </p>
           <ul className="divide-y divide-zinc-200">
             {data.members.map((m) => (
               <li

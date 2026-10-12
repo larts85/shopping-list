@@ -47,28 +47,42 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
     return (
       <div className="grid gap-4 sm:grid-cols-2">
         {lists.map((list) => (
-          <Link
-            key={list.id}
-            href={`/logistic/lists/${list.slug}`}
-            className="panel block space-y-2 transition-colors hover:border-zinc-400"
-          >
-            <h3 className="text-lg font-semibold">{list.name}</h3>
+          <article key={list.id} className="panel space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="min-w-0 break-words text-lg font-semibold">
+                {list.name}
+              </h3>
+              <Link
+                href={`/lists/${list.slug}`}
+                className="btn-secondary shrink-0"
+                aria-label={`Abrir ${list.name}`}
+              >
+                Abrir
+              </Link>
+            </div>
             <p className="text-sm text-zinc-500">
               {list.owner_email === data?.email
                 ? "Tu lista en curso"
                 : `Compartida por ${list.owner_email}`}
             </p>
-            <span className="text-sm underline">Abrir lista</span>
-          </Link>
+          </article>
         ))}
       </div>
     );
   }
   return (
-    <div className="mt-8 space-y-8">
-      <button className="btn-primary" onClick={() => setOpen(true)}>
-        Crear lista
-      </button>
+    <div className="space-y-8">
+      <div>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="page-heading">Carritos</h1>
+          <button className="btn-primary" onClick={() => setOpen(true)}>
+            Crear
+          </button>
+        </div>
+        <p className="page-description">
+          Tus carritos en curso, compartidos e invitaciones.
+        </p>
+      </div>
       {error ? (
         <div role="alert" className="panel space-y-3">
           <p>{error}</p>
@@ -94,7 +108,7 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
               cards(own)
             ) : (
               <p className="panel text-zinc-500">
-                Todavía no tienes una lista propia. Usa Crear lista para
+                Todavía no tienes una lista propia. Usa Crear para
                 comenzar.
               </p>
             )}
@@ -118,18 +132,24 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
               </h2>
               <div className="grid gap-4 sm:grid-cols-2">
                 {data.invitations.map((invite) => (
-                  <Link
-                    key={invite.id}
-                    href={`/logistic/lists/${invite.slug}`}
-                    className="panel block space-y-2"
-                  >
-                    <h3 className="text-lg font-semibold">{invite.name}</h3>
+                  <article key={invite.id} className="panel space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="min-w-0 break-words text-lg font-semibold">
+                        {invite.name}
+                      </h3>
+                      <Link
+                        href={`/lists/${invite.slug}`}
+                        className="btn-secondary shrink-0"
+                        aria-label={`Ver invitación a ${invite.name}`}
+                      >
+                        Ver invitación
+                      </Link>
+                    </div>
                     <p className="text-sm text-zinc-500">
                       {invite.owner_email} te invitó. Aún no tienes acceso a sus
                       productos.
                     </p>
-                    <span className="text-sm underline">Ver invitación</span>
-                  </Link>
+                  </article>
                 ))}
               </div>
             </section>

@@ -42,10 +42,7 @@ export default function SharedDataModal({
               try {
                 const result = await shareHousehold(email, getActiveListId());
                 setLink(
-                  new URL(
-                    `/logistic/lists/${result.slug}`,
-                    window.location.origin,
-                  ).href,
+                  new URL(`/lists/${result.slug}`, window.location.origin).href,
                 );
                 setEmail(result.email);
                 setDelivery(result.delivery);

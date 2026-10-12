@@ -1,6 +1,7 @@
 "use server";
 import {
   withHousehold,
+  withListItemEditor,
   withListEditor,
   text,
   positive,
@@ -14,7 +15,7 @@ import {
 import type { Unit } from "../lib/units";
 import type { IList } from "../lib/types";
 export async function addList(): Promise<void> {
-  await withListEditor(async (db, h) => {
+  await withListItemEditor(async (db, h) => {
     await db.query(
       "insert into shopping_list(household_id,id_product,unit) select $1,p.id,p.unit from catalog_products p join list_selections s on s.product_id=p.id where s.household_id=$1 and s.checked and not p.archived on conflict(household_id,id_product) do nothing",
       [h],
@@ -128,7 +129,7 @@ export async function updateMultipleProducts(
     if (!p || typeof p !== "object") throw new DataError("Producto inválido");
     return { id: text(p.id), ...purchaseValues(p.cantidad, p.medida, p.unit) };
   });
-  await withListEditor(async (db, h) => {
+  await withListItemEditor(async (db, h) => {
     for (const p of validated) {
       const product = await db.query(
         "select l.comprado,p.unit from shopping_list l join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2",
@@ -149,5 +150,40 @@ export async function updateMultipleProducts(
         ).rowCount,
       );
     }
+  });
+}
+
+export async function removeCartItems(target: {
+  productId?: string;
+  categoryId?: string;
+}): Promise<void> {
+  if (!target || Boolean(target.productId) === Boolean(target.categoryId))
+    throw new DataError("Indica un artículo o una categoría");
+  const id = text(target.productId ?? target.categoryId);
+  await withListItemEditor(async (db, h) => {
+    // Remove only cart rows and their local selections, never global catalog rows.
+    const removed = await db.query(
+      `delete from shopping_list l where l.household_id=$1 and ${target.productId ? "l.id=$2" : "l.id_product in (select id from catalog_products where id_category=$2)"} returning id_product`,
+      [h, id],
+    );
+    requireRow(removed.rowCount);
+    await db.query(
+      "delete from list_selections where household_id=$1 and product_id=any($2::text[])",
+      [h, removed.rows.map((row) => row.id_product)],
+    );
+  });
+}
+
+export async function unmarkCartItem(id: string): Promise<void> {
+  const productId = text(id);
+  await withListItemEditor(async (db, h) => {
+    requireRow(
+      (
+        await db.query(
+          "update shopping_list set comprado=false where household_id=$1 and id=$2",
+          [h, productId],
+        )
+      ).rowCount,
+    );
   });
 }

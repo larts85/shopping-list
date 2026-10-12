@@ -2,12 +2,15 @@
 import { signIn, signOut } from "../../auth";
 
 export async function doGoogleLogin(formData) {
-  const target = formData?.get("returnTo");
+  const requested = formData?.get("returnTo");
+  const target =
+    typeof requested === "string"
+      ? requested.replace(/^\/logistic(?=\/)/, "")
+      : requested;
   const redirectTo =
-    typeof target === "string" &&
-    /^\/logistic\/lists\/lista-[0-9a-f]{32}$/.test(target)
+    typeof target === "string" && /^\/lists\/lista-[0-9a-f]{32}$/.test(target)
       ? target
-      : "/logistic";
+      : "/";
   await signIn("google", { redirectTo });
 }
 

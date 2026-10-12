@@ -16,7 +16,11 @@ const admin = "larts85@gmail.com",
   outsider = "new-user@example.invalid";
 const homeA = randomUUID(),
   homeB = randomUUID();
-const origin = "http://localhost:2037";
+const testPort = process.env.TEST_PORT || process.env.QA_HTTP_PORT || "2037";
+const databasePort = Number(
+  process.env.TEST_DB_PORT || process.env.QA_DATABASE_PORT || 55437,
+);
+const origin = `http://localhost:${testPort}`;
 const secret = "local-qa-only-secret-never-used-in-cloud";
 const cookie = async (email) =>
   `authjs.session-token=${await encode({ secret, salt: "authjs.session-token", token: { email, name: "QA" }, maxAge: 600 })}`;
@@ -102,6 +106,26 @@ try {
       "preview_lists.",
     ),
   );
+  const nameMigration = migrationNames.find((n) =>
+    n.includes("list_name_suggestions"),
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/" + nameMigration, "utf8").replaceAll(
+      "public.",
+      "preview_lists.",
+    ),
+  );
+  const protection = (
+    await db.query(
+      "select relrowsecurity as rls, has_table_privilege('anon','preview_lists.list_name_suggestions','select') as anon_read, has_table_privilege('authenticated','preview_lists.list_name_suggestions','insert') as authenticated_write from pg_class where oid='preview_lists.list_name_suggestions'::regclass",
+    )
+  ).rows[0];
+  assert.deepEqual(protection, {
+    rls: true,
+    anon_read: false,
+    authenticated_write: false,
+  });
+  checks++;
   const slugs = (await db.query("select id,slug from preview_lists.households"))
     .rows;
   assert.equal(new Set(slugs.map((h) => h.slug)).size, 2);
@@ -130,13 +154,13 @@ try {
   server = new PGLiteSocketServer({
     db,
     host: "127.0.0.1",
-    port: 55437,
+    port: databasePort,
     maxConnections: 20,
   });
   await server.start();
   next = spawn(
     process.execPath,
-    ["node_modules/next/dist/bin/next", "dev", "-p", "2037", "--webpack"],
+    ["node_modules/next/dist/bin/next", "dev", "-p", testPort, "--webpack"],
     {
       env: {
         ...process.env,
@@ -144,7 +168,7 @@ try {
         NEXTAUTH_SECRET: secret,
         AUTH_TRUST_HOST: "true",
         SUPABASE_DB_HOST: "127.0.0.1",
-        SUPABASE_DB_PORT: "55437",
+        SUPABASE_DB_PORT: String(databasePort),
         SUPABASE_DB_USER: "postgres",
         SUPABASE_PASSWORD_DB: "local-test",
         SUPABASE_DB_SCHEMA: "preview_lists",
@@ -165,6 +189,11 @@ try {
     output += b;
   });
   for (let i = 0; i < 120; i++) {
+    if (next.exitCode !== null) throw new Error(output);
+    if (!output.includes("Ready in")) {
+      await new Promise((r) => setTimeout(r, 500));
+      continue;
+    }
     try {
       const r = await fetch(origin + "/api/auth/session");
       if (r.status === 200) break;
@@ -172,6 +201,204 @@ try {
     if (next.exitCode !== null) throw new Error(output);
     await new Promise((r) => setTimeout(r, 500));
   }
+  // Cart mutations must stay scoped and leave the global catalog untouched.
+  const original = (
+    await db.query(
+      "select id,id_product from preview_lists.shopping_list where household_id=$1",
+      [homeA],
+    )
+  ).rows[0];
+  await req(
+    "/api/list/cart-items",
+    "PATCH",
+    { id: original.id },
+    "",
+    401,
+    homeA,
+  );
+  await req(
+    "/api/list/cart-items",
+    "PATCH",
+    { id: original.id },
+    user,
+    403,
+    homeA,
+  );
+  await req(
+    "/api/list/cart-items",
+    "PATCH",
+    { id: original.id },
+    admin,
+    200,
+    homeA,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select comprado from preview_lists.shopping_list where id=$1",
+        [original.id],
+      )
+    ).rows[0].comprado,
+    false,
+  );
+  await req(
+    "/api/list/cart-items",
+    "PATCH",
+    { id: original.id },
+    user,
+    404,
+    homeB,
+  );
+  await db.query(
+    "update preview_lists.shopping_list set comprado=true where id=$1",
+    [original.id],
+  );
+  await req("/api/list/cart-items", "DELETE", {}, admin, 400, homeA);
+  await req(
+    "/api/list/cart-items",
+    "DELETE",
+    { productId: original.id },
+    user,
+    403,
+    homeA,
+  );
+  const cartCategory = (
+    await db.query(
+      "select id_category from preview_lists.catalog_products where id=$1",
+      [original.id_product],
+    )
+  ).rows[0].id_category;
+  await db.query(
+    "insert into preview_lists.shopping_list(id,household_id,id_product) values('cart-other-scope',$1,$2)",
+    [homeB, original.id_product],
+  );
+  // An accepted member can remove/unmark items but cannot finalize purchases.
+  await db.query(
+    "insert into preview_lists.household_members(household_id,email) values($1,$2)",
+    [homeB, outsider],
+  );
+  await db.query(
+    "insert into preview_lists.list_selections(household_id,product_id,checked) values($1,$2,true) on conflict(household_id,product_id) do update set checked=true",
+    [homeB, original.id_product],
+  );
+  await db.query(
+    "update preview_lists.shopping_list set comprado=true,cantidad=1,medida=1,precio=10,unit='kg' where id='cart-other-scope'",
+  );
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: ["cart-other-scope"] },
+    outsider,
+    403,
+    homeB,
+  );
+  await req(
+    "/api/list/cart-items",
+    "PATCH",
+    { id: "cart-other-scope" },
+    outsider,
+    200,
+    homeB,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select comprado from preview_lists.shopping_list where id='cart-other-scope'",
+      )
+    ).rows[0].comprado,
+    false,
+  );
+  checks++;
+  await req(
+    "/api/list/cart-items",
+    "DELETE",
+    { categoryId: cartCategory },
+    outsider,
+    200,
+    homeB,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.list_selections where household_id=$1 and product_id=$2",
+        [homeB, original.id_product],
+      )
+    ).rows[0].n,
+    0,
+  );
+  checks++;
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1",
+        [homeB],
+      )
+    ).rows[0].n,
+    0,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where id=$1",
+        [original.id],
+      )
+    ).rows[0].n,
+    1,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.catalog_products where id=$1",
+        [original.id_product],
+      )
+    ).rows[0].n,
+    1,
+  );
+  await db.query(
+    "insert into preview_lists.shopping_list(id,household_id,id_product) values('cart-other-scope',$1,$2)",
+    [homeB, original.id_product],
+  );
+  await req(
+    "/api/list/cart-items",
+    "DELETE",
+    { productId: "cart-other-scope" },
+    outsider,
+    200,
+    homeB,
+  );
+  await db.query(
+    "delete from preview_lists.household_members where household_id=$1 and email=$2",
+    [homeB, outsider],
+  );
+  await req(
+    "/api/list/cart-items",
+    "PATCH",
+    { id: "cart-other-scope" },
+    outsider,
+    403,
+    homeB,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.catalog_categories where id=$1",
+        [cartCategory],
+      )
+    ).rows[0].n,
+    1,
+  );
+  checks += 5;
+  const legacy = await fetch(
+    origin + "/logistic/lists/" + linkedSlug + "?qa=1",
+    { redirect: "manual" },
+  );
+  assert.equal(legacy.status, 308);
+  assert.equal(
+    new URL(legacy.headers.get("location"), origin).pathname,
+    "/lists/" + linkedSlug,
+  );
+  assert.equal(new URL(legacy.headers.get("location"), origin).search, "?qa=1");
+  checks += 3;
   await req("/api/households?view=home", "GET", undefined, "", 401);
   const emptyHome = await req(
     "/api/households?view=home",
@@ -231,7 +458,7 @@ try {
   await req(linkedPath, "GET", undefined, outsider, 403);
   await req(linkedPath, "GET", undefined, "", 401);
   await req("/api/households?slug=invalid", "GET", undefined, user, 400);
-  const redirect = await fetch(origin + `/logistic/lists/${linkedSlug}`, {
+  const redirect = await fetch(origin + `/lists/${linkedSlug}`, {
     redirect: "manual",
   });
   assert.equal(redirect.status, 307);
@@ -239,7 +466,7 @@ try {
     new URL(redirect.headers.get("location"), origin).searchParams.get(
       "returnTo",
     ),
-    `/logistic/lists/${linkedSlug}`,
+    `/lists/${linkedSlug}`,
   );
   checks += 2;
   await req("/api/profile", "GET", undefined, "", 401);
@@ -505,6 +732,22 @@ try {
   assert.equal(pendingIndex.invitations[0].slug, secondSlug);
   checks += 4;
   const sharedPath = `/api/households?slug=${secondSlug}`;
+  await req(
+    "/api/products/edit-checked-product",
+    "PUT",
+    { idProduct: newProduct.id, checked: true },
+    outsider,
+    403,
+    second,
+  );
+  await req(
+    "/api/products/edit-checked-product",
+    "PUT",
+    { idProduct: newProduct.id, checked: true },
+    null,
+    401,
+    second,
+  );
   const invitationLink = await req(sharedPath, "GET", undefined, outsider);
   assert.equal(invitationLink.kind, "invitation");
   assert.equal(invitationLink.name, "Otra lista");
@@ -565,12 +808,29 @@ try {
     second,
   );
   assert.equal(shared.role, "user");
-  assert.equal(shared.canEditList, false);
+  assert.equal(shared.canEditList, true);
+  assert.equal(shared.canManageList, false);
   checks += 2;
   await req(
     "/api/products/edit-checked-product",
     "PUT",
     { idProduct: newProduct.id, checked: true },
+    outsider,
+    200,
+    second,
+  );
+  await req(
+    "/api/products/edit-checked-product",
+    "PUT",
+    { idProduct: newProduct.id, checked: false },
+    outsider,
+    200,
+    second,
+  );
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [list[0].id] },
     outsider,
     403,
     second,
@@ -600,6 +860,211 @@ try {
     1,
   );
   checks++;
+  const ownerAfterAcceptance = await req(
+    "/api/households",
+    "GET",
+    undefined,
+    user,
+    200,
+    second,
+  );
+  assert.equal(ownerAfterAcceptance.pending.length, 0);
+  assert.ok(ownerAfterAcceptance.members.some((m) => m.email === outsider));
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.household_invitations where household_id=$1",
+        [second],
+      )
+    ).rows[0].n,
+    0,
+  );
+  checks += 3;
+  // Stale invitation rows must not be rendered as pending for active members.
+  await db.query(
+    "insert into preview_lists.household_invitations(household_id,email) values($1,$2)",
+    [second, outsider],
+  );
+  assert.equal(
+    (await req("/api/households", "GET", undefined, user, 200, second)).pending
+      .length,
+    0,
+  );
+  assert.equal(
+    (await req("/api/households?view=home", "GET", undefined, outsider))
+      .invitations.length,
+    0,
+  );
+  assert.equal(
+    (await req(sharedPath, "GET", undefined, outsider)).kind,
+    "member",
+  );
+  await db.query(
+    "delete from preview_lists.household_invitations where household_id=$1 and email=$2",
+    [second, outsider],
+  );
+  checks += 3;
+  await req(
+    "/api/households",
+    "POST",
+    { action: "rename", name: "No permitido" },
+    outsider,
+    403,
+    second,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "suggest-name", name: "Nombre propuesto" },
+    outsider,
+    200,
+    second,
+  );
+  const proposed = (
+    await req("/api/households", "GET", undefined, user, 200, second)
+  ).nameSuggestions[0];
+  assert.equal(
+    (await req("/api/households", "GET", undefined, user, 200, second))
+      .household.name,
+    "Otra lista",
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "review-name", id: proposed.id, decision: "approve" },
+    outsider,
+    403,
+    second,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "review-name", id: proposed.id, decision: "approve" },
+    user,
+    404,
+    homeB,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "review-name", id: proposed.id, decision: "approve" },
+    user,
+    200,
+    second,
+  );
+  assert.equal(
+    (await req("/api/households", "GET", undefined, user, 200, second))
+      .household.name,
+    "Nombre propuesto",
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "review-name", id: proposed.id, decision: "approve" },
+    user,
+    400,
+    second,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "suggest-name", name: "" },
+    outsider,
+    400,
+    second,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "suggest-name", name: "Anonymous" },
+    null,
+    401,
+    second,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "suggest-name", name: "Other list" },
+    outsider,
+    403,
+    homeB,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "suggest-name", name: "Rechazar este nombre" },
+    outsider,
+    200,
+    second,
+  );
+  const rejected = (
+    await req("/api/households", "GET", undefined, user, 200, second)
+  ).nameSuggestions.find((s) => s.status === "pending");
+  await req(
+    "/api/households",
+    "POST",
+    { action: "review-name", id: rejected.id, decision: "reject" },
+    user,
+    200,
+    second,
+  );
+  assert.equal(
+    (await req("/api/households", "GET", undefined, user, 200, second))
+      .household.name,
+    "Nombre propuesto",
+  );
+  checks++;
+  const collaborativeItem = (
+    await req("/api/list/get-list", "GET", undefined, outsider, 200, second)
+  )[0];
+  await req(
+    "/api/list/update-multiple-products",
+    "PUT",
+    [
+      {
+        id: collaborativeItem.id,
+        cantidad: 3,
+        medida: 1,
+        precio: 0,
+        unit: "un",
+      },
+    ],
+    outsider,
+    200,
+    second,
+  );
+  assert.equal(
+    Number(
+      (await req("/api/list/get-list", "GET", undefined, user, 200, second))[0]
+        .cantidad,
+    ),
+    3,
+  );
+  await req(
+    "/api/products/edit-checked-product",
+    "PUT",
+    { idProduct: newProduct.id, checked: true },
+    outsider,
+    403,
+    homeB,
+  );
+  await req(
+    "/api/list/update-multiple-products",
+    "PUT",
+    [
+      {
+        id: collaborativeItem.id,
+        cantidad: 9,
+        medida: 1,
+        precio: 0,
+        unit: "un",
+      },
+    ],
+    user,
+    404,
+    homeB,
+  );
+  checks += 3;
   await req(
     "/api/households",
     "POST",
@@ -618,14 +1083,158 @@ try {
     200,
     own.household.id,
   );
+  const beforePartial = (
+    await db.query(
+      "select name,slug from preview_lists.households where id=$1",
+      [own.household.id],
+    )
+  ).rows[0];
   await req(
-    "/api/historical/add-historical",
+    "/api/products/edit-checked-product",
+    "PUT",
+    { idProduct: newProduct.id, checked: true },
+    user,
+    200,
+    own.household.id,
+  );
+  await req(
+    "/api/list/add-list",
     "POST",
     undefined,
     user,
     200,
     own.household.id,
   );
+  const pendingItem = (
+    await req(
+      "/api/list/get-list",
+      "GET",
+      undefined,
+      user,
+      200,
+      own.household.id,
+    )
+  ).find((item) => item.id_product === newProduct.id);
+  const partialBody = { productIds: [list[0].id] };
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [] },
+    user,
+    400,
+    own.household.id,
+  );
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [list[0].id, list[0].id] },
+    user,
+    400,
+    own.household.id,
+  );
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [pendingItem.id] },
+    user,
+    409,
+    own.household.id,
+  );
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    partialBody,
+    user,
+    409,
+    second,
+  );
+  // Force failure after snapshots and selections changed: everything must roll back.
+  const historyBefore = (
+    await db.query(
+      "select count(*)::int n from preview_lists.historical where household_id=$1",
+      [own.household.id],
+    )
+  ).rows[0].n;
+  await db.exec(`create function preview_lists.reject_partial_delete() returns trigger language plpgsql as $$ begin raise exception 'forced local rollback'; end $$;
+    create trigger reject_partial_delete before delete on preview_lists.shopping_list for each row execute function preview_lists.reject_partial_delete();`);
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    partialBody,
+    user,
+    500,
+    own.household.id,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.historical where household_id=$1",
+        [own.household.id],
+      )
+    ).rows[0].n,
+    historyBefore,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select checked from preview_lists.list_selections where household_id=$1 and product_id=$2",
+        [own.household.id, list[0].id_product],
+      )
+    ).rows[0].checked,
+    true,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id=$2",
+        [own.household.id, list[0].id],
+      )
+    ).rows[0].n,
+    1,
+  );
+  await db.exec(
+    "drop trigger reject_partial_delete on preview_lists.shopping_list; drop function preview_lists.reject_partial_delete();",
+  );
+  checks += 3;
+  const archiveResponses = await Promise.all(
+    [0, 1].map(async () => {
+      const response = await fetch(origin + "/api/historical/add-historical", {
+        method: "POST",
+        headers: {
+          cookie: await cookie(user),
+          "content-type": "application/json",
+          "X-List-ID": own.household.id,
+        },
+        body: JSON.stringify(partialBody),
+      });
+      return { status: response.status, result: await response.json() };
+    }),
+  );
+  assert.deepEqual(archiveResponses.map((r) => r.status).sort(), [200, 409]);
+  const completed = archiveResponses.find((r) => r.status === 200).result;
+  assert.match(
+    completed.purchaseName,
+    /^Masaje lista \[\d{2}\/\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\]$/,
+  );
+  assert.deepEqual(
+    (
+      await db.query(
+        "select name,slug from preview_lists.households where id=$1",
+        [own.household.id],
+      )
+    ).rows[0],
+    beforePartial,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select checked from preview_lists.list_selections where household_id=$1 and product_id=$2",
+        [own.household.id, pendingItem.id_product],
+      )
+    ).rows[0].checked,
+    true,
+  );
+  checks += 4;
   const history = await req(
     "/api/historical/get-historical",
     "GET",
@@ -634,8 +1243,55 @@ try {
     200,
     own.household.id,
   );
-  assert.ok(history.items.some((i) => i.purchase.name === "Queso"));
-  checks++;
+  const archived = history.items.find((i) => i.purchase.name === "Queso");
+  assert.ok(archived);
+  assert.equal(archived.purchase.purchase_name, completed.purchaseName);
+  assert.equal(archived.purchase.purchase_id, completed.purchaseId);
+  assert.equal(archived.purchase.list_name, beforePartial.name);
+  const time = new Intl.DateTimeFormat("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(archived.purchasedAt));
+  const part = (type) => time.find((p) => p.type === type).value;
+  assert.equal(
+    completed.purchaseName,
+    `${beforePartial.name} [${part("day")}/${part("month")}/${part("year")}-${part("hour")}:${part("minute")}:${part("second")}]`,
+  );
+  checks += 5;
+  const remaining = await req(
+    "/api/list/get-list",
+    "GET",
+    undefined,
+    user,
+    200,
+    own.household.id,
+  );
+  assert.deepEqual(
+    remaining.map((item) => item.id),
+    [pendingItem.id],
+  );
+  await req(
+    "/api/list/set-bought",
+    "PUT",
+    { idList: pendingItem.id, cantidad: 2, medida: 1, precio: 0, unit: "un" },
+    user,
+    200,
+    own.household.id,
+  );
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    partialBody,
+    user,
+    409,
+    own.household.id,
+  );
   assert.equal(
     (
       await req(
@@ -646,10 +1302,23 @@ try {
         200,
         own.household.id,
       )
-    ).length,
-    0,
+    )[0].id,
+    pendingItem.id,
   );
-  checks++;
+  assert.equal(
+    (
+      await req(
+        "/api/historical/get-historical",
+        "GET",
+        undefined,
+        user,
+        200,
+        own.household.id,
+      )
+    ).items.length,
+    history.items.length,
+  );
+  checks += 3;
   await req(
     "/api/products/delete-product-by-id",
     "DELETE",

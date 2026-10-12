@@ -1,11 +1,11 @@
-import { apiError } from '@/app/lib/apiError';
+import { apiError } from "@/app/lib/apiError";
 import { NextResponse } from "next/server";
 import { addHistorical } from "../../../actions/historical";
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    await addHistorical();
-    return NextResponse.json({ mensage: "Sucess save data" });
+    const body = await request.json();
+    return NextResponse.json(await addHistorical(body?.productIds));
   } catch (error) {
     return apiError(error);
   }

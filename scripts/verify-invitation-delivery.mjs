@@ -5,7 +5,7 @@ import { deliverInvitation } from "../app/lib/invitationDelivery.ts";
 const message = {
   email: "qa@example.invalid",
   name: "Lista <de prueba>",
-  url: "https://preview.example.invalid/logistic/lists/lista-0123456789abcdef0123456789abcdef",
+  url: "https://preview.example.invalid/lists/lista-0123456789abcdef0123456789abcdef",
   apiKey: "fake-test-token",
   from: "QA <sender@example.invalid>",
 };
@@ -109,7 +109,7 @@ assert.equal(
     VERCEL_URL: "immutable.vercel.app",
     APP_URL: "https://production.example.invalid",
   }),
-  `https://current-branch.vercel.app/logistic/lists/${slug}`,
+  `https://current-branch.vercel.app/lists/${slug}`,
 );
 assert.equal(
   listShareUrl(slug, {
@@ -117,21 +117,21 @@ assert.equal(
     VERCEL_URL: "immutable.vercel.app",
     APP_URL: "https://production.example.invalid",
   }),
-  `https://immutable.vercel.app/logistic/lists/${slug}`,
+  `https://immutable.vercel.app/lists/${slug}`,
 );
 assert.equal(
   listShareUrl(slug, {
     VERCEL_ENV: "preview",
     APP_URL: "https://production.example.invalid",
   }),
-  `https://home-logistics-git-develop-larts85s-projects.vercel.app/logistic/lists/${slug}`,
+  `https://home-logistics-git-develop-larts85s-projects.vercel.app/lists/${slug}`,
 );
 assert.equal(
   listShareUrl(slug, {
     VERCEL_ENV: "production",
     APP_URL: "https://production.example.invalid",
   }),
-  `https://production.example.invalid/logistic/lists/${slug}`,
+  `https://production.example.invalid/lists/${slug}`,
 );
 console.log("4 invitation environment isolation checks passed");
 

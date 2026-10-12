@@ -29,11 +29,11 @@ export default function ListAccessProvider({
 }) {
   const pathname = usePathname();
   const requiresList =
-    pathname !== "/logistic" &&
-    pathname !== "/logistic/catalog" &&
-    !pathname.startsWith("/logistic/admin");
-  const slug = pathname.startsWith("/logistic/lists/")
-    ? pathname.slice("/logistic/lists/".length)
+    pathname !== "/" &&
+    pathname !== "/catalog" &&
+    !pathname.startsWith("/admin");
+  const slug = pathname.startsWith("/lists/")
+    ? pathname.slice("/lists/".length)
     : undefined;
   const [readyPath, setReadyPath] = useState("");
   const [invitation, setInvitation] =
@@ -113,7 +113,7 @@ export default function ListAccessProvider({
       <section className="panel space-y-3">
         <p>
           {invitation.owner} te invitó a <strong>{invitation.name}</strong>.
-          Podrás ver la lista y sugerir cambios.
+          Podrás editar artículos y sugerir un nombre al propietario.
         </p>
         <button
           className="btn-primary"
@@ -149,8 +149,8 @@ export default function ListAccessProvider({
     return (
       <div role="alert" className="space-y-3">
         <p>{error}</p>
-        <Link href="/logistic" className="text-sm underline">
-          Volver a Home
+        <Link href="/" className="text-sm underline">
+          Volver a Carritos
         </Link>
         <button
           className="rounded-xl border px-4 py-2"
