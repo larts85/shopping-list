@@ -5,6 +5,7 @@ import {
   getHomeLists,
   resolveListSlug,
   createHousehold,
+  deleteHousehold,
   shareHousehold,
   acceptInvitation,
   declineInvitation,
@@ -38,6 +39,9 @@ export async function POST(request: Request) {
         const created = await createHousehold(b.name);
         return NextResponse.json({ result: created.id, slug: created.slug });
       }
+      case "delete":
+        await deleteHousehold(b.id);
+        break;
       case "share":
         result = await shareHousehold(b.email);
         break;
