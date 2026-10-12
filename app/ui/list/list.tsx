@@ -3,6 +3,8 @@ import { getActiveListId, setActiveListId } from "@/app/lib/listClient";
 import { listFetch } from "@/app/lib/listClient";
 import { useState, useEffect, useRef } from "react";
 import { ClipLoader } from "react-spinners";
+import Modal from "@/shared/components/ui/Modal";
+import { completedPurchaseName } from "@/app/lib/completedPurchase";
 import BoughtListModal from "./boughtModal";
 import { IList } from "@/app/lib/types";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
@@ -24,6 +26,13 @@ export default function List() {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const revision = useRef(0);
+  const submitting = useRef(false);
+  const [purchaseConfirmation, setPurchaseConfirmation] = useState<{
+    ids: string[];
+    name: string;
+    listId: string;
+  } | null>(null);
+  const [purchaseBusy, setPurchaseBusy] = useState(false);
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -31,6 +40,7 @@ export default function List() {
       revision.current++;
       setDirty({});
       setLisModal(null);
+      setPurchaseConfirmation(null);
       void load();
     };
     window.addEventListener("active-list-changed", reload);
@@ -38,7 +48,14 @@ export default function List() {
   }, []);
 
   useEffect(() => {
-    if (isLoading || listModal || Object.keys(dirty).length) return;
+    if (
+      isLoading ||
+      listModal ||
+      purchaseBusy ||
+      purchaseConfirmation ||
+      Object.keys(dirty).length
+    )
+      return;
     const refresh = () => {
       if (document.visibilityState === "visible")
         void Promise.all([fetchList(), fetchCategories()]).catch(() =>
@@ -51,7 +68,7 @@ export default function List() {
       clearInterval(timer);
       window.removeEventListener("focus", refresh);
     };
-  }, [isLoading, listModal, dirty]);
+  }, [isLoading, listModal, dirty, purchaseBusy, purchaseConfirmation]);
 
   async function load() {
     setIsLoading(true);
@@ -122,7 +139,7 @@ export default function List() {
       setList(filteredProductListByCategories);
   }
   const handleOpenModal = (list: IList) => {
-    if (!canEditList) return;
+    if (!canEditList || submitting.current) return;
     revision.current++;
     setLisModal(list);
   };
@@ -159,25 +176,72 @@ export default function List() {
     }));
   };
 
+  const openPurchaseConfirmation = async () => {
+    if (!canEditList || submitting.current || Object.keys(dirty).length) return;
+    const ids = Object.values(list)
+      .flat()
+      .filter((p) => p.comprado === "1")
+      .map((p) => p.id);
+    if (!ids.length) return;
+    submitting.current = true;
+    revision.current++;
+    const confirmationRevision = revision.current;
+    const selectedListId = getActiveListId();
+    setPurchaseBusy(true);
+    setError("");
+    try {
+      const data = await getHouseholdData(selectedListId);
+      if (confirmationRevision !== revision.current) return;
+      setPurchaseConfirmation({
+        ids,
+        name: data.household.name,
+        listId: data.household.id,
+      });
+    } catch {
+      setError("No pudimos preparar la compra parcial. Intenta nuevamente.");
+    } finally {
+      submitting.current = false;
+      setPurchaseBusy(false);
+    }
+  };
+
   const clean = async () => {
-    setIsLoading(true);
+    if (submitting.current || !purchaseConfirmation?.ids.length) return;
+    submitting.current = true;
+    revision.current++;
+    setPurchaseBusy(true);
     setError("");
     setStatus("");
     try {
-      const response = await listFetch("/api/historical/add-historical", {
+      // Pin the list confirmed in the modal, even if the active selection changes.
+      const response = await fetch("/api/historical/add-historical", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "X-List-ID": purchaseConfirmation.listId,
+        },
+        body: JSON.stringify({ productIds: purchaseConfirmation.ids }),
       });
-      if (!response.ok) throw new Error("Error cleaning list");
-      await fetchList();
-      setDirty({});
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(
+          result.error || "No pudimos finalizar la compra parcial.",
+        );
+      setPurchaseConfirmation(null);
+      if (getActiveListId() !== purchaseConfirmation.listId) return;
       setStatus(
-        "Compra guardada en el historial. Los pendientes siguen en la lista.",
+        `Compra «${result.purchaseName}» guardada en el historial. Los pendientes siguen en el carrito activo.`,
       );
-    } catch {
-      setError("No pudimos limpiar la lista. Intenta nuevamente.");
+      await fetchList();
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "No pudimos finalizar la compra parcial. Intenta nuevamente.",
+      );
     } finally {
-      setIsLoading(false);
+      submitting.current = false;
+      setPurchaseBusy(false);
     }
   };
 
@@ -187,6 +251,7 @@ export default function List() {
     categoryId: string,
     field: string,
   ) => {
+    if (submitting.current) return;
     const { value } = e.target;
     if (
       field === "cantidad" &&
@@ -211,6 +276,7 @@ export default function List() {
   };
 
   const save = async () => {
+    if (submitting.current) return;
     setIsLoading(true);
     setError("");
     setStatus("");
@@ -301,19 +367,24 @@ export default function List() {
             {products.length === 1 ? "producto" : "productos"} · {boughtCount}{" "}
             {boughtCount === 1 ? "comprado" : "comprados"}
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={clean}
+              onClick={openPurchaseConfirmation}
               disabled={
-                !canEditList || !products.some((p) => p.comprado === "1")
+                !canEditList ||
+                purchaseBusy ||
+                boughtCount === 0 ||
+                Object.keys(dirty).length > 0
               }
               className="btn-secondary"
             >
-              Finalizar compra
+              Finalizar compra parcial
             </button>
             <button
               onClick={save}
-              disabled={!canEditList || Object.keys(dirty).length === 0}
+              disabled={
+                !canEditList || purchaseBusy || Object.keys(dirty).length === 0
+              }
               className="btn-primary"
             >
               Guardar cambios
@@ -400,7 +471,11 @@ export default function List() {
                         type="number"
                         min="0"
                         step="any"
-                        disabled={!canEditList || product.comprado === "1"}
+                        disabled={
+                          !canEditList ||
+                          purchaseBusy ||
+                          product.comprado === "1"
+                        }
                         value={product.cantidad}
                         onChange={(e) =>
                           handleInputChange(
@@ -420,8 +495,13 @@ export default function List() {
                             ? [product.unit ?? "un"]
                             : compatibleUnits(product.productUnit ?? "un")
                         }
-                        disabled={!canEditList || product.comprado === "1"}
+                        disabled={
+                          !canEditList ||
+                          purchaseBusy ||
+                          product.comprado === "1"
+                        }
                         onChange={(unit: Unit) => {
+                          if (submitting.current) return;
                           revision.current++;
                           setDirty((prev) => ({ ...prev, [product.id]: true }));
                           setList((prev) => ({
@@ -439,6 +519,60 @@ export default function List() {
             )}
           </section>
         ))}
+      {Object.keys(dirty).length > 0 && (
+        <p className="text-sm text-zinc-500">
+          Guarda los cambios pendientes antes de finalizar una compra parcial.
+        </p>
+      )}
+      {purchaseConfirmation && (
+        <Modal
+          isOpen
+          title="Finalizar compra parcial"
+          onClose={() => {
+            if (!submitting.current) setPurchaseConfirmation(null);
+          }}
+        >
+          <h2 className="text-xl font-semibold">Finalizar compra parcial</h2>
+          <p className="mt-4">
+            Los productos marcados como comprados (
+            {purchaseConfirmation.ids.length}) se quitarán del carrito activo y
+            se guardarán como una compra/lista terminada en el historial.
+          </p>
+          <p className="mt-3">
+            Los productos sin marcar seguirán en el carrito, que conservará su
+            nombre e identidad.
+          </p>
+          <p className="mt-3 break-words">
+            Nombre en el historial:{" "}
+            <strong>
+              {completedPurchaseName(purchaseConfirmation.name, new Date())}
+            </strong>
+            . La fecha y hora corresponden a Buenos Aires y se fijan al
+            confirmar.
+          </p>
+          {error && (
+            <p role="alert" className="error-notice mt-4">
+              {error}
+            </p>
+          )}
+          <div className="mt-6 flex flex-wrap justify-end gap-3">
+            <button
+              className="btn-secondary"
+              disabled={purchaseBusy}
+              onClick={() => setPurchaseConfirmation(null)}
+            >
+              Cancelar
+            </button>
+            <button
+              className="btn-primary"
+              disabled={purchaseBusy}
+              onClick={clean}
+            >
+              {purchaseBusy ? "Guardando…" : "Confirmar compra parcial"}
+            </button>
+          </div>
+        </Modal>
+      )}
       {canEditList && listModal && (
         <BoughtListModal
           isOpen={!!listModal}
