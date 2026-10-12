@@ -158,6 +158,14 @@ export async function withListEditor<T>(
   }, scope);
 }
 
+// Item edits require active membership; ownership still guards administration.
+export async function withListItemEditor<T>(
+  run: (db: PoolClient, household: string, email: string) => Promise<T>,
+  scope?: string,
+) {
+  return withHousehold(run, scope);
+}
+
 export type AppRole = "admin" | "user";
 export async function appRole(db: PoolClient, email: string): Promise<AppRole> {
   const result = await db.query("select role from app_users where email=$1", [

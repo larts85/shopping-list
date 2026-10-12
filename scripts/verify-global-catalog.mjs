@@ -16,7 +16,9 @@ const admin = "larts85@gmail.com",
   outsider = "new-user@example.invalid";
 const homeA = randomUUID(),
   homeB = randomUUID();
-const origin = "http://localhost:2037";
+const httpPort = process.env.QA_HTTP_PORT || "2037";
+const databasePort = Number(process.env.QA_DATABASE_PORT || 55437);
+const origin = `http://localhost:${httpPort}`;
 const secret = "local-qa-only-secret-never-used-in-cloud";
 const cookie = async (email) =>
   `authjs.session-token=${await encode({ secret, salt: "authjs.session-token", token: { email, name: "QA" }, maxAge: 600 })}`;
@@ -102,6 +104,26 @@ try {
       "preview_lists.",
     ),
   );
+  const nameMigration = migrationNames.find((n) =>
+    n.includes("list_name_suggestions"),
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/" + nameMigration, "utf8").replaceAll(
+      "public.",
+      "preview_lists.",
+    ),
+  );
+  const protection = (
+    await db.query(
+      "select relrowsecurity as rls, has_table_privilege('anon','preview_lists.list_name_suggestions','select') as anon_read, has_table_privilege('authenticated','preview_lists.list_name_suggestions','insert') as authenticated_write from pg_class where oid='preview_lists.list_name_suggestions'::regclass",
+    )
+  ).rows[0];
+  assert.deepEqual(protection, {
+    rls: true,
+    anon_read: false,
+    authenticated_write: false,
+  });
+  checks++;
   const slugs = (await db.query("select id,slug from preview_lists.households"))
     .rows;
   assert.equal(new Set(slugs.map((h) => h.slug)).size, 2);
@@ -130,13 +152,13 @@ try {
   server = new PGLiteSocketServer({
     db,
     host: "127.0.0.1",
-    port: 55437,
+    port: databasePort,
     maxConnections: 20,
   });
   await server.start();
   next = spawn(
     process.execPath,
-    ["node_modules/next/dist/bin/next", "dev", "-p", "2037", "--webpack"],
+    ["node_modules/next/dist/bin/next", "dev", "-p", httpPort, "--webpack"],
     {
       env: {
         ...process.env,
@@ -144,7 +166,7 @@ try {
         NEXTAUTH_SECRET: secret,
         AUTH_TRUST_HOST: "true",
         SUPABASE_DB_HOST: "127.0.0.1",
-        SUPABASE_DB_PORT: "55437",
+        SUPABASE_DB_PORT: String(databasePort),
         SUPABASE_DB_USER: "postgres",
         SUPABASE_PASSWORD_DB: "local-test",
         SUPABASE_DB_SCHEMA: "preview_lists",
@@ -165,6 +187,11 @@ try {
     output += b;
   });
   for (let i = 0; i < 120; i++) {
+    if (next.exitCode !== null) throw new Error(output);
+    if (!output.includes("Ready in")) {
+      await new Promise((r) => setTimeout(r, 500));
+      continue;
+    }
     try {
       const r = await fetch(origin + "/api/auth/session");
       if (r.status === 200) break;
@@ -505,6 +532,22 @@ try {
   assert.equal(pendingIndex.invitations[0].slug, secondSlug);
   checks += 4;
   const sharedPath = `/api/households?slug=${secondSlug}`;
+  await req(
+    "/api/products/edit-checked-product",
+    "PUT",
+    { idProduct: newProduct.id, checked: true },
+    outsider,
+    403,
+    second,
+  );
+  await req(
+    "/api/products/edit-checked-product",
+    "PUT",
+    { idProduct: newProduct.id, checked: true },
+    null,
+    401,
+    second,
+  );
   const invitationLink = await req(sharedPath, "GET", undefined, outsider);
   assert.equal(invitationLink.kind, "invitation");
   assert.equal(invitationLink.name, "Otra lista");
@@ -565,14 +608,23 @@ try {
     second,
   );
   assert.equal(shared.role, "user");
-  assert.equal(shared.canEditList, false);
+  assert.equal(shared.canEditList, true);
+  assert.equal(shared.canManageList, false);
   checks += 2;
   await req(
     "/api/products/edit-checked-product",
     "PUT",
     { idProduct: newProduct.id, checked: true },
     outsider,
-    403,
+    200,
+    second,
+  );
+  await req(
+    "/api/products/edit-checked-product",
+    "PUT",
+    { idProduct: newProduct.id, checked: false },
+    outsider,
+    200,
     second,
   );
   await req(
@@ -600,6 +652,211 @@ try {
     1,
   );
   checks++;
+  const ownerAfterAcceptance = await req(
+    "/api/households",
+    "GET",
+    undefined,
+    user,
+    200,
+    second,
+  );
+  assert.equal(ownerAfterAcceptance.pending.length, 0);
+  assert.ok(ownerAfterAcceptance.members.some((m) => m.email === outsider));
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.household_invitations where household_id=$1",
+        [second],
+      )
+    ).rows[0].n,
+    0,
+  );
+  checks += 3;
+  // Stale invitation rows must not be rendered as pending for active members.
+  await db.query(
+    "insert into preview_lists.household_invitations(household_id,email) values($1,$2)",
+    [second, outsider],
+  );
+  assert.equal(
+    (await req("/api/households", "GET", undefined, user, 200, second)).pending
+      .length,
+    0,
+  );
+  assert.equal(
+    (await req("/api/households?view=home", "GET", undefined, outsider))
+      .invitations.length,
+    0,
+  );
+  assert.equal(
+    (await req(sharedPath, "GET", undefined, outsider)).kind,
+    "member",
+  );
+  await db.query(
+    "delete from preview_lists.household_invitations where household_id=$1 and email=$2",
+    [second, outsider],
+  );
+  checks += 3;
+  await req(
+    "/api/households",
+    "POST",
+    { action: "rename", name: "No permitido" },
+    outsider,
+    403,
+    second,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "suggest-name", name: "Nombre propuesto" },
+    outsider,
+    200,
+    second,
+  );
+  const proposed = (
+    await req("/api/households", "GET", undefined, user, 200, second)
+  ).nameSuggestions[0];
+  assert.equal(
+    (await req("/api/households", "GET", undefined, user, 200, second))
+      .household.name,
+    "Otra lista",
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "review-name", id: proposed.id, decision: "approve" },
+    outsider,
+    403,
+    second,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "review-name", id: proposed.id, decision: "approve" },
+    user,
+    404,
+    homeB,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "review-name", id: proposed.id, decision: "approve" },
+    user,
+    200,
+    second,
+  );
+  assert.equal(
+    (await req("/api/households", "GET", undefined, user, 200, second))
+      .household.name,
+    "Nombre propuesto",
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "review-name", id: proposed.id, decision: "approve" },
+    user,
+    400,
+    second,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "suggest-name", name: "" },
+    outsider,
+    400,
+    second,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "suggest-name", name: "Anonymous" },
+    null,
+    401,
+    second,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "suggest-name", name: "Other list" },
+    outsider,
+    403,
+    homeB,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "suggest-name", name: "Rechazar este nombre" },
+    outsider,
+    200,
+    second,
+  );
+  const rejected = (
+    await req("/api/households", "GET", undefined, user, 200, second)
+  ).nameSuggestions.find((s) => s.status === "pending");
+  await req(
+    "/api/households",
+    "POST",
+    { action: "review-name", id: rejected.id, decision: "reject" },
+    user,
+    200,
+    second,
+  );
+  assert.equal(
+    (await req("/api/households", "GET", undefined, user, 200, second))
+      .household.name,
+    "Nombre propuesto",
+  );
+  checks++;
+  const collaborativeItem = (
+    await req("/api/list/get-list", "GET", undefined, outsider, 200, second)
+  )[0];
+  await req(
+    "/api/list/update-multiple-products",
+    "PUT",
+    [
+      {
+        id: collaborativeItem.id,
+        cantidad: 3,
+        medida: 1,
+        precio: 0,
+        unit: "un",
+      },
+    ],
+    outsider,
+    200,
+    second,
+  );
+  assert.equal(
+    Number(
+      (await req("/api/list/get-list", "GET", undefined, user, 200, second))[0]
+        .cantidad,
+    ),
+    3,
+  );
+  await req(
+    "/api/products/edit-checked-product",
+    "PUT",
+    { idProduct: newProduct.id, checked: true },
+    outsider,
+    403,
+    homeB,
+  );
+  await req(
+    "/api/list/update-multiple-products",
+    "PUT",
+    [
+      {
+        id: collaborativeItem.id,
+        cantidad: 9,
+        medida: 1,
+        precio: 0,
+        unit: "un",
+      },
+    ],
+    user,
+    404,
+    homeB,
+  );
+  checks += 3;
   await req(
     "/api/households",
     "POST",

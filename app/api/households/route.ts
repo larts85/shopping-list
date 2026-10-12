@@ -12,6 +12,8 @@ import {
   changeMemberRole,
   revokeAccess,
   renameHousehold,
+  suggestHouseholdName,
+  reviewHouseholdName,
 } from "@/app/actions/households";
 export async function GET(request: Request) {
   try {
@@ -52,6 +54,12 @@ export async function POST(request: Request) {
         break;
       case "revoke":
         await revokeAccess(b.email);
+        break;
+      case "suggest-name":
+        await suggestHouseholdName(b.name);
+        break;
+      case "review-name":
+        await reviewHouseholdName(b.id, b.decision);
         break;
       case "rename":
         await renameHousehold(b.name);

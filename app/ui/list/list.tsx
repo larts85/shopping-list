@@ -17,6 +17,7 @@ export default function List() {
   }, []);
 
   const [canEditList, setCanEditList] = useState(false);
+  const [canManageList, setCanManageList] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [list, setList] = useState<Record<string, IList[]>>({});
   const [listModal, setLisModal] = useState<IList | null>(null);
@@ -60,6 +61,7 @@ export default function List() {
       const data = await getHouseholdData(getActiveListId());
       setActiveListId(data.household.id);
       setCanEditList(data.canEditList);
+      setCanManageList(data.canManageList);
       await Promise.all([fetchList(), fetchCategories()]);
     } catch {
       setError("No pudimos cargar tu lista. Intenta nuevamente.");
@@ -305,7 +307,7 @@ export default function List() {
             <button
               onClick={clean}
               disabled={
-                !canEditList || !products.some((p) => p.comprado === "1")
+                !canManageList || !products.some((p) => p.comprado === "1")
               }
               className="btn-secondary"
             >
@@ -373,7 +375,7 @@ export default function List() {
                       className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem] sm:gap-2 sm:px-6"
                     >
                       <button
-                        disabled={!canEditList}
+                        disabled={!canManageList}
                         onClick={() => handleOpenModal(product)}
                         className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg text-left text-sm hover:text-zinc-500 sm:gap-3"
                       >

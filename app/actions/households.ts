@@ -21,7 +21,7 @@ export async function getPendingInvitations() {
     async (db) =>
       (
         await db.query(
-          "select i.id,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1 order by h.name,i.id",
+          "select i.id,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email) order by h.name,i.id",
           [email],
         )
       ).rows as { id: string; name: string; owner_email: string }[],
@@ -33,7 +33,8 @@ export async function getHouseholdData(scope?: string) {
     return {
       email,
       role: await appRole(db, email),
-      canEditList: role === "owner",
+      canEditList: true,
+      canManageList: role === "owner",
       memberCount: Number(
         (
           await db.query(
@@ -77,7 +78,7 @@ export async function getHouseholdData(scope?: string) {
       }[],
       invitations: (
         await db.query(
-          "select i.id,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1",
+          "select i.id,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email)",
           [email],
         )
       ).rows as {
@@ -85,13 +86,24 @@ export async function getHouseholdData(scope?: string) {
         name: string;
         owner_email: string;
       }[],
+      nameSuggestions: (
+        await db.query(
+          "select id,email,name,status from list_name_suggestions where household_id=$1 and ($2 or email=$3) order by created_at desc,id desc limit 100",
+          [h, role === "owner", email],
+        )
+      ).rows as {
+        id: string;
+        email: string;
+        name: string;
+        status: "pending" | "approved" | "rejected";
+      }[],
       pending:
         email ===
         (await db.query("select owner_email from households where id=$1", [h]))
           .rows[0].owner_email
           ? ((
               await db.query(
-                "select id,email from household_invitations where household_id=$1",
+                "select i.id,i.email from household_invitations i where i.household_id=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email)",
                 [h],
               )
             ).rows as { id: string; email: string }[])
@@ -111,7 +123,7 @@ export async function getHomeLists() {
     ).rows as { id: string; slug: string; name: string; owner_email: string }[],
     invitations: (
       await db.query(
-        "select i.id,h.slug,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1 order by h.created_at,i.id",
+        "select i.id,h.slug,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email) order by h.created_at,i.id",
         [email],
       )
     ).rows as { id: string; slug: string; name: string; owner_email: string }[],
@@ -332,4 +344,54 @@ export async function resolveListSlug(
           owner: list.owner_email,
         };
   });
+}
+
+export async function suggestHouseholdName(
+  name: string,
+  scope?: string,
+): Promise<void> {
+  const label = text(name);
+  await withHousehold(async (db, h, email) => {
+    await db.query(
+      "insert into list_name_suggestions(household_id,email,name) values($1,$2,$3)",
+      [h, email, label],
+    );
+  }, scope);
+}
+
+export async function reviewHouseholdName(
+  id: string,
+  decision: "approve" | "reject",
+  scope?: string,
+): Promise<void> {
+  if (!["approve", "reject"].includes(decision))
+    throw new DataError("Decisión inválida");
+  await withListEditor(async (db, h, email) => {
+    const suggestion = await db.query(
+      "select email,name,status from list_name_suggestions where household_id=$1 and id::text=$2 for update",
+      [h, text(id)],
+    );
+    requireRow(suggestion.rowCount);
+    const proposed = suggestion.rows[0];
+    if (proposed.status !== "pending")
+      throw new DataError("La sugerencia ya fue revisada");
+    if (decision === "approve") {
+      requireRow(
+        (
+          await db.query(
+            "select 1 from household_members where household_id=$1 and email=$2",
+            [h, proposed.email],
+          )
+        ).rowCount,
+      );
+      await db.query("update households set name=$2 where id=$1", [
+        h,
+        text(proposed.name),
+      ]);
+    }
+    await db.query(
+      "update list_name_suggestions set status=$3,reviewed_by=$4,reviewed_at=now() where household_id=$1 and id::text=$2",
+      [h, id, decision === "approve" ? "approved" : "rejected", email],
+    );
+  }, scope);
 }

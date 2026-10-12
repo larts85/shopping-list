@@ -113,7 +113,7 @@ export default function ListAccessProvider({
       <section className="panel space-y-3">
         <p>
           {invitation.owner} te invitó a <strong>{invitation.name}</strong>.
-          Podrás ver la lista y sugerir cambios.
+          Podrás editar artículos y sugerir un nombre al propietario.
         </p>
         <button
           className="btn-primary"
