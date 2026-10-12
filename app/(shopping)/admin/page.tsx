@@ -24,7 +24,7 @@ export default function Admin() {
         ].map((item) => (
           <Link
             key={item.href}
-            href={`/logistic/admin/${item.href}`}
+            href={`/admin/${item.href}`}
             className="panel group transition-colors hover:border-zinc-400"
           >
             <h2 className="flex justify-between text-xl font-semibold">

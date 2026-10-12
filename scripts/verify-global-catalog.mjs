@@ -201,6 +201,204 @@ try {
     if (next.exitCode !== null) throw new Error(output);
     await new Promise((r) => setTimeout(r, 500));
   }
+  // Cart mutations must stay scoped and leave the global catalog untouched.
+  const original = (
+    await db.query(
+      "select id,id_product from preview_lists.shopping_list where household_id=$1",
+      [homeA],
+    )
+  ).rows[0];
+  await req(
+    "/api/list/cart-items",
+    "PATCH",
+    { id: original.id },
+    "",
+    401,
+    homeA,
+  );
+  await req(
+    "/api/list/cart-items",
+    "PATCH",
+    { id: original.id },
+    user,
+    403,
+    homeA,
+  );
+  await req(
+    "/api/list/cart-items",
+    "PATCH",
+    { id: original.id },
+    admin,
+    200,
+    homeA,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select comprado from preview_lists.shopping_list where id=$1",
+        [original.id],
+      )
+    ).rows[0].comprado,
+    false,
+  );
+  await req(
+    "/api/list/cart-items",
+    "PATCH",
+    { id: original.id },
+    user,
+    404,
+    homeB,
+  );
+  await db.query(
+    "update preview_lists.shopping_list set comprado=true where id=$1",
+    [original.id],
+  );
+  await req("/api/list/cart-items", "DELETE", {}, admin, 400, homeA);
+  await req(
+    "/api/list/cart-items",
+    "DELETE",
+    { productId: original.id },
+    user,
+    403,
+    homeA,
+  );
+  const cartCategory = (
+    await db.query(
+      "select id_category from preview_lists.catalog_products where id=$1",
+      [original.id_product],
+    )
+  ).rows[0].id_category;
+  await db.query(
+    "insert into preview_lists.shopping_list(id,household_id,id_product) values('cart-other-scope',$1,$2)",
+    [homeB, original.id_product],
+  );
+  // An accepted member can remove/unmark items but cannot finalize purchases.
+  await db.query(
+    "insert into preview_lists.household_members(household_id,email) values($1,$2)",
+    [homeB, outsider],
+  );
+  await db.query(
+    "insert into preview_lists.list_selections(household_id,product_id,checked) values($1,$2,true) on conflict(household_id,product_id) do update set checked=true",
+    [homeB, original.id_product],
+  );
+  await db.query(
+    "update preview_lists.shopping_list set comprado=true,cantidad=1,medida=1,precio=10,unit='kg' where id='cart-other-scope'",
+  );
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: ["cart-other-scope"] },
+    outsider,
+    403,
+    homeB,
+  );
+  await req(
+    "/api/list/cart-items",
+    "PATCH",
+    { id: "cart-other-scope" },
+    outsider,
+    200,
+    homeB,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select comprado from preview_lists.shopping_list where id='cart-other-scope'",
+      )
+    ).rows[0].comprado,
+    false,
+  );
+  checks++;
+  await req(
+    "/api/list/cart-items",
+    "DELETE",
+    { categoryId: cartCategory },
+    outsider,
+    200,
+    homeB,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.list_selections where household_id=$1 and product_id=$2",
+        [homeB, original.id_product],
+      )
+    ).rows[0].n,
+    0,
+  );
+  checks++;
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1",
+        [homeB],
+      )
+    ).rows[0].n,
+    0,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where id=$1",
+        [original.id],
+      )
+    ).rows[0].n,
+    1,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.catalog_products where id=$1",
+        [original.id_product],
+      )
+    ).rows[0].n,
+    1,
+  );
+  await db.query(
+    "insert into preview_lists.shopping_list(id,household_id,id_product) values('cart-other-scope',$1,$2)",
+    [homeB, original.id_product],
+  );
+  await req(
+    "/api/list/cart-items",
+    "DELETE",
+    { productId: "cart-other-scope" },
+    outsider,
+    200,
+    homeB,
+  );
+  await db.query(
+    "delete from preview_lists.household_members where household_id=$1 and email=$2",
+    [homeB, outsider],
+  );
+  await req(
+    "/api/list/cart-items",
+    "PATCH",
+    { id: "cart-other-scope" },
+    outsider,
+    403,
+    homeB,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.catalog_categories where id=$1",
+        [cartCategory],
+      )
+    ).rows[0].n,
+    1,
+  );
+  checks += 5;
+  const legacy = await fetch(
+    origin + "/logistic/lists/" + linkedSlug + "?qa=1",
+    { redirect: "manual" },
+  );
+  assert.equal(legacy.status, 308);
+  assert.equal(
+    new URL(legacy.headers.get("location"), origin).pathname,
+    "/lists/" + linkedSlug,
+  );
+  assert.equal(new URL(legacy.headers.get("location"), origin).search, "?qa=1");
+  checks += 3;
   await req("/api/households?view=home", "GET", undefined, "", 401);
   const emptyHome = await req(
     "/api/households?view=home",
@@ -260,7 +458,7 @@ try {
   await req(linkedPath, "GET", undefined, outsider, 403);
   await req(linkedPath, "GET", undefined, "", 401);
   await req("/api/households?slug=invalid", "GET", undefined, user, 400);
-  const redirect = await fetch(origin + `/logistic/lists/${linkedSlug}`, {
+  const redirect = await fetch(origin + `/lists/${linkedSlug}`, {
     redirect: "manual",
   });
   assert.equal(redirect.status, 307);
@@ -268,7 +466,7 @@ try {
     new URL(redirect.headers.get("location"), origin).searchParams.get(
       "returnTo",
     ),
-    `/logistic/lists/${linkedSlug}`,
+    `/lists/${linkedSlug}`,
   );
   checks += 2;
   await req("/api/profile", "GET", undefined, "", 401);

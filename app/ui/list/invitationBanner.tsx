@@ -54,7 +54,7 @@ export default function InvitationBanner() {
       if (accepted) {
         setActiveListId(accepted.id);
         window.dispatchEvent(new Event("active-list-changed"));
-        router.push(`/logistic/lists/${accepted.slug}`);
+        router.push(`/lists/${accepted.slug}`);
         router.refresh();
       }
     } catch {

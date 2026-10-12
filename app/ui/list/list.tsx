@@ -140,8 +140,108 @@ export default function List() {
     if (startedAtRevision === revision.current)
       setList(filteredProductListByCategories);
   }
+  const mutateCart = async (
+    method: "DELETE" | "PATCH",
+    target: { productId?: string; categoryId?: string; id?: string },
+  ) => {
+    if (!canEditList || isLoading || submitting.current || purchaseConfirmation)
+      return;
+    submitting.current = true;
+    revision.current++;
+    const mutationRevision = revision.current;
+    const selectedListId = getActiveListId();
+    setIsLoading(true);
+    setError("");
+    setStatus("");
+    try {
+      const response = await fetch("/api/list/cart-items", {
+        method,
+        headers: {
+          "content-type": "application/json",
+          ...(selectedListId ? { "X-List-ID": selectedListId } : {}),
+        },
+        body: JSON.stringify(target),
+      });
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || "No pudimos actualizar el carrito.");
+      }
+      if (
+        mutationRevision !== revision.current ||
+        getActiveListId() !== selectedListId
+      )
+        return;
+      const affected = target.categoryId
+        ? (list[target.categoryId] ?? []).map((product) => product.id)
+        : [target.productId ?? target.id!];
+      setDirty((previous) => {
+        const next = { ...previous };
+        affected.forEach((id) => delete next[id]);
+        return next;
+      });
+      const responseList = await fetch(
+        "/api/list/get-list-products-by-categories",
+        { headers: selectedListId ? { "X-List-ID": selectedListId } : {} },
+      );
+      if (!responseList.ok)
+        throw new Error(
+          "El cambio se guardó, pero no pudimos actualizar el carrito. Reintenta cargarlo.",
+        );
+      const updated: Record<string, IList[]> = await responseList.json();
+      if (
+        mutationRevision !== revision.current ||
+        getActiveListId() !== selectedListId
+      )
+        return;
+      // Preserve unrelated edits that have not been saved yet.
+      setList((previous) =>
+        Object.fromEntries(
+          Object.entries(updated).map(([categoryId, products]) => [
+            categoryId,
+            products.map((product) =>
+              dirty[product.id] && !affected.includes(product.id)
+                ? (previous[categoryId]?.find((old) => old.id === product.id) ??
+                  product)
+                : product,
+            ),
+          ]),
+        ),
+      );
+      setStatus(
+        method === "PATCH"
+          ? "Artículo desmarcado. Sigue pendiente en el carrito."
+          : "Eliminado de este carrito. El catálogo se conserva.",
+      );
+    } catch (error) {
+      if (mutationRevision !== revision.current) return;
+      setError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos actualizar el carrito.",
+      );
+    } finally {
+      submitting.current = false;
+      if (mutationRevision === revision.current) setIsLoading(false);
+    }
+  };
+  const removeItems = (
+    target: { productId?: string; categoryId?: string },
+    name: string,
+  ) => {
+    const message = target.categoryId
+      ? `¿Eliminar la categoría ${name} de este carrito? Se eliminarán todos sus artículos de este carrito. La categoría y los productos del catálogo global y de otros carritos se conservan.`
+      : `¿Eliminar ${name} de este carrito? El producto se conserva en el catálogo y en otros carritos.`;
+    if (window.confirm(message)) void mutateCart("DELETE", target);
+  };
+
   const handleOpenModal = (list: IList) => {
-    if (!canEditList || submitting.current) return;
+    if (!canEditList || isLoading || submitting.current || purchaseConfirmation)
+      return;
+    if (list.comprado === "1") {
+      void mutateCart("PATCH", { id: list.id });
+      return;
+    }
+    if (!canManageList) return;
     revision.current++;
     setLisModal(list);
   };
@@ -403,7 +503,7 @@ export default function List() {
           <p className="mt-2">
             Agrega los productos que necesitas para tu próxima compra.
           </p>
-          <a href="/logistic/add" className="btn-primary mt-6">
+          <a href="/add" className="btn-primary mt-6">
             Agregar productos
           </a>
         </div>
@@ -415,24 +515,41 @@ export default function List() {
             key={category.id}
             className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
           >
-            <h2>
-              <button
-                className="flex min-h-16 w-full items-center justify-between gap-3 px-4 py-4 text-left transition-colors hover:bg-zinc-50 sm:px-6"
-                onClick={() => toggleCategoryVisibility(category.id)}
-                aria-expanded={!!visibleCategories[category.id]}
-                aria-controls={`category-${category.id}`}
-              >
-                <span className="min-w-0 break-words font-semibold">
-                  {category.name}
-                  <span className="ml-3 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-500">
-                    {list[category.id].length}
+            <div className="flex items-center pr-4 sm:pr-6">
+              <h2 className="min-w-0 flex-1">
+                <button
+                  className="flex min-h-16 w-full items-center justify-between gap-3 px-4 py-4 text-left transition-colors hover:bg-zinc-50 sm:px-6"
+                  onClick={() => toggleCategoryVisibility(category.id)}
+                  aria-expanded={!!visibleCategories[category.id]}
+                  aria-controls={`category-${category.id}`}
+                >
+                  <span className="min-w-0 break-words font-semibold">
+                    {category.name}
+                    <span className="ml-3 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-500">
+                      {list[category.id].length}
+                    </span>
                   </span>
-                </span>
-                <span aria-hidden="true" className="text-zinc-400">
-                  {visibleCategories[category.id] ? "−" : "+"}
-                </span>
+                  <span aria-hidden="true" className="text-zinc-400">
+                    {visibleCategories[category.id] ? "−" : "+"}
+                  </span>
+                </button>
+              </h2>
+              <button
+                className="shrink-0 rounded-lg border border-zinc-300 px-2 py-1 text-xs"
+                disabled={
+                  !canEditList ||
+                  isLoading ||
+                  purchaseBusy ||
+                  !!purchaseConfirmation
+                }
+                aria-label={`Eliminar categoría ${category.name} de este carrito`}
+                onClick={() =>
+                  removeItems({ categoryId: category.id }, category.name)
+                }
+              >
+                Eliminar
               </button>
-            </h2>
+            </div>
             {visibleCategories[category.id] && (
               <div id={`category-${category.id}`}>
                 <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem] gap-2 border-y border-zinc-100 bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-500 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem] sm:gap-2 sm:px-6">
@@ -447,7 +564,13 @@ export default function List() {
                       className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem] sm:gap-2 sm:px-6"
                     >
                       <button
-                        disabled={!canManageList}
+                        disabled={
+                          !canEditList ||
+                          isLoading ||
+                          purchaseBusy ||
+                          !!purchaseConfirmation ||
+                          (product.comprado !== "1" && !canManageList)
+                        }
                         onClick={() => handleOpenModal(product)}
                         className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg text-left text-sm hover:text-zinc-500 sm:gap-3"
                       >
@@ -464,7 +587,7 @@ export default function List() {
                         </span>
                         <span className="sr-only">
                           {product.comprado === "1"
-                            ? ", comprado"
+                            ? ", desmarcar comprado"
                             : ", registrar compra"}
                         </span>
                       </button>
@@ -476,7 +599,9 @@ export default function List() {
                         step="any"
                         disabled={
                           !canEditList ||
+                          isLoading ||
                           purchaseBusy ||
+                          !!purchaseConfirmation ||
                           product.comprado === "1"
                         }
                         value={product.cantidad}
@@ -500,7 +625,9 @@ export default function List() {
                         }
                         disabled={
                           !canEditList ||
+                          isLoading ||
                           purchaseBusy ||
+                          !!purchaseConfirmation ||
                           product.comprado === "1"
                         }
                         onChange={(unit: Unit) => {
@@ -515,6 +642,21 @@ export default function List() {
                           }));
                         }}
                       />
+                      <button
+                        className="col-span-3 justify-self-end rounded-lg border border-zinc-300 px-2 py-1 text-xs"
+                        disabled={
+                          !canEditList ||
+                          isLoading ||
+                          purchaseBusy ||
+                          !!purchaseConfirmation
+                        }
+                        aria-label={`Eliminar ${product.name} de este carrito`}
+                        onClick={() =>
+                          removeItems({ productId: product.id }, product.name)
+                        }
+                      >
+                        Eliminar
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -576,7 +718,7 @@ export default function List() {
           </div>
         </Modal>
       )}
-      {canEditList && listModal && (
+      {canManageList && listModal && (
         <BoughtListModal
           isOpen={!!listModal}
           onClose={handleCloseModal}

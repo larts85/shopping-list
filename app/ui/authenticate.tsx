@@ -26,11 +26,7 @@ export function Authenticate({ returnTo }: { returnTo?: string }) {
       </CardContent>
       <CardFooter className="flex justify-center">
         <form action={doGoogleLogin} className="w-full">
-          <input
-            type="hidden"
-            name="returnTo"
-            value={returnTo || "/logistic"}
-          />
+          <input type="hidden" name="returnTo" value={returnTo || "/"} />
           <Button
             type={ButtonType.SUBMIT}
             variant={ButtonVariant.PRIMARY}

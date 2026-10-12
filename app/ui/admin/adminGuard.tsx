@@ -16,11 +16,11 @@ export default function AdminGuard({
       try {
         const data = await getCurrentUser();
         if (active) {
-          if (data.role !== "admin") router.replace("/logistic");
+          if (data.role !== "admin") router.replace("/");
           else setAllowed(true);
         }
       } catch {
-        if (active) router.replace("/logistic");
+        if (active) router.replace("/");
       }
     };
     void check();

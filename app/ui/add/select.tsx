@@ -215,7 +215,7 @@ export default function Select() {
 
       if (!response.ok) throw new Error("Error adding list");
       const active = await getHouseholdData(getActiveListId());
-      router.push(`/logistic/lists/${active.household.slug}`);
+      router.push(`/lists/${active.household.slug}`);
     } catch {
       setError(
         "No pudimos agregar los productos a la lista. Intenta nuevamente.",
@@ -231,7 +231,7 @@ export default function Select() {
     return (
       <p className="panel">
         Puedes proponer cambios en esta lista desde{" "}
-        <Link className="underline" href="/logistic/catalog">
+        <Link className="underline" href="/catalog">
           Solicitudes
         </Link>
         .
