@@ -15,6 +15,7 @@ import {
   suggestHouseholdName,
   reviewHouseholdName,
 } from "@/app/actions/households";
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);

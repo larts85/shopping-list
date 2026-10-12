@@ -13,6 +13,8 @@ interface EditProductModalProps {
   idProduct: string;
   nameProduct: string;
   unitProduct: Unit;
+  categories: { id: string; name: string }[];
+  idCategory: string;
 }
 
 const EditProductModal: React.FC<EditProductModalProps> = ({
@@ -21,9 +23,12 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
   idProduct,
   nameProduct,
   unitProduct,
+  categories,
+  idCategory,
 }) => {
   const [unit, setUnit] = useState<Unit>(unitProduct);
   const [newNameProduct, setNewNameProduct] = useState(nameProduct);
+  const [categoryId, setCategoryId] = useState(idCategory);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -40,6 +45,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
         idProduct: idProduct,
         newNameProduct: newNameProduct,
         unit,
+        idCategory: categoryId,
       };
       const response = await listFetch("/api/products/edit-name-product", {
         method: "PUT",
@@ -87,6 +93,22 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
             className="field mt-2"
           />
         </div>
+        <label className="block text-sm font-medium">
+          Categoría
+          <select
+            value={categoryId}
+            onChange={(event) => setCategoryId(event.target.value)}
+            disabled={isSubmitting}
+            required
+            className="field mt-2"
+          >
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="block text-sm font-medium">
           Unidad de medida
           <UnitSelect value={unit} onChange={setUnit} disabled={isSubmitting} />
