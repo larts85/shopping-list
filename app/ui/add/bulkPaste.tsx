@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { ClipLoader } from "react-spinners";
 import { RiDeleteBin6Line } from "react-icons/ri";
-import { listFetch, getActiveListId } from "@/app/lib/listClient";
-import { getHouseholdData } from "@/app/actions/households";
+import { listFetch } from "@/app/lib/listClient";
+import type { BulkAddItem } from "@/app/actions/list";
 import {
   parseAndClassifyList,
   type ClassifiedItem,
@@ -16,6 +15,7 @@ import { units, unitLabels, type Unit } from "@/app/lib/units";
 interface BulkPasteProps {
   categories: Category[];
   products?: Product[];
+  onAdded: () => Promise<void>;
 }
 
 const PLACEHOLDER_EXAMPLE = `1-Control
@@ -38,8 +38,8 @@ const PLACEHOLDER_EXAMPLE = `1-Control
 export default function BulkPaste({
   categories,
   products = [],
+  onAdded,
 }: BulkPasteProps) {
-  const router = useRouter();
   const [rawText, setRawText] = useState("");
   const [items, setItems] = useState<ClassifiedItem[]>([]);
   const [hasParsed, setHasParsed] = useState(false);
@@ -158,10 +158,10 @@ export default function BulkPaste({
     setError("");
 
     try {
-      const payload = selectedItems.map((item) => ({
+      const payload: BulkAddItem[] = selectedItems.map((item) => ({
         name: item.name.trim(),
         idCategory: item.categoryId,
-        quantity: item.quantity,
+        cantidad: item.quantity,
         unit: item.unit,
       }));
 
@@ -178,8 +178,7 @@ export default function BulkPaste({
         );
       }
 
-      const active = await getHouseholdData(getActiveListId());
-      router.push(`/lists/${active.household.slug}`);
+      await onAdded();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Error al procesar la lista.",
@@ -339,18 +338,31 @@ export default function BulkPaste({
                     </div>
 
                     {/* Name input */}
-                    <div className="flex-1 min-w-[200px]">
-                      <label className="block text-xs font-medium text-zinc-500 sm:sr-only">
-                        Producto
-                      </label>
-                      <input
-                        type="text"
-                        value={item.name}
-                        onChange={(e) => handleNameChange(idx, e.target.value)}
-                        className="field text-sm"
-                        placeholder="Nombre del producto"
-                        disabled={isSubmitting || !item.selected}
-                      />
+                    <div className="flex min-w-[200px] flex-1 items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <label className="block text-xs font-medium text-zinc-500 sm:sr-only">
+                          Producto
+                        </label>
+                        <input
+                          type="text"
+                          value={item.name}
+                          onChange={(e) =>
+                            handleNameChange(idx, e.target.value)
+                          }
+                          className="field text-sm"
+                          placeholder="Nombre del producto"
+                          disabled={isSubmitting || !item.selected}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteItem(idx)}
+                        disabled={isSubmitting}
+                        className="icon-button shrink-0 text-red-600 hover:bg-red-50"
+                        aria-label={`Eliminar ${item.name}`}
+                      >
+                        <RiDeleteBin6Line className="size-5" />
+                      </button>
                     </div>
 
                     {/* Quantity */}
@@ -413,19 +425,6 @@ export default function BulkPaste({
                       </select>
                     </div>
 
-                    {/* Delete action */}
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteItem(idx)}
-                        disabled={isSubmitting}
-                        className="icon-button text-red-600 hover:bg-red-50"
-                        title="Eliminar artículo"
-                        aria-label={`Eliminar ${item.name}`}
-                      >
-                        <RiDeleteBin6Line className="size-5" />
-                      </button>
-                    </div>
                   </div>
                 </li>
               ))}

@@ -6,6 +6,7 @@ export interface Product {
   id_category: string;
   checked: boolean;
   unit?: Unit;
+  availableUnits?: Unit[];
 }
 
 export interface ProductChecked {
@@ -18,6 +19,7 @@ export interface AddProduct {
   name: string;
   idCategory: string;
   unit?: Unit;
+  availableUnits?: Unit[];
 }
 
 export interface Category {
@@ -44,4 +46,5 @@ export interface IList {
   comprado: string;
   unit?: Unit;
   productUnit?: Unit;
+  availableUnits?: Unit[];
 }

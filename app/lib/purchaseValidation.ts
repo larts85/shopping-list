@@ -1,5 +1,5 @@
 import { DataError, positive } from "./database";
-import { isUnit, compatibleUnits, type Unit } from "./units";
+import { isUnit, type Unit } from "./units";
 export function purchaseValues(
   cantidad: unknown,
   medida: unknown,
@@ -13,7 +13,7 @@ export function purchaseValues(
     unit: unit as Unit | undefined,
   };
 }
-export function requireCompatibleUnit(unit: Unit, productUnit: Unit) {
-  if (!compatibleUnits(productUnit).includes(unit))
-    throw new DataError("La unidad no corresponde al tipo de producto");
+export function requireAvailableUnit(unit: Unit, availableUnits: Unit[]) {
+  if (!availableUnits.includes(unit))
+    throw new DataError("La unidad no está habilitada para este producto");
 }
