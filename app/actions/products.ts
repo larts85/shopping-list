@@ -15,6 +15,7 @@ import type { Product, ProductChecked, AddProduct } from "../lib/types";
 export interface EditProductParams {
   idProduct: string;
   newNameProduct: string;
+  idCategory?: string;
   unit?: Unit;
 }
 export async function getProducts(scope?: string): Promise<Product[]> {
@@ -68,12 +69,21 @@ export async function getProductsChecked(): Promise<Product[]> {
 export async function editNameProduct(p: EditProductParams): Promise<void> {
   if (p.unit !== undefined && !isUnit(p.unit))
     throw new DataError("Unidad inválida");
+  if (p.idCategory !== undefined && !text(p.idCategory))
+    throw new DataError("Categoría inválida");
   await withCatalog(async (db) => {
     const previous = await db.query(
       "select unit from catalog_products where id=$1 and not archived for update",
       [text(p.idProduct)],
     );
     requireRow(previous.rowCount);
+    if (p.idCategory !== undefined) {
+      const category = await db.query(
+        "select 1 from catalog_categories where id=$1 and not archived",
+        [text(p.idCategory)],
+      );
+      requireRow(category.rowCount);
+    }
     if (p.unit !== undefined && p.unit !== previous.rows[0].unit) {
       if (
         (
@@ -90,8 +100,8 @@ export async function editNameProduct(p: EditProductParams): Promise<void> {
     requireRow(
       (
         await db.query(
-          "update catalog_products set name=$2,unit=coalesce($3,unit) where id=$1 and not archived",
-          [p.idProduct, text(p.newNameProduct), p.unit ?? null],
+          "update catalog_products set name=$2,unit=coalesce($3,unit),id_category=coalesce($4,id_category) where id=$1 and not archived",
+          [p.idProduct, text(p.newNameProduct), p.unit ?? null, p.idCategory ? text(p.idCategory) : null],
         )
       ).rowCount,
     );

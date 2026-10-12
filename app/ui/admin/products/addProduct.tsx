@@ -319,6 +319,8 @@ export default function AddProduct() {
           idProduct={editModalProduct.id}
           nameProduct={editModalProduct.name}
           unitProduct={editModalProduct.unit ?? "un"}
+          categories={categories}
+          idCategory={editModalProduct.id_category}
         />
       )}
       {deleteModalProduct && (

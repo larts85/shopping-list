@@ -4,7 +4,7 @@ export default function Page() {
     <main>
       <h1 className="page-heading">¿Qué hace falta?</h1>
       <p className="page-description">
-        Elige una categoría y marca los productos para tu próxima compra.
+        Elige una categoría o pega un listado para tu próxima compra.
       </p>
       <div className="mt-8 space-y-6">
         <Select />

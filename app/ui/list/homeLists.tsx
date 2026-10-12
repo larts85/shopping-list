@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { clearActiveListId, getActiveListId } from "@/app/lib/listClient";
 import type { getHomeLists } from "@/app/actions/households";
 import CreateListModal from "./createListModal";
 type Data = Awaited<ReturnType<typeof getHomeLists>>;
@@ -9,6 +11,9 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [deletingId, setDeletingId] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const router = useRouter();
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -43,22 +48,77 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
     data?.lists.filter((list) => list.owner_email === data.email) || [];
   const shared =
     data?.lists.filter((list) => list.owner_email !== data.email) || [];
+  async function deleteList(list: Data["lists"][number]) {
+    if (
+      !window.confirm(
+        `¿Eliminar la lista “${list.name}”? Se borrarán sus compras, historial e invitaciones. Esta acción no se puede deshacer.`,
+      )
+    )
+      return;
+    setDeletingId(list.id);
+    setDeleteError("");
+    try {
+      const response = await fetch("/api/households", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", id: list.id }),
+      });
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error || "No pudimos eliminar la lista.");
+      const wasActive = getActiveListId() === list.id;
+      if (wasActive) {
+        clearActiveListId();
+        window.dispatchEvent(new Event("active-list-changed"));
+      }
+      setData((previous) =>
+        previous
+          ? {
+              ...previous,
+              lists: previous.lists.filter((item) => item.id !== list.id),
+            }
+          : previous,
+      );
+      if (wasActive) {
+        router.push("/");
+        router.refresh();
+      }
+    } catch (error) {
+      setDeleteError(
+        error instanceof Error ? error.message : "No pudimos eliminar la lista.",
+      );
+    } finally {
+      setDeletingId("");
+    }
+  }
   function cards(lists: Data["lists"]) {
     return (
       <div className="grid gap-4 sm:grid-cols-2">
         {lists.map((list) => (
           <article key={list.id} className="panel space-y-2">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="min-w-0 break-words text-lg font-semibold">
                 {list.name}
               </h3>
-              <Link
-                href={`/lists/${list.slug}`}
-                className="btn-secondary shrink-0"
-                aria-label={`Abrir ${list.name}`}
-              >
-                Abrir
-              </Link>
+              <div className="flex shrink-0 gap-2">
+                <Link
+                  href={`/lists/${list.slug}`}
+                  className="btn-secondary"
+                  aria-label={`Abrir ${list.name}`}
+                >
+                  Abrir
+                </Link>
+                {list.owner_email === data?.email && (
+                  <button
+                    type="button"
+                    className="btn-secondary text-red-700 hover:bg-red-50"
+                    disabled={!!deletingId}
+                    onClick={() => void deleteList(list)}
+                  >
+                    {deletingId === list.id ? "Eliminando…" : "Eliminar"}
+                  </button>
+                )}
+              </div>
             </div>
             <p className="text-sm text-zinc-500">
               {list.owner_email === data?.email
@@ -155,6 +215,11 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
             </section>
           )}
         </>
+      )}
+      {deleteError && (
+        <p role="alert" className="error-notice">
+          {deleteError}
+        </p>
       )}
       {open && (
         <CreateListModal

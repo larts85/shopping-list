@@ -2,6 +2,7 @@ import "server-only";
 import { pool } from "./databaseConnection";
 import { databaseSchema } from "./databaseSchema";
 import { verifySupabaseGoogleIdentity } from "./googleSupabaseIdentity";
+
 export async function syncGoogleUser(
   idToken: string,
   email: string,
