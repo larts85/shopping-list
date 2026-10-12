@@ -1,6 +1,6 @@
-# Apertura de listas compartidas — corrección local
+# Apertura de listas compartidas — corrección
 
-Base: develop en 2218fb6 (PR13 integrado). Rama local: codex/fix-shared-list-opening. Esta corrección no está publicada, no tiene PR y no fue mergeada.
+Base: develop en 2218fb6 (PR13 integrado). Corrección e7b5e4a y Home 4d6ab6b publicados en PR14 e integrados a develop mediante 3d26df5. Incluidos en la release del 11/10/2026 hacia main.
 
 Defectos comprobados en el código anterior:
 
@@ -10,7 +10,7 @@ Defectos comprobados en el código anterior:
 
 La respuesta autenticada de compartir incluye el slug persistido; el modal construye su enlace con el origen de la página actual. La UI aclara que copiar el enlace no crea una invitación. No se crean membresías por conocer el slug: el propietario debe invitar al correo de Google y el destinatario aceptar.
 
-Diagnóstico remoto de solo lectura: en el esquema preview_lists consultado no había invitaciones pendientes ni colaboradores. Esto explica el rechazo para una cuenta ajena a cualquiera de esas listas, pero falta el enlace y la cuenta exactos del caso reportado para atribuirle esa causa. La página del preview de PR13 continúa con el código anterior; no se verificó esta corrección en preview porque no está publicada.
+Diagnóstico remoto de solo lectura: en el esquema preview_lists consultado no había invitaciones pendientes ni colaboradores. Esto explica el rechazo para una cuenta ajena a cualquiera de esas listas, pero falta el enlace y la cuenta exactos del caso reportado para atribuirle esa causa. El PR14 tiene build de preview y checks verdes. La evidencia del deployment de producción se registra en el PR de release.
 
 Validación: 119 comprobaciones PostgreSQL/HTTP locales, incluyendo destinatario con lista propia activa, invitación por slug y scope exacto después de aceptación. 25 checks offline de entrega/islamiento por entorno. Build, TypeScript y lint pasan.
 
