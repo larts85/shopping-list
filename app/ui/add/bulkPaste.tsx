@@ -466,6 +466,7 @@ export default function BulkPaste({
                         selectedValue={item.unit}
                         selectedLabel={unitLabels[item.unit]}
                         options={item.availableUnits.map((unit) => ({ value: unit, label: unitLabels[unit] }))}
+                        onChange={() => undefined}
                         onSelect={(option) => handleUnitChange(idx, option.value as Unit)}
                         className="field mt-1 text-sm"
                         disabled={isSubmitting || !item.selected}
@@ -480,6 +481,7 @@ export default function BulkPaste({
                         selectedValue={item.categoryId}
                         selectedLabel={categories.find((c) => c.id === item.categoryId)?.name ?? ""}
                         options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                        onChange={(categoryId) => handleCategoryChange(idx, categoryId)}
                         onSelect={(option) => handleCategoryChange(idx, option.value)}
                         className="field text-sm font-medium text-zinc-900"
                         disabled={isSubmitting || !item.selected}

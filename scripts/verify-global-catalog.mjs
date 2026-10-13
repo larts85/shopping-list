@@ -124,6 +124,15 @@ try {
       "preview_lists.",
     ),
   );
+  const provisionalItemsMigration = migrationNames.find((n) =>
+    n.includes("provisional_list_items"),
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/" + provisionalItemsMigration, "utf8").replaceAll(
+      "public.",
+      "preview_lists.",
+    ),
+  );
   const protection = (
     await db.query(
       "select relrowsecurity as rls, has_table_privilege('anon','preview_lists.list_name_suggestions','select') as anon_read, has_table_privilege('authenticated','preview_lists.list_name_suggestions','insert') as authenticated_write from pg_class where oid='preview_lists.list_name_suggestions'::regclass",
@@ -563,6 +572,24 @@ try {
       name: "Otra lista",
     })
   ).result;
+  const homeAfterCreate = await req(
+    "/api/households?view=home",
+    "GET",
+    undefined,
+    user,
+  );
+  assert.equal(homeAfterCreate.lists.length, 2);
+  assert.ok(homeAfterCreate.lists.some((household) => household.id === second));
+  const createdSlug = (
+    await db.query("select slug from preview_lists.households where id=$1", [
+      second,
+    ])
+  ).rows[0].slug;
+  assert.deepEqual(await req(`/api/households?slug=${createdSlug}`), {
+    kind: "member",
+    id: second,
+  });
+  checks += 2;
   assert.equal((await req("/api/list/get-list")).length, 0);
   checks++;
   assert.equal(

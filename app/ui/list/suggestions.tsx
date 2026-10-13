@@ -170,6 +170,10 @@ export default function Suggestions({
               selectedValue={productId}
               selectedLabel={choices.find((p) => p.id === productId)?.name ?? ""}
               options={choices.map((p) => ({ value: p.id, label: p.name }))}
+              onChange={(value) => {
+                setProductId(value);
+                if (!value) setUnit("un");
+              }}
               onSelect={(option) => {
                 setProductId(option.value);
                 setUnit(products.find((p) => p.id === option.value)?.unit ?? "un");

@@ -324,6 +324,7 @@ export default function Select({ listName, onAdded }: SelectProps) {
                 selectedValue={selectedCategory}
                 selectedLabel={categories.find((category) => category.id === selectedCategory)?.name ?? ""}
                 options={categories.map((category) => ({ value: category.id, label: category.name }))}
+                onChange={handleSelectChange}
                 onSelect={(option) => handleSelectChange(option.value)}
                 placeholder={isLoading ? "Cargando categorías…" : "Selecciona una categoría"}
                 disabled={isUpdating || isLoading}

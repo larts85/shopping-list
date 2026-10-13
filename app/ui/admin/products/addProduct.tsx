@@ -57,6 +57,14 @@ export default function AddProduct() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState("");
 
+  const handleCategorySearchChange = (categoryId: string) => {
+    setSelectedCategoy(categoryId);
+    if (!categoryId) {
+      setProducts([]);
+      setSelectedProductIds([]);
+    }
+  };
+
   useEffect(() => {
     fetchCategories();
   }, []);
@@ -246,8 +254,9 @@ export default function AddProduct() {
           selectedValue={selectedCategory}
           selectedLabel={categories.find((c) => c.id === selectedCategory)?.name ?? ""}
           options={categories.map((c) => ({ value: c.id, label: c.name }))}
+          onChange={handleCategorySearchChange}
           onSelect={(option) => {
-            setSelectedCategoy(option.value);
+            handleCategorySearchChange(option.value);
             if (!unitChosen) {
               const suggestedUnit = suggestProductUnit(newProductName, option.label);
               setUnit(suggestedUnit);
@@ -367,6 +376,7 @@ export default function AddProduct() {
                   selectedValue={bulkCategoryId}
                   selectedLabel={categories.find((c) => c.id === bulkCategoryId)?.name ?? ""}
                   options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                  onChange={setBulkCategoryId}
                   onSelect={(option) => setBulkCategoryId(option.value)}
                   disabled={bulkBusy}
                 />

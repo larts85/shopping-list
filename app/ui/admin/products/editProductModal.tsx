@@ -118,6 +118,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
           selectedValue={categoryId}
           selectedLabel={categories.find((c) => c.id === categoryId)?.name ?? ""}
           options={categories.map((c) => ({ value: c.id, label: c.name }))}
+          onChange={setCategoryId}
           onSelect={(option) => setCategoryId(option.value)}
           disabled={isSubmitting}
           required

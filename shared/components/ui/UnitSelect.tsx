@@ -42,11 +42,13 @@ export default function UnitSelect({
     <Autocomplete
       label={label}
       value=""
+      selectedValue={value}
       selectedLabel={compact ? value : unitLabels[value]}
       options={options.map((unit) => ({
         value: unit,
         label: compact ? unit : unitLabels[unit],
       }))}
+      onChange={() => undefined}
       onSelect={(option) => onChange(option.value as Unit)}
       disabled={disabled}
       className={
