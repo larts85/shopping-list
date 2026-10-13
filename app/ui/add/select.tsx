@@ -1,7 +1,7 @@
 "use client";
 import { listFetch } from "@/app/lib/listClient";
 import { unitLabels, type Unit } from "@/app/lib/units";
-import { useState, useEffect, useRef, SyntheticEvent } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ClipLoader } from "react-spinners";
 import { Category } from "@/app/lib/types";
 import BulkPaste from "./bulkPaste";
@@ -140,9 +140,8 @@ export default function Select({ listName, onAdded }: SelectProps) {
     }
   }
 
-  const handleSelectChange = (event: SyntheticEvent) => {
-    const target = event.target as HTMLSelectElement;
-    setSelectedCategoy(target.value);
+  const handleSelectChange = (categoryId: string) => {
+    setSelectedCategoy(categoryId);
     setProductSearch("");
   };
 
@@ -318,24 +317,18 @@ export default function Select({ listName, onAdded }: SelectProps) {
             </div>
           )}
           <div className="panel flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <label className="w-full text-sm font-medium sm:max-w-sm">
-              Categoría
-              <select
-                value={selectedCategory}
-                onChange={handleSelectChange}
-                className="field mt-2"
-                disabled={isUpdating}
-              >
-                <option value="" disabled>
-                  Selecciona una categoría
-                </option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="w-full sm:max-w-sm">
+              <Autocomplete
+                label="Categoría"
+                value=""
+                selectedValue={selectedCategory}
+                selectedLabel={categories.find((category) => category.id === selectedCategory)?.name ?? ""}
+                options={categories.map((category) => ({ value: category.id, label: category.name }))}
+                onSelect={(option) => handleSelectChange(option.value)}
+                placeholder={isLoading ? "Cargando categorías…" : "Selecciona una categoría"}
+                disabled={isUpdating || isLoading}
+              />
+            </div>
             <button
               onClick={createList}
               disabled={isLoading || isUpdating || !selectedCategory}
@@ -366,6 +359,7 @@ export default function Select({ listName, onAdded }: SelectProps) {
                   }))}
                   onChange={setProductSearch}
                   onSelect={(option) => {
+                    setProductSearch("");
                     const product = products.find(
                       (item) => item.id === option.value,
                     );

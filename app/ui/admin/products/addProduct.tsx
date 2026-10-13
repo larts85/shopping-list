@@ -240,35 +240,24 @@ export default function AddProduct() {
         </p>
       )}
       <form onSubmit={handleSubmit} className="panel grid gap-4 lg:grid-cols-2">
-        <label className="text-sm font-medium">
-          Categoría
-          <select
-            value={selectedCategory}
-            onChange={(e) => {
-              setSelectedCategoy(e.target.value);
-              if (!unitChosen) {
-                const suggestedUnit = suggestProductUnit(
-                  newProductName,
-                  categories.find((c) => c.id === e.target.value)?.name,
-                );
-                setUnit(suggestedUnit);
-                setAvailableUnits(compatibleUnits(suggestedUnit));
-              }
-            }}
-            className="field mt-2"
-            disabled={isSubmitting}
-            required
-          >
-            <option value="" disabled>
-              Selecciona una categoría
-            </option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Autocomplete
+          label="Categoría"
+          value=""
+          selectedValue={selectedCategory}
+          selectedLabel={categories.find((c) => c.id === selectedCategory)?.name ?? ""}
+          options={categories.map((c) => ({ value: c.id, label: c.name }))}
+          onSelect={(option) => {
+            setSelectedCategoy(option.value);
+            if (!unitChosen) {
+              const suggestedUnit = suggestProductUnit(newProductName, option.label);
+              setUnit(suggestedUnit);
+              setAvailableUnits(compatibleUnits(suggestedUnit));
+            }
+          }}
+          placeholder={isLoading ? "Cargando categorías…" : "Selecciona una categoría"}
+          disabled={isSubmitting || isLoading}
+          required
+        />
         <Autocomplete
           label="Nombre del producto"
           value={newProductName}
@@ -278,6 +267,7 @@ export default function AddProduct() {
           }))}
           onChange={handleChange}
           onSelect={(option) => {
+            setNewProductName(option.label);
             const product = products.find((item) => item.id === option.value);
             if (product) setEditModalProduct(product);
           }}
@@ -371,21 +361,15 @@ export default function AddProduct() {
                 </p>
               )}
               <div className="flex flex-wrap items-end gap-3">
-                <label className="text-sm font-medium">
-                  Cambiar categoría
-                  <select
-                    className="field mt-2"
-                    value={bulkCategoryId}
-                    disabled={bulkBusy}
-                    onChange={(event) => setBulkCategoryId(event.target.value)}
-                  >
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <Autocomplete
+                  label="Cambiar categoría"
+                  value=""
+                  selectedValue={bulkCategoryId}
+                  selectedLabel={categories.find((c) => c.id === bulkCategoryId)?.name ?? ""}
+                  options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                  onSelect={(option) => setBulkCategoryId(option.value)}
+                  disabled={bulkBusy}
+                />
                 <button
                   type="button"
                   className="btn-secondary"
