@@ -206,15 +206,22 @@ export async function getMoveTargets(scope?: string) {
 
 export async function moveCartItems(input: {
   targetHouseholdId: string;
+  itemId?: string;
+  /** @deprecated Older clients use productId for the shopping_list row ID. */
   productId?: string;
   categoryId?: string;
 }): Promise<{ moved: number; merged: number }> {
-  if (!input || Boolean(input.productId) === Boolean(input.categoryId))
+  const itemIdValue = input?.itemId ?? input?.productId;
+  if (
+    !input ||
+    Boolean(itemIdValue) === Boolean(input.categoryId) ||
+    (input.itemId && input.productId)
+  )
     throw new DataError("Indica un artículo o una categoría");
   const targetId = text(input.targetHouseholdId).toLowerCase();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId))
     throw new DataError("Lista de destino inválida");
-  const sourceProductId = input.productId ? text(input.productId) : undefined;
+  const sourceItemId = itemIdValue ? text(itemIdValue) : undefined;
   const sourceCategoryId = input.categoryId ? text(input.categoryId) : undefined;
 
   return withListItemEditor(async (db, source, email) => {
@@ -229,15 +236,16 @@ export async function moveCartItems(input: {
     );
     requireRow(targetAccess.rowCount);
 
+    // IList.id is the shopping_list row ID; id_product is a different catalog ID.
     const rows = await db.query(
       `select l.id,l.id_product,l.provisional_name,l.provisional_category_id,
               l.provisional_created_by,l.provisional_available_units,l.catalog_request_id,
               l.cantidad,l.medida,l.precio,l.comprado,l.unit,
               coalesce(p.id_category,l.provisional_category_id) id_category
        from shopping_list l left join catalog_products p on p.id=l.id_product
-       where l.household_id=$1 and ${sourceProductId ? "l.id_product=$2 and not l.comprado" : "coalesce(p.id_category,l.provisional_category_id)=$2"}
+       where l.household_id=$1 and ${sourceItemId ? "l.id=$2 and not l.comprado" : "coalesce(p.id_category,l.provisional_category_id)=$2"}
        order by l.id for update of l`,
-      [source, sourceProductId ?? sourceCategoryId],
+      [source, sourceItemId ?? sourceCategoryId],
     );
     requireRow(rows.rowCount);
     if (rows.rows.some((row) => row.comprado))
