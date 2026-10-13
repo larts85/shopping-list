@@ -113,21 +113,67 @@ export async function getHouseholdData(scope?: string) {
 }
 export async function getHomeLists() {
   const { email } = await identity();
-  return transaction(email, async (db) => ({
-    email,
-    lists: (
-      await db.query(
-        "select h.id,h.slug,h.name,h.owner_email from households h join household_members m on m.household_id=h.id where m.email=$1 order by h.created_at,h.id",
-        [email],
-      )
-    ).rows as { id: string; slug: string; name: string; owner_email: string }[],
-    invitations: (
-      await db.query(
-        "select i.id,h.slug,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email) order by h.created_at,i.id",
-        [email],
-      )
-    ).rows as { id: string; slug: string; name: string; owner_email: string }[],
-  }));
+  return transaction(email, async (db) => {
+    const role = await appRole(db, email);
+    const lists = await db.query(
+      "select h.id,h.slug,h.name,h.owner_email from households h join household_members m on m.household_id=h.id where m.email=$1 order by h.created_at,h.id",
+      [email],
+    );
+    const invitations = await db.query(
+      "select i.id,h.slug,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email) order by h.created_at,i.id",
+      [email],
+    );
+    const pendingNameSuggestions = await db.query(
+      `select s.id,s.household_id,h.name as list_name,h.slug,s.name,s.email
+       from list_name_suggestions s join households h on h.id=s.household_id
+       where h.owner_email=$1 and s.status='pending'
+       order by s.created_at desc,s.id desc limit 100`,
+      [email],
+    );
+    const pendingListSuggestions = await db.query(
+      `select s.household_id,count(*)::int as count
+       from list_suggestions s join households h on h.id=s.household_id
+       where s.status='pending' and (h.owner_email=$1 or s.email=$1)
+         and exists (
+           select 1 from household_members m
+           where m.household_id=s.household_id and m.email=$1
+         )
+       group by s.household_id`,
+      [email],
+    );
+    const pendingCatalogRequests = await db.query(
+      "select count(*)::int as count from catalog_requests where status='pending' and ($1 or email=$2)",
+      [role === "admin", email],
+    );
+    return {
+      email,
+      lists: lists.rows as {
+        id: string;
+        slug: string;
+        name: string;
+        owner_email: string;
+      }[],
+      invitations: invitations.rows as {
+        id: string;
+        slug: string;
+        name: string;
+        owner_email: string;
+      }[],
+      pendingNameSuggestions: pendingNameSuggestions.rows as {
+        id: string;
+        household_id: string;
+        list_name: string;
+        slug: string;
+        name: string;
+        email: string;
+      }[],
+      pendingListSuggestions: pendingListSuggestions.rows as {
+        household_id: string;
+        count: number;
+      }[],
+      pendingCatalogRequests: Number(pendingCatalogRequests.rows[0].count),
+    };
+  });
 }
 
 export async function createHousehold(

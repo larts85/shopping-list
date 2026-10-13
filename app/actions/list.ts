@@ -90,7 +90,7 @@ export async function setBought(
 ): Promise<void> {
   const values = purchaseValues(cantidad, medida, unit);
   const price = precio == null ? null : positive(precio, true);
-  await withListEditor(async (db, h) => {
+  await withListItemEditor(async (db, h) => {
     const product = await db.query(
       "select coalesce(p.available_units,l.provisional_available_units) available_units from shopping_list l left join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2",
       [h, text(id)],
@@ -418,13 +418,14 @@ export interface BulkAddItem {
 export async function bulkAddToList(
   items: BulkAddItem[],
   scope?: string,
-): Promise<{ added: number }> {
+): Promise<{ added: number; catalogRequests: number }> {
   if (!Array.isArray(items) || items.length === 0 || items.length > 500) {
     throw new DataError("Listado de artículos inválido");
   }
 
   return withListItemEditor(async (db, h, email) => {
     let addedCount = 0;
+    let catalogRequestCount = 0;
 
     for (const item of items) {
       if (!item || typeof item !== "object") {
@@ -475,10 +476,35 @@ export async function bulkAddToList(
           [h, productId, cantidad, requestedUnit],
         );
       } else {
-        const request = await db.query(
-          "select id from catalog_requests where kind='product' and status='pending' and lower(trim(name))=lower(trim($1)) and category_id=$2 and unit=$3 order by created_at,id limit 1",
-          [name, idCategory, requestedUnit],
-        );
+        let catalogRequestId: string | null = null;
+        await db.query("savepoint optional_catalog_request");
+        try {
+          const request = await db.query(
+            "select id from catalog_requests where kind='product' and status='pending' and lower(trim(name))=lower(trim($1)) and category_id=$2 and unit=$3 order by created_at,id limit 1",
+            [name, idCategory, requestedUnit],
+          );
+          catalogRequestId = request.rows[0]?.id ?? null;
+          if (!catalogRequestId) {
+            catalogRequestId = (
+              await db.query(
+                "insert into catalog_requests(email,kind,name,category_id,unit,note) values($1,'product',$2,$3,$4,$5) returning id",
+                [
+                  email,
+                  name,
+                  idCategory,
+                  requestedUnit,
+                  "Producto agregado como provisional a una lista compartida",
+                ],
+              )
+            ).rows[0].id;
+          }
+          if (catalogRequestId) catalogRequestCount++;
+          await db.query("release savepoint optional_catalog_request");
+        } catch {
+          await db.query("rollback to savepoint optional_catalog_request");
+          await db.query("release savepoint optional_catalog_request");
+          catalogRequestId = null;
+        }
         const provisional = await db.query(
           "select id,provisional_available_units from shopping_list where household_id=$1 and id_product is null and provisional_category_id=$2 and lower(trim(provisional_name))=lower(trim($3)) for update",
           [h, idCategory, name],
@@ -495,7 +521,7 @@ export async function bulkAddToList(
               cantidad=case when comprado then cantidad else $3 end,
               unit=case when comprado then unit else $4 end,
               provisional_available_units=$5,
-              catalog_request_id=coalesce(catalog_request_id,$6)
+              catalog_request_id=coalesce($6,catalog_request_id)
              where household_id=$1 and id=$2`,
             [
               h,
@@ -503,7 +529,7 @@ export async function bulkAddToList(
               cantidad,
               requestedUnit,
               availableUnits,
-              request.rows[0]?.id ?? null,
+              catalogRequestId,
             ],
           );
         } else {
@@ -520,7 +546,7 @@ export async function bulkAddToList(
               idCategory,
               email,
               requestedAvailableUnits,
-              request.rows[0]?.id ?? null,
+              catalogRequestId,
             ],
           );
         }
@@ -529,6 +555,6 @@ export async function bulkAddToList(
       addedCount++;
     }
 
-    return { added: addedCount };
+    return { added: addedCount, catalogRequests: catalogRequestCount };
   }, scope);
 }

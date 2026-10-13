@@ -318,8 +318,9 @@ export default function BulkPaste({
                 cantidades, unidades o categorías antes de añadir a tu lista.
               </p>
               <p className="mt-2 text-xs text-zinc-500">
-                Los productos que no existen en esa categoría quedan como
-                provisionales de esta lista y no modifican el catálogo global.
+                Los productos nuevos quedan provisionales en esta lista y se
+                envía una solicitud al catálogo general para revisión. No se
+                incorporan al catálogo hasta que se aprueban.
               </p>
             </div>
 

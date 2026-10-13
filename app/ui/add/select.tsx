@@ -1,15 +1,21 @@
 "use client";
 import { listFetch } from "@/app/lib/listClient";
-import { unitLabels, type Unit } from "@/app/lib/units";
+import {
+  compatibleUnits,
+  units,
+  unitLabels,
+  type Unit,
+} from "@/app/lib/units";
 import { useState, useEffect, useRef } from "react";
 import { ClipLoader } from "react-spinners";
 import { Category } from "@/app/lib/types";
 import BulkPaste from "./bulkPaste";
 import Autocomplete from "@/shared/components/ui/Autocomplete";
+import UnitSelect from "@/shared/components/ui/UnitSelect";
 
 interface SelectProps {
   listName: string;
-  onAdded: () => Promise<void>;
+  onAdded: (status?: string) => Promise<void>;
 }
 
 export default function Select({ listName, onAdded }: SelectProps) {
@@ -24,7 +30,10 @@ export default function Select({ listName, onAdded }: SelectProps) {
   const [bulkProductsLoaded, setBulkProductsLoaded] = useState(false);
   const [bulkProductsError, setBulkProductsError] = useState("");
   const [error, setError] = useState("");
+  const [provisionalError, setProvisionalError] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isAddingProvisional, setIsAddingProvisional] = useState(false);
+  const [provisionalUnit, setProvisionalUnit] = useState<Unit>("un");
   const productRequest = useRef(0);
   const selectedCount = products.filter((product) => product.checked).length;
   const allChecked = products.length > 0 && selectedCount === products.length;
@@ -143,6 +152,47 @@ export default function Select({ listName, onAdded }: SelectProps) {
   const handleSelectChange = (categoryId: string) => {
     setSelectedCategoy(categoryId);
     setProductSearch("");
+    setProvisionalUnit("un");
+  };
+
+  const addProvisionalProduct = async () => {
+    const name = productSearch.trim();
+    if (!name || !selectedCategory || visibleProducts.length > 0) return;
+    setIsAddingProvisional(true);
+    setProvisionalError("");
+    try {
+      const response = await listFetch("/api/list/bulk-add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify([
+          {
+            name,
+            idCategory: selectedCategory,
+            cantidad: 1,
+            unit: provisionalUnit,
+            availableUnits: compatibleUnits(provisionalUnit),
+          },
+        ]),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        throw new Error(result?.error || "No pudimos agregar el producto.");
+      }
+      const result = await response.json().catch(() => null);
+      await onAdded(
+        result?.catalogRequests
+          ? `“${name}” se agregó como provisional y se envió al catálogo para revisión.`
+          : `“${name}” se agregó como provisional. No se pudo enviar la solicitud al catálogo.`,
+      );
+    } catch (error) {
+      setProvisionalError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos agregar el producto.",
+      );
+    } finally {
+      setIsAddingProvisional(false);
+    }
   };
 
   const handleAllChecked = async (
@@ -426,9 +476,59 @@ export default function Select({ listName, onAdded }: SelectProps) {
             !isLoading &&
             !error &&
             products.length === 0 && (
-              <div className="empty-state">
-                Todavía no hay productos en esta categoría. Puedes agregarlos
-                desde Administración.
+              <div className="empty-state space-y-3">
+                <p>
+                  Todavía no hay productos en esta categoría. Puedes agregar
+                  uno como provisional a este carrito.
+                </p>
+                <label className="mx-auto block w-full max-w-sm text-left text-sm font-medium">
+                  Nombre del producto
+                  <input
+                    className="field mt-2"
+                    value={productSearch}
+                    onChange={(event) => setProductSearch(event.target.value)}
+                    maxLength={200}
+                    placeholder="Escribe el nombre"
+                    disabled={isAddingProvisional}
+                  />
+                </label>
+              </div>
+            )}
+          {selectedCategory &&
+            !isLoading &&
+            !error &&
+            productSearch.trim() &&
+            visibleProducts.length === 0 && (
+              <div className="panel flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  {provisionalError && (
+                    <p role="alert" className="error-notice mb-3">
+                      {provisionalError}
+                    </p>
+                  )}
+                  <p className="font-medium">
+                    Agregar “{productSearch.trim()}” como provisional
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    Se añadirá al carrito en esta categoría y se enviará una
+                    solicitud al catálogo general para revisión.
+                  </p>
+                  <UnitSelect
+                    label="Unidad del producto"
+                    value={provisionalUnit}
+                    options={units}
+                    onChange={setProvisionalUnit}
+                    disabled={isAddingProvisional}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary shrink-0"
+                  disabled={isAddingProvisional}
+                  onClick={() => void addProvisionalProduct()}
+                >
+                  {isAddingProvisional ? "Agregando…" : "Agregar al carrito"}
+                </button>
               </div>
             )}
           {isLoading && (

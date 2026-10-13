@@ -521,7 +521,6 @@ export default function List() {
       void mutateCart("PATCH", { id: list.id });
       return;
     }
-    if (!canManageList) return;
     revision.current++;
     setLisModal(list);
   };
@@ -730,9 +729,9 @@ export default function List() {
             >
               <Select
                 listName={householdName}
-                onAdded={async () => {
+                onAdded={async (message) => {
                   await Promise.all([fetchList(), fetchCategories()]);
-                  setStatus(`Productos agregados a ${householdName}.`);
+                  setStatus(message ?? `Productos agregados a ${householdName}.`);
                   setIsAddItemsOpen(false);
                 }}
               />
@@ -891,13 +890,13 @@ export default function List() {
                       className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem_2.5rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem_2.5rem] sm:gap-2 sm:px-6"
                     >
                       <button
+                        type="button"
                         disabled={
                           !canEditList ||
                           isLoading ||
                           purchaseBusy ||
                           !!purchaseConfirmation ||
-                          pendingSaveCount > 0 ||
-                          (product.comprado !== "1" && !canManageList)
+                          pendingSaveCount > 0
                         }
                         onClick={() => handleOpenModal(product)}
                         className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg text-left text-sm hover:text-zinc-500 sm:gap-3"
@@ -1230,7 +1229,7 @@ export default function List() {
           </div>
         </Modal>
       )}
-      {canManageList && listModal && (
+      {listModal && (
         <BoughtListModal
           isOpen={!!listModal}
           onClose={handleCloseModal}
