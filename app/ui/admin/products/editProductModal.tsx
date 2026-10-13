@@ -7,6 +7,7 @@ import UnitSelect from "@/shared/components/ui/UnitSelect";
 import type { Unit } from "@/app/lib/units";
 import { capitalize } from "../../utils/capitalize";
 import AvailableUnitsField from "./availableUnitsField";
+import Autocomplete from "@/shared/components/ui/Autocomplete";
 
 interface EditProductModalProps {
   isOpen: boolean;
@@ -42,6 +43,10 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
   const handleEditProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    if (!categoryId) {
+      setError("Selecciona una categoría.");
+      return;
+    }
     setIsSubmitting(true);
     setError("");
     try {
@@ -107,22 +112,18 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
             className="field mt-2"
           />
         </div>
-        <label className="block text-sm font-medium">
-          Categoría
-          <select
-            value={categoryId}
-            onChange={(event) => setCategoryId(event.target.value)}
-            disabled={isSubmitting}
-            required
-            className="field mt-2"
-          >
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Autocomplete
+          label="Categoría"
+          value=""
+          selectedValue={categoryId}
+          selectedLabel={categories.find((c) => c.id === categoryId)?.name ?? ""}
+          options={categories.map((c) => ({ value: c.id, label: c.name }))}
+          onChange={setCategoryId}
+          onSelect={(option) => setCategoryId(option.value)}
+          disabled={isSubmitting}
+          required
+          className="field mt-2"
+        />
         <label className="block text-sm font-medium">
           Unidad de medida
           <UnitSelect

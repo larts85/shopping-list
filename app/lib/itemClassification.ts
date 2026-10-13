@@ -1,17 +1,19 @@
 import type { Category, Product } from "./types";
-import { type Unit, isUnit } from "./units";
+import { compatibleUnits, type Unit, isUnit } from "./units";
 import { suggestProductUnit } from "./productUnits";
 
 export interface ParsedItem {
   raw: string;
   name: string;
   quantity: number;
+  unit?: Unit;
 }
 
 export interface ClassifiedItem extends ParsedItem {
   categoryId: string;
   categoryName: string;
   unit: Unit;
+  availableUnits: Unit[];
   selected: boolean;
 }
 
@@ -51,15 +53,26 @@ export function parseRawItemList(text: string): ParsedItem[] {
     // 2. Extract leading quantity if present (e.g. "2 Jgos sábanas...", "3 x Pan", "2 Almohadones...")
     let quantity = 1;
     let name = line;
+    let unit: Unit | undefined;
 
     // Matches numbers at start followed by unit/multiplier or space and item name
     // (e.g. "2 Jgos...", "1.5 kg...", "3 x ...")
-    const qtyMatch = line.match(/^(\d+(?:[.,]\d+)?)\s*(?:x|de|\b)\s+(.+)$/i);
-    if (qtyMatch && qtyMatch[1] && qtyMatch[2]) {
+    const qtyMatch = line.match(
+      /^(\d+(?:[.,]\d+)?)\s*(?:(kg|kgs?|kilogramos?|g|grs?|gramos?|lt|lts?|litros?|ml|mililitros?|u|un(?:idad(?:es)?)?)\b\s+|(?:x|de)\s+|\s+)(.+)$/i,
+    );
+    if (qtyMatch && qtyMatch[1] && qtyMatch[3]) {
       const parsedQty = parseFloat(qtyMatch[1].replace(",", "."));
       if (parsedQty > 0 && Number.isFinite(parsedQty)) {
         quantity = parsedQty;
-        name = qtyMatch[2].trim();
+        name = qtyMatch[3].trim();
+        const parsedUnit = qtyMatch[2]?.toLowerCase();
+        if (parsedUnit) {
+          if (["kg", "kgs", "kilogramo", "kilogramos"].includes(parsedUnit)) unit = "kg";
+          else if (["g", "gr", "grs", "gramo", "gramos"].includes(parsedUnit)) unit = "g";
+          else if (["lt", "lts", "litro", "litros"].includes(parsedUnit)) unit = "lt";
+          else if (["ml", "mililitro", "mililitros"].includes(parsedUnit)) unit = "ml";
+          else unit = "un";
+        }
       }
     }
 
@@ -72,6 +85,7 @@ export function parseRawItemList(text: string): ParsedItem[] {
       raw: rawLine.trim(),
       name,
       quantity: quantity,
+      unit,
     });
   }
 
@@ -446,11 +460,18 @@ export function parseAndClassifyList(
 
   return parsed.map((item) => {
     const classification = classifyItem(item.name, categories, catalogProducts);
+    const unit = item.unit ?? classification.unit;
+    const existingUnits = catalogProducts?.find(
+      (product) => normalizeText(product.name) === normalizeText(item.name),
+    )?.availableUnits;
+    const availableUnits = existingUnits ?? compatibleUnits(unit);
+    if (!availableUnits.includes(unit)) availableUnits.push(unit);
     return {
       ...item,
       categoryId: classification.categoryId,
       categoryName: classification.categoryName,
-      unit: classification.unit,
+      unit,
+      availableUnits,
       selected: true,
     };
   });

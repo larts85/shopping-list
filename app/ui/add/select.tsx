@@ -1,10 +1,11 @@
 "use client";
 import { listFetch } from "@/app/lib/listClient";
 import { unitLabels, type Unit } from "@/app/lib/units";
-import { useState, useEffect, useRef, SyntheticEvent } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ClipLoader } from "react-spinners";
 import { Category } from "@/app/lib/types";
 import BulkPaste from "./bulkPaste";
+import Autocomplete from "@/shared/components/ui/Autocomplete";
 
 interface SelectProps {
   listName: string;
@@ -15,13 +16,31 @@ export default function Select({ listName, onAdded }: SelectProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [mode, setMode] = useState<"category" | "bulk">("category");
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
+  const [productSearch, setProductSearch] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [bulkProducts, setBulkProducts] = useState<Product[]>([]);
+  const [isLoadingBulkProducts, setIsLoadingBulkProducts] = useState(false);
+  const [bulkProductsLoaded, setBulkProductsLoaded] = useState(false);
+  const [bulkProductsError, setBulkProductsError] = useState("");
   const [error, setError] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const productRequest = useRef(0);
   const selectedCount = products.filter((product) => product.checked).length;
   const allChecked = products.length > 0 && selectedCount === products.length;
+  const visibleProducts = products.filter((product) =>
+    product.name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase()
+      .includes(
+        productSearch
+          .trim()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLocaleLowerCase(),
+      ),
+  );
 
   useEffect(() => {
     fetchCategories();
@@ -101,9 +120,29 @@ export default function Select({ listName, onAdded }: SelectProps) {
     }
   }
 
-  const handleSelectChange = (event: SyntheticEvent) => {
-    const target = event.target as HTMLSelectElement;
-    setSelectedCategoy(target.value);
+  async function fetchBulkProducts() {
+    if (bulkProductsLoaded || isLoadingBulkProducts) return;
+    setIsLoadingBulkProducts(true);
+    setBulkProductsError("");
+    try {
+      const response = await listFetch("/api/products/get-products", {
+        method: "GET",
+      });
+      if (!response.ok) throw new Error("No pudimos cargar el catálogo.");
+      setBulkProducts(await response.json());
+      setBulkProductsLoaded(true);
+    } catch {
+      setBulkProductsError(
+        "No pudimos cargar el catálogo para clasificar los productos existentes.",
+      );
+    } finally {
+      setIsLoadingBulkProducts(false);
+    }
+  }
+
+  const handleSelectChange = (categoryId: string) => {
+    setSelectedCategoy(categoryId);
+    setProductSearch("");
   };
 
   const handleAllChecked = async (
@@ -144,15 +183,14 @@ export default function Select({ listName, onAdded }: SelectProps) {
     }
   };
 
-  const handleCheckboxChange = async (
-    event: React.ChangeEvent<HTMLInputElement>,
+  const handleProductChecked = async (
+    productId: string,
+    isChecked: boolean,
   ) => {
     if (isUpdating) return;
     const previousProducts = products;
     setIsUpdating(true);
     setError("");
-    const productId = event.target.id;
-    const isChecked = event.target.checked;
 
     setProducts((prevProducts) =>
       prevProducts.map((product) =>
@@ -164,7 +202,7 @@ export default function Select({ listName, onAdded }: SelectProps) {
 
     const productChecked = {
       idProduct: productId,
-      checked: event.target.checked,
+      checked: isChecked,
     };
 
     try {
@@ -188,6 +226,9 @@ export default function Select({ listName, onAdded }: SelectProps) {
       setIsUpdating(false);
     }
   };
+
+  const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) =>
+    void handleProductChecked(event.target.id, event.target.checked);
 
   const createList = async () => {
     setIsLoading(true);
@@ -235,7 +276,10 @@ export default function Select({ listName, onAdded }: SelectProps) {
         </button>
         <button
           type="button"
-          onClick={() => setMode("bulk")}
+          onClick={() => {
+            setMode("bulk");
+            void fetchBulkProducts();
+          }}
           className={`min-h-11 border-b-2 px-5 py-2.5 text-sm font-medium transition-colors ${
             mode === "bulk"
               ? "border-zinc-900 font-semibold text-zinc-900"
@@ -249,7 +293,10 @@ export default function Select({ listName, onAdded }: SelectProps) {
       {mode === "bulk" ? (
         <BulkPaste
           categories={categories}
-          products={products}
+          products={bulkProducts}
+          isLoadingProducts={isLoadingBulkProducts}
+          productsError={bulkProductsError}
+          onRetryLoadProducts={fetchBulkProducts}
           onAdded={onAdded}
         />
       ) : (
@@ -270,24 +317,19 @@ export default function Select({ listName, onAdded }: SelectProps) {
             </div>
           )}
           <div className="panel flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <label className="w-full text-sm font-medium sm:max-w-sm">
-              Categoría
-              <select
-                value={selectedCategory}
+            <div className="w-full sm:max-w-sm">
+              <Autocomplete
+                label="Categoría"
+                value=""
+                selectedValue={selectedCategory}
+                selectedLabel={categories.find((category) => category.id === selectedCategory)?.name ?? ""}
+                options={categories.map((category) => ({ value: category.id, label: category.name }))}
                 onChange={handleSelectChange}
-                className="field mt-2"
-                disabled={isUpdating}
-              >
-                <option value="" disabled>
-                  Selecciona una categoría
-                </option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onSelect={(option) => handleSelectChange(option.value)}
+                placeholder={isLoading ? "Cargando categorías…" : "Selecciona una categoría"}
+                disabled={isUpdating || isLoading}
+              />
+            </div>
             <button
               onClick={createList}
               disabled={isLoading || isUpdating || !selectedCategory}
@@ -307,50 +349,78 @@ export default function Select({ listName, onAdded }: SelectProps) {
             </div>
           )}
           {!isLoading && products.length > 0 && (
-            <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-4">
-                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
-                  <input
-                    ref={(input) => {
-                      if (input)
-                        input.indeterminate = selectedCount > 0 && !allChecked;
-                    }}
-                    type="checkbox"
-                    disabled={isUpdating}
-                    checked={allChecked}
-                    onChange={handleAllChecked}
-                  />
-                  Seleccionar todos
-                </label>
-                <span className="text-xs text-zinc-500">
-                  {selectedCount}{" "}
-                  {selectedCount === 1 ? "seleccionado" : "seleccionados"}
-                </span>
+            <>
+              <div className="panel">
+                <Autocomplete
+                  label="Buscar producto"
+                  value={productSearch}
+                  options={products.map((product) => ({
+                    value: product.id,
+                    label: product.name,
+                  }))}
+                  onChange={setProductSearch}
+                  onSelect={(option) => {
+                    setProductSearch("");
+                    const product = products.find(
+                      (item) => item.id === option.value,
+                    );
+                    if (product && !product.checked)
+                      void handleProductChecked(product.id, true);
+                  }}
+                  placeholder="Escribe el nombre del producto"
+                />
               </div>
-              <ul className="divide-y divide-zinc-100">
-                {products.map((product) => (
-                  <li key={product.id}>
-                    <label
-                      className={`flex min-h-16 cursor-pointer items-center gap-3 px-5 py-4 text-sm transition-colors hover:bg-zinc-50 ${product.checked ? "bg-zinc-50 font-medium" : ""}`}
-                    >
-                      <input
-                        id={product.id}
-                        type="checkbox"
-                        onChange={handleCheckboxChange}
-                        disabled={isUpdating}
-                        checked={product.checked}
-                      />
-                      <span className="wrap-break-word">
-                        {product.name}
-                        <span className="ml-2 text-xs text-zinc-500">
-                          {unitLabels[product.unit ?? "un"]}
+              <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-4">
+                  <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
+                    <input
+                      ref={(input) => {
+                        if (input)
+                          input.indeterminate =
+                            selectedCount > 0 && !allChecked;
+                      }}
+                      type="checkbox"
+                      disabled={isUpdating}
+                      checked={allChecked}
+                      onChange={handleAllChecked}
+                    />
+                    Seleccionar todos
+                  </label>
+                  <span className="text-xs text-zinc-500">
+                    {selectedCount}{" "}
+                    {selectedCount === 1 ? "seleccionado" : "seleccionados"}
+                  </span>
+                </div>
+                <ul className="divide-y divide-zinc-100">
+                  {visibleProducts.map((product) => (
+                    <li key={product.id}>
+                      <label
+                        className={`flex min-h-16 cursor-pointer items-center gap-3 px-5 py-4 text-sm transition-colors hover:bg-zinc-50 ${product.checked ? "bg-zinc-50 font-medium" : ""}`}
+                      >
+                        <input
+                          id={product.id}
+                          type="checkbox"
+                          onChange={handleCheckboxChange}
+                          disabled={isUpdating}
+                          checked={product.checked}
+                        />
+                        <span className="wrap-break-word">
+                          {product.name}
+                          <span className="ml-2 text-xs text-zinc-500">
+                            {unitLabels[product.unit ?? "un"]}
+                          </span>
                         </span>
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </section>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              {visibleProducts.length === 0 && (
+                <div className="empty-state">
+                  No hay productos que coincidan con la búsqueda.
+                </div>
+              )}
+            </>
           )}
           {selectedCategory &&
             !isLoading &&

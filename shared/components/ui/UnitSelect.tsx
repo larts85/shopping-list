@@ -1,4 +1,6 @@
 import { units, unitLabels, type Unit } from "@/app/lib/units";
+import Autocomplete from "@/shared/components/ui/Autocomplete";
+
 export default function UnitSelect({
   value,
   onChange,
@@ -14,23 +16,47 @@ export default function UnitSelect({
   disabled?: boolean;
   compact?: boolean;
 }) {
+  if (options.length <= 2) {
+    return (
+      <select
+        aria-label={label}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value as Unit)}
+        className={
+          compact
+            ? "h-10 w-full min-w-0 rounded-lg border border-zinc-300 px-1 text-sm sm:h-9"
+            : "field mt-2"
+        }
+      >
+        {options.map((unit) => (
+          <option key={unit} value={unit}>
+            {compact ? unit : unitLabels[unit]}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
   return (
-    <select
-      aria-label={label}
-      value={value}
+    <Autocomplete
+      label={label}
+      value=""
+      selectedValue={value}
+      selectedLabel={compact ? value : unitLabels[value]}
+      options={options.map((unit) => ({
+        value: unit,
+        label: compact ? unit : unitLabels[unit],
+      }))}
+      onChange={() => undefined}
+      onSelect={(option) => onChange(option.value as Unit)}
       disabled={disabled}
-      onChange={(e) => onChange(e.target.value as Unit)}
       className={
         compact
           ? "h-10 w-full min-w-0 rounded-lg border border-zinc-300 px-1 text-sm sm:h-9"
           : "field mt-2"
       }
-    >
-      {options.map((unit) => (
-        <option key={unit} value={unit}>
-          {compact ? unit : unitLabels[unit]}
-        </option>
-      ))}
-    </select>
+      placeholder={compact ? "Unidad" : "Selecciona una unidad"}
+    />
   );
 }
