@@ -194,6 +194,122 @@ export async function removeCartItems(target: {
   });
 }
 
+export async function getMoveTargets(scope?: string) {
+  return withHousehold(async (db, source, email) => {
+    const { rows } = await db.query(
+      "select h.id,h.name from households h join household_members m on m.household_id=h.id where m.email=$1 and h.id<>$2 order by h.name,h.id",
+      [email, source],
+    );
+    return rows as { id: string; name: string }[];
+  }, scope);
+}
+
+export async function moveCartItems(input: {
+  targetHouseholdId: string;
+  productId?: string;
+  categoryId?: string;
+}): Promise<{ moved: number; merged: number }> {
+  if (!input || Boolean(input.productId) === Boolean(input.categoryId))
+    throw new DataError("Indica un artículo o una categoría");
+  const targetId = text(input.targetHouseholdId).toLowerCase();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId))
+    throw new DataError("Lista de destino inválida");
+  const sourceProductId = input.productId ? text(input.productId) : undefined;
+  const sourceCategoryId = input.categoryId ? text(input.categoryId) : undefined;
+
+  return withListItemEditor(async (db, source, email) => {
+    if (source === targetId) throw new DataError("Elige otra lista");
+    await db.query(
+      "select pg_advisory_xact_lock(hashtextextended(least($1,$2)||':'||greatest($1,$2), 3))",
+      [source, targetId],
+    );
+    const targetAccess = await db.query(
+      "select 1 from household_members where household_id=$1 and email=$2 for update",
+      [targetId, email],
+    );
+    requireRow(targetAccess.rowCount);
+
+    const rows = await db.query(
+      `select l.id,l.id_product,l.provisional_name,l.provisional_category_id,
+              l.provisional_created_by,l.provisional_available_units,l.catalog_request_id,
+              l.cantidad,l.medida,l.precio,l.comprado,l.unit,
+              coalesce(p.id_category,l.provisional_category_id) id_category
+       from shopping_list l left join catalog_products p on p.id=l.id_product
+       where l.household_id=$1 and ${sourceProductId ? "l.id_product=$2 and not l.comprado" : "coalesce(p.id_category,l.provisional_category_id)=$2"}
+       order by l.id for update of l`,
+      [source, sourceProductId ?? sourceCategoryId],
+    );
+    requireRow(rows.rowCount);
+    if (rows.rows.some((row) => row.comprado))
+      throw new DataError("Desmarca los artículos comprados antes de moverlos");
+
+    let merged = 0;
+    for (const row of rows.rows) {
+      const existing = row.id_product
+        ? await db.query(
+            "select id,cantidad,unit,comprado from shopping_list where household_id=$1 and id_product=$2 for update",
+            [targetId, row.id_product],
+          )
+        : await db.query(
+            `select id,cantidad,unit,comprado from shopping_list
+             where household_id=$1 and id_product is null and provisional_category_id=$2
+               and lower(trim(provisional_name))=lower(trim($3)) for update`,
+            [targetId, row.provisional_category_id, row.provisional_name],
+          );
+      if (existing.rowCount) {
+        const target = existing.rows[0];
+        if (target.comprado)
+          throw new DataError("El destino ya tiene este artículo comprado");
+        if (target.unit !== row.unit)
+          throw new DataError("El artículo ya existe con otra unidad en el destino", 409);
+        await db.query(
+          "update shopping_list set cantidad=$3 where household_id=$1 and id=$2",
+          [targetId, target.id, Number(target.cantidad ?? 0) + Number(row.cantidad ?? 0)],
+        );
+        merged++;
+      } else {
+        await db.query(
+          `insert into shopping_list(household_id,id_product,cantidad,medida,precio,comprado,unit,
+             provisional_name,provisional_category_id,provisional_created_by,
+             provisional_available_units,catalog_request_id)
+           values($1,$2,$3,$4,$5,false,$6,$7,$8,$9,$10,$11)`,
+          [
+            targetId,
+            row.id_product,
+            row.cantidad,
+            row.medida,
+            row.precio,
+            row.unit,
+            row.provisional_name,
+            row.provisional_category_id,
+            row.provisional_created_by,
+            row.provisional_available_units,
+            row.catalog_request_id,
+          ],
+        );
+      }
+    }
+    await db.query(
+      "delete from shopping_list where household_id=$1 and id=any($2::text[])",
+      [source, rows.rows.map((row) => row.id)],
+    );
+    const productIds = rows.rows
+      .map((row) => row.id_product)
+      .filter((id): id is string => id !== null);
+    if (productIds.length) {
+      await db.query(
+        "delete from list_selections where household_id=$1 and product_id=any($2::text[])",
+        [source, productIds],
+      );
+      await db.query(
+        "insert into list_selections(household_id,product_id,checked) select $1,product_id,true from unnest($2::text[]) product_id on conflict(household_id,product_id) do update set checked=true",
+        [targetId, productIds],
+      );
+    }
+    return { moved: rows.rowCount ?? 0, merged };
+  });
+}
+
 export async function unmarkCartItem(id: string): Promise<void> {
   const productId = text(id);
   await withListItemEditor(async (db, h) => {
