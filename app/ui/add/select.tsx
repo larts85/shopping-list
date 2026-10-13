@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, SyntheticEvent } from "react";
 import { ClipLoader } from "react-spinners";
 import { Category } from "@/app/lib/types";
 import BulkPaste from "./bulkPaste";
+import Autocomplete from "@/shared/components/ui/Autocomplete";
 
 interface SelectProps {
   listName: string;
@@ -15,6 +16,7 @@ export default function Select({ listName, onAdded }: SelectProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [mode, setMode] = useState<"category" | "bulk">("category");
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
+  const [productSearch, setProductSearch] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [bulkProducts, setBulkProducts] = useState<Product[]>([]);
@@ -26,6 +28,19 @@ export default function Select({ listName, onAdded }: SelectProps) {
   const productRequest = useRef(0);
   const selectedCount = products.filter((product) => product.checked).length;
   const allChecked = products.length > 0 && selectedCount === products.length;
+  const visibleProducts = products.filter((product) =>
+    product.name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase()
+      .includes(
+        productSearch
+          .trim()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLocaleLowerCase(),
+      ),
+  );
 
   useEffect(() => {
     fetchCategories();
@@ -128,6 +143,7 @@ export default function Select({ listName, onAdded }: SelectProps) {
   const handleSelectChange = (event: SyntheticEvent) => {
     const target = event.target as HTMLSelectElement;
     setSelectedCategoy(target.value);
+    setProductSearch("");
   };
 
   const handleAllChecked = async (
@@ -168,15 +184,14 @@ export default function Select({ listName, onAdded }: SelectProps) {
     }
   };
 
-  const handleCheckboxChange = async (
-    event: React.ChangeEvent<HTMLInputElement>,
+  const handleProductChecked = async (
+    productId: string,
+    isChecked: boolean,
   ) => {
     if (isUpdating) return;
     const previousProducts = products;
     setIsUpdating(true);
     setError("");
-    const productId = event.target.id;
-    const isChecked = event.target.checked;
 
     setProducts((prevProducts) =>
       prevProducts.map((product) =>
@@ -188,7 +203,7 @@ export default function Select({ listName, onAdded }: SelectProps) {
 
     const productChecked = {
       idProduct: productId,
-      checked: event.target.checked,
+      checked: isChecked,
     };
 
     try {
@@ -212,6 +227,9 @@ export default function Select({ listName, onAdded }: SelectProps) {
       setIsUpdating(false);
     }
   };
+
+  const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) =>
+    void handleProductChecked(event.target.id, event.target.checked);
 
   const createList = async () => {
     setIsLoading(true);
@@ -337,50 +355,77 @@ export default function Select({ listName, onAdded }: SelectProps) {
             </div>
           )}
           {!isLoading && products.length > 0 && (
-            <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-4">
-                <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
-                  <input
-                    ref={(input) => {
-                      if (input)
-                        input.indeterminate = selectedCount > 0 && !allChecked;
-                    }}
-                    type="checkbox"
-                    disabled={isUpdating}
-                    checked={allChecked}
-                    onChange={handleAllChecked}
-                  />
-                  Seleccionar todos
-                </label>
-                <span className="text-xs text-zinc-500">
-                  {selectedCount}{" "}
-                  {selectedCount === 1 ? "seleccionado" : "seleccionados"}
-                </span>
+            <>
+              <div className="panel">
+                <Autocomplete
+                  label="Buscar producto"
+                  value={productSearch}
+                  options={products.map((product) => ({
+                    value: product.id,
+                    label: product.name,
+                  }))}
+                  onChange={setProductSearch}
+                  onSelect={(option) => {
+                    const product = products.find(
+                      (item) => item.id === option.value,
+                    );
+                    if (product && !product.checked)
+                      void handleProductChecked(product.id, true);
+                  }}
+                  placeholder="Escribe el nombre del producto"
+                />
               </div>
-              <ul className="divide-y divide-zinc-100">
-                {products.map((product) => (
-                  <li key={product.id}>
-                    <label
-                      className={`flex min-h-16 cursor-pointer items-center gap-3 px-5 py-4 text-sm transition-colors hover:bg-zinc-50 ${product.checked ? "bg-zinc-50 font-medium" : ""}`}
-                    >
-                      <input
-                        id={product.id}
-                        type="checkbox"
-                        onChange={handleCheckboxChange}
-                        disabled={isUpdating}
-                        checked={product.checked}
-                      />
-                      <span className="wrap-break-word">
-                        {product.name}
-                        <span className="ml-2 text-xs text-zinc-500">
-                          {unitLabels[product.unit ?? "un"]}
+              <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-4">
+                  <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
+                    <input
+                      ref={(input) => {
+                        if (input)
+                          input.indeterminate =
+                            selectedCount > 0 && !allChecked;
+                      }}
+                      type="checkbox"
+                      disabled={isUpdating}
+                      checked={allChecked}
+                      onChange={handleAllChecked}
+                    />
+                    Seleccionar todos
+                  </label>
+                  <span className="text-xs text-zinc-500">
+                    {selectedCount}{" "}
+                    {selectedCount === 1 ? "seleccionado" : "seleccionados"}
+                  </span>
+                </div>
+                <ul className="divide-y divide-zinc-100">
+                  {visibleProducts.map((product) => (
+                    <li key={product.id}>
+                      <label
+                        className={`flex min-h-16 cursor-pointer items-center gap-3 px-5 py-4 text-sm transition-colors hover:bg-zinc-50 ${product.checked ? "bg-zinc-50 font-medium" : ""}`}
+                      >
+                        <input
+                          id={product.id}
+                          type="checkbox"
+                          onChange={handleCheckboxChange}
+                          disabled={isUpdating}
+                          checked={product.checked}
+                        />
+                        <span className="wrap-break-word">
+                          {product.name}
+                          <span className="ml-2 text-xs text-zinc-500">
+                            {unitLabels[product.unit ?? "un"]}
+                          </span>
                         </span>
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </section>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              {visibleProducts.length === 0 && (
+                <div className="empty-state">
+                  No hay productos que coincidan con la búsqueda.
+                </div>
+              )}
+            </>
           )}
           {selectedCategory &&
             !isLoading &&

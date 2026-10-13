@@ -1,6 +1,6 @@
 "use client";
 import { listFetch } from "@/app/lib/listClient";
-import { useState, useEffect, useRef, SyntheticEvent } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ClipLoader } from "react-spinners";
 import { capitalize } from "../../utils/capitalize";
 import { RiDeleteBin6Line } from "react-icons/ri";
@@ -11,6 +11,7 @@ import { compatibleUnits, unitLabels, type Unit } from "@/app/lib/units";
 import { suggestProductUnit } from "@/app/lib/productUnits";
 import EditProductModal from "./editProductModal";
 import AvailableUnitsField from "./availableUnitsField";
+import Autocomplete from "@/shared/components/ui/Autocomplete";
 interface Category {
   id: string;
   name: string;
@@ -124,15 +125,14 @@ export default function AddProduct() {
     }
   }
 
-  const handleChange = (event: SyntheticEvent) => {
-    const target = event.target as HTMLInputElement;
-    const nameCategory = capitalize(target.value);
+  const handleChange = (value: string) => {
+    const nameCategory = capitalize(value);
     setNewProductName(nameCategory);
     if (!unitChosen) {
       const suggestedUnit = suggestProductUnit(
-          nameCategory,
-          categories.find((c) => c.id === selectedCategory)?.name,
-        );
+        nameCategory,
+        categories.find((c) => c.id === selectedCategory)?.name,
+      );
       setUnit(suggestedUnit);
       setAvailableUnits(compatibleUnits(suggestedUnit));
     }
@@ -229,7 +229,8 @@ export default function AddProduct() {
   }
 
   const allProductsSelected =
-    products.length > 0 && products.every((product) => selectedProductIds.includes(product.id));
+    products.length > 0 &&
+    products.every((product) => selectedProductIds.includes(product.id));
 
   return (
     <div className="space-y-6">
@@ -268,19 +269,21 @@ export default function AddProduct() {
             ))}
           </select>
         </label>
-        <label className="text-sm font-medium">
-          Nombre del producto
-          <input
-            type="text"
-            name="name"
-            value={newProductName}
-            onChange={handleChange}
-            placeholder="Ej.: Arroz, leche, jabón…"
-            className="field mt-2"
-            disabled={isSubmitting}
-            required
-          />
-        </label>
+        <Autocomplete
+          label="Nombre del producto"
+          value={newProductName}
+          options={products.map((product) => ({
+            value: product.id,
+            label: product.name,
+          }))}
+          onChange={handleChange}
+          onSelect={(option) => {
+            const product = products.find((item) => item.id === option.value);
+            if (product) setEditModalProduct(product);
+          }}
+          placeholder="Ej.: Arroz, leche, jabón…"
+          disabled={isSubmitting || !selectedCategory}
+        />
         <label className="text-sm font-medium">
           Unidad de medida
           <UnitSelect
@@ -348,7 +351,9 @@ export default function AddProduct() {
                 disabled={bulkBusy}
                 onChange={(event) =>
                   setSelectedProductIds(
-                    event.target.checked ? products.map((product) => product.id) : [],
+                    event.target.checked
+                      ? products.map((product) => product.id)
+                      : [],
                   )
                 }
               />
@@ -385,7 +390,9 @@ export default function AddProduct() {
                   type="button"
                   className="btn-secondary"
                   disabled={bulkBusy}
-                  onClick={() => void runBulkEdit({ idCategory: bulkCategoryId })}
+                  onClick={() =>
+                    void runBulkEdit({ idCategory: bulkCategoryId })
+                  }
                 >
                   Aplicar categoría
                 </button>
@@ -400,7 +407,9 @@ export default function AddProduct() {
                   type="button"
                   className="btn-secondary"
                   disabled={bulkBusy || bulkUnits.length === 0}
-                  onClick={() => void runBulkEdit({ availableUnits: bulkUnits })}
+                  onClick={() =>
+                    void runBulkEdit({ availableUnits: bulkUnits })
+                  }
                 >
                   Aplicar unidades
                 </button>
@@ -441,7 +450,9 @@ export default function AddProduct() {
                   aria-label={`Seleccionar ${product.name}`}
                   checked={selectedProductIds.includes(product.id)}
                   disabled={bulkBusy}
-                  onChange={(event) => toggleProduct(product.id, event.target.checked)}
+                  onChange={(event) =>
+                    toggleProduct(product.id, event.target.checked)
+                  }
                 />
                 <span className="min-w-0 break-words text-sm font-medium">
                   {product.name}
