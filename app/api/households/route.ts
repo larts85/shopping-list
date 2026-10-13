@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     let result: unknown;
     switch (b.action) {
       case "create": {
-        const created = await createHousehold(b.name);
+        const created = await createHousehold(b.name, b.activate !== false);
         return NextResponse.json({ result: created.id, slug: created.slug });
       }
       case "delete":
