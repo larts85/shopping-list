@@ -93,7 +93,11 @@ export default function List() {
     )
       return;
     const refresh = () => {
-      if (document.visibilityState === "visible")
+      if (
+        document.visibilityState === "visible" &&
+        Object.keys(pendingProductUpdates.current).length === 0 &&
+        !isSavingEditsRef.current
+      )
         void Promise.all([fetchList(), fetchCategories()]).catch(() =>
           setError("No se pudo actualizar la lista compartida."),
         );
@@ -134,14 +138,17 @@ export default function List() {
 
   useEffect(() => {
     if (categories.length > 0) {
-      const initialVisibility = categories.reduce(
-        (acc, category) => {
-          acc[category.id] = true;
-          return acc;
-        },
-        {} as Record<string, boolean>,
-      );
-      setVisibleCategories(initialVisibility);
+      setVisibleCategories((current) => {
+        let changed = false;
+        const next = { ...current };
+        for (const category of categories) {
+          if (next[category.id] === undefined) {
+            next[category.id] = true;
+            changed = true;
+          }
+        }
+        return changed ? next : current;
+      });
     }
   }, [categories]);
 
