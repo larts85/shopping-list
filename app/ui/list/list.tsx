@@ -3,10 +3,15 @@ import { getActiveListId, setActiveListId } from "@/app/lib/listClient";
 import { listFetch } from "@/app/lib/listClient";
 import { useState, useEffect, useRef } from "react";
 import { ClipLoader } from "react-spinners";
-import { RiArrowLeftRightLine, RiDeleteBin6Line } from "react-icons/ri";
+import {
+  RiArrowLeftRightLine,
+  RiDeleteBin6Line,
+  RiMore2Fill,
+} from "react-icons/ri";
 import Modal from "@/shared/components/ui/Modal";
 import { completedPurchaseName } from "@/app/lib/completedPurchase";
 import BoughtListModal from "./boughtModal";
+import ProductDetailsModal from "./productDetailsModal";
 import { IList } from "@/app/lib/types";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
 import { compatibleUnits, type Unit } from "@/app/lib/units";
@@ -49,6 +54,8 @@ export default function List() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [list, setList] = useState<Record<string, IList[]>>({});
   const [listModal, setLisModal] = useState<IList | null>(null);
+  const [detailsModal, setDetailsModal] = useState<IList | null>(null);
+  const [openProductMenuId, setOpenProductMenuId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -73,6 +80,8 @@ export default function List() {
     const reload = () => {
       revision.current++;
       setLisModal(null);
+      setDetailsModal(null);
+      setOpenProductMenuId(null);
       setPurchaseConfirmation(null);
       setIsAddItemsOpen(false);
       void load();
@@ -86,6 +95,7 @@ export default function List() {
       isLoading ||
       isAddItemsOpen ||
       listModal ||
+      detailsModal ||
       purchaseBusy ||
       purchaseConfirmation ||
       pendingSaveCount > 0 ||
@@ -110,6 +120,7 @@ export default function List() {
     isLoading,
     isAddItemsOpen,
     listModal,
+    detailsModal,
     pendingSaveCount,
     isSavingEdits,
     purchaseBusy,
@@ -532,6 +543,34 @@ export default function List() {
     if (updateList) void fetchList();
   };
 
+  const handleCloseDetailsModal = (updatedItem: IList | null) => {
+    if (updatedItem) {
+      setList((prevList) => ({
+        ...prevList,
+        [updatedItem.id_category]: (prevList[updatedItem.id_category] ?? []).map(
+          (product) => (product.id === updatedItem.id ? updatedItem : product),
+        ),
+      }));
+      setStatus("Detalles del producto guardados.");
+    }
+    revision.current++;
+    setDetailsModal(null);
+    if (updatedItem) void fetchList();
+  };
+
+  const openDetailsModal = (product: IList) => {
+    if (
+      !canEditList ||
+      isLoading ||
+      purchaseBusy ||
+      purchaseConfirmation ||
+      pendingSaveCount > 0
+    )
+      return;
+    setOpenProductMenuId(null);
+    setDetailsModal(product);
+  };
+
   const toggleCategoryVisibility = (categoryId: string) => {
     setVisibleCategories((prevVisibleCategories) => ({
       ...prevVisibleCategories,
@@ -839,7 +878,7 @@ export default function List() {
             </div>
             {visibleCategories[category.id] && (
               <div id={`category-${category.id}`}>
-                <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem] gap-2 border-y border-zinc-100 bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-500 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem] sm:gap-2 sm:px-6">
+                <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem_2.5rem] gap-2 border-y border-zinc-100 bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-500 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem_2.5rem] sm:gap-2 sm:px-6">
                   <span>Producto</span>
                   <span className="text-center">Cantidad</span>
                   <span className="text-center">Unidad</span>
@@ -848,7 +887,7 @@ export default function List() {
                   {list[category.id].map((product) => (
                     <li
                       key={product.id}
-                      className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem] sm:gap-2 sm:px-6"
+                      className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem_2.5rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem_2.5rem] sm:gap-2 sm:px-6"
                     >
                       <button
                         type="button"
@@ -988,6 +1027,55 @@ export default function List() {
                       >
                         <RiDeleteBin6Line aria-hidden="true" size={20} />
                       </button>
+                      <div
+                        className="relative flex justify-center"
+                        onBlur={(event) => {
+                          const nextTarget = event.relatedTarget;
+                          if (
+                            !(nextTarget instanceof Node) ||
+                            !event.currentTarget.contains(nextTarget)
+                          )
+                            setOpenProductMenuId(null);
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="flex size-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={
+                            !canEditList ||
+                            isLoading ||
+                            purchaseBusy ||
+                            !!purchaseConfirmation ||
+                            pendingSaveCount > 0
+                          }
+                          aria-label={`Opciones de ${product.name}`}
+                          aria-expanded={openProductMenuId === product.id}
+                          onClick={() =>
+                            setOpenProductMenuId((current) =>
+                              current === product.id ? null : product.id,
+                            )
+                          }
+                          title={`Opciones de ${product.name}`}
+                        >
+                          <RiMore2Fill aria-hidden="true" size={20} />
+                        </button>
+                        {openProductMenuId === product.id && (
+                          <div
+                            id={`product-options-${product.id}`}
+                            role="group"
+                            aria-label={`Opciones de ${product.name}`}
+                            className="absolute right-0 top-full z-20 mt-1 min-w-48 rounded-lg border border-zinc-200 bg-white p-1 shadow-lg"
+                          >
+                            <button
+                              type="button"
+                              className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-zinc-100 focus:bg-zinc-100"
+                              onClick={() => openDetailsModal(product)}
+                            >
+                              Ver o editar detalles
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -1153,6 +1241,13 @@ export default function List() {
           unitp={listModal.unit ?? "un"}
           productUnit={listModal.productUnit ?? "un"}
           availableUnits={listModal.availableUnits ?? [listModal.productUnit ?? "un"]}
+        />
+      )}
+      {canEditList && detailsModal && (
+        <ProductDetailsModal
+          item={detailsModal}
+          canManageList={canManageList}
+          onClose={handleCloseDetailsModal}
         />
       )}
       {isLoading && (

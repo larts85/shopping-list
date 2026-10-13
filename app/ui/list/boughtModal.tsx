@@ -50,11 +50,10 @@ const BoughtListModal: React.FC<ListModalProps> = ({
       Number(cantidad) <= 0 ||
       !Number.isFinite(Number(medida)) ||
       Number(medida) <= 0 ||
-      !Number.isFinite(Number(precio)) ||
-      Number(precio) < 0 ||
-      precio === ""
+      (precio !== "" &&
+        (!Number.isFinite(Number(precio)) || Number(precio) < 0))
     ) {
-      setError("Completa una cantidad mayor que cero y un precio válido.");
+      setError("Completa una cantidad mayor que cero y revisa el precio.");
       return;
     }
     setIsLoading(true);
@@ -66,7 +65,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         cantidad,
         medida: Number(medida),
         unit,
-        precio: Number(precio),
+        precio: precio === "" ? null : Number(precio),
       };
       const response = await listFetch("/api/list/set-bought", {
         method: "PUT",
@@ -84,7 +83,8 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         id_category: idCategory,
         cantidad: cantidad.toString(),
         medida: medida.toString(),
-        precio: precio.toString(),
+        precio: precio === "" ? "" : precio.toString(),
+        precioValue: precio === "" ? null : Number(precio),
         precioTotal: "",
         precioKg: "",
         kgTotal: "",
@@ -169,10 +169,9 @@ const BoughtListModal: React.FC<ListModalProps> = ({
             />
           </label>
           <label className="col-span-2 text-sm font-medium">
-            Precio por {unit}
+            Precio por {unit} (opcional)
             <input
               type="number"
-              required
               min="0"
               step="any"
               className="field mt-2"
