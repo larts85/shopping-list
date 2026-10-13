@@ -39,7 +39,7 @@ export default function List() {
   const [householdName, setHouseholdName] = useState("");
   const [isAddItemsOpen, setIsAddItemsOpen] = useState(false);
   const [movePrompt, setMovePrompt] = useState<{
-    target: { productId?: string; categoryId?: string };
+    target: { itemId?: string; categoryId?: string };
     name: string;
   } | null>(null);
   const [moveTargets, setMoveTargets] = useState<MoveTarget[]>([]);
@@ -184,7 +184,7 @@ export default function List() {
   }
 
   async function openMovePrompt(
-    target: { productId?: string; categoryId?: string },
+    target: { itemId?: string; categoryId?: string },
     name: string,
   ) {
     if (!canEditList || isLoading || pendingSaveCount > 0 || submitting.current)
@@ -958,7 +958,7 @@ export default function List() {
                         }
                         aria-label={`Mover ${product.name} a otro listado`}
                         onClick={() =>
-                          void openMovePrompt({ productId: product.id }, product.name)
+                          void openMovePrompt({ itemId: product.id }, product.name)
                         }
                         title={`Mover ${product.name} a otro listado`}
                       >
