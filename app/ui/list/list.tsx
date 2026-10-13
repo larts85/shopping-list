@@ -15,6 +15,11 @@ import { getHouseholdData } from "@/app/actions/households";
 import { Category } from "@/app/lib/types";
 import Select from "@/app/ui/add/select";
 
+interface MoveTarget {
+  id: string;
+  name: string;
+}
+
 interface PendingProductUpdate {
   key: string;
   id: string;
@@ -33,6 +38,12 @@ export default function List() {
   const [canManageList, setCanManageList] = useState(false);
   const [householdName, setHouseholdName] = useState("");
   const [isAddItemsOpen, setIsAddItemsOpen] = useState(false);
+  const [movePrompt, setMovePrompt] = useState<{
+    target: { productId?: string; categoryId?: string };
+    name: string;
+  } | null>(null);
+  const [moveTargets, setMoveTargets] = useState<MoveTarget[]>([]);
+  const [moveBusy, setMoveBusy] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [list, setList] = useState<Record<string, IList[]>>({});
   const [listModal, setLisModal] = useState<IList | null>(null);
@@ -168,6 +179,54 @@ export default function List() {
 
     if (startedAtRevision === revision.current)
       setList(filteredProductListByCategories);
+  }
+
+  async function openMovePrompt(
+    target: { productId?: string; categoryId?: string },
+    name: string,
+  ) {
+    if (!canEditList || isLoading || pendingSaveCount > 0 || submitting.current)
+      return;
+    setError("");
+    try {
+      const response = await listFetch("/api/list/cart-items?view=move-targets");
+      if (!response.ok) throw new Error("No pudimos cargar tus otros listados.");
+      const targets: MoveTarget[] = await response.json();
+      if (!targets.length) {
+        setError("No tienes otro listado disponible. Crea o acepta otro listado para mover artículos.");
+        return;
+      }
+      setMoveTargets(targets);
+      setMovePrompt({ target, name });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "No pudimos cargar tus otros listados.");
+    }
+  }
+
+  async function confirmMove(targetHouseholdId: string) {
+    if (!movePrompt || moveBusy) return;
+    setMoveBusy(true);
+    setError("");
+    submitting.current = true;
+    try {
+      const selectedListId = getActiveListId();
+      const response = await listFetch("/api/list/cart-items", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...movePrompt.target, targetHouseholdId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No pudimos mover los artículos.");
+      setMovePrompt(null);
+      if (getActiveListId() !== selectedListId) return;
+      await fetchList();
+      setStatus(`${result.moved} ${result.moved === 1 ? "artículo movido" : "artículos movidos"}${result.merged ? `; ${result.merged} duplicado${result.merged === 1 ? "" : "s"} combinado${result.merged === 1 ? "" : "s"} sumando cantidades` : ""}.`);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "No pudimos mover los artículos.");
+    } finally {
+      submitting.current = false;
+      setMoveBusy(false);
+    }
   }
 
   function scheduleProductUpdate(
@@ -696,6 +755,15 @@ export default function List() {
               >
                 Eliminar
               </button>
+              <button
+                type="button"
+                className="ml-2 shrink-0 rounded-lg border border-zinc-300 px-2 py-1 text-xs"
+                disabled={!canEditList || isLoading || pendingSaveCount > 0}
+                onClick={() => void openMovePrompt({ categoryId: category.id }, category.name)}
+                title="Mover todos los artículos de esta categoría"
+              >
+                Mover
+              </button>
             </div>
             {visibleCategories[category.id] && (
               <div id={`category-${category.id}`}>
@@ -813,6 +881,16 @@ export default function List() {
                       />
                       <button
                         type="button"
+                        className="flex size-10 items-center justify-center rounded-lg text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-50"
+                        disabled={!canEditList || isLoading || pendingSaveCount > 0 || product.comprado === "1"}
+                        aria-label={`Mover ${product.name} a otro listado`}
+                        onClick={() => void openMovePrompt({ productId: product.id }, product.name)}
+                        title={`Mover ${product.name} a otro listado`}
+                      >
+                        Mover
+                      </button>
+                      <button
+                        type="button"
                         className="flex size-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={
                           !canEditList ||
@@ -882,6 +960,35 @@ export default function List() {
             >
               {purchaseBusy ? "Guardando…" : "Confirmar compra parcial"}
             </button>
+          </div>
+        </Modal>
+      )}
+      {movePrompt && (
+        <Modal
+          isOpen
+          title="Mover a otro listado"
+          onClose={() => { if (!moveBusy) setMovePrompt(null); }}
+        >
+          <h2 className="text-xl font-semibold">Mover a otro listado</h2>
+          <p className="mt-3">
+            Se moverán los artículos pendientes de <strong>{movePrompt.name}</strong>. Si el destino ya tiene el artículo con la misma unidad, se sumarán las cantidades; si la unidad difiere, no se hará el movimiento. La unidad y los datos existentes del destino se mantienen.
+          </p>
+          <p className="mt-2 text-sm text-zinc-600">
+            Los artículos comprados no se pueden mover. Las notas de sugerencias anteriores no se trasladan; los datos del catálogo y las notas asociadas permanecen con el producto.
+          </p>
+          <label className="mt-5 block text-sm font-medium" htmlFor="move-list-target">Listado de destino</label>
+          <select id="move-list-target" className="mt-2 h-11 w-full rounded-lg border border-zinc-300 px-3" defaultValue="" disabled={moveBusy}>
+            <option value="" disabled>Elige un listado</option>
+            {moveTargets.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}
+          </select>
+          {error && <p role="alert" className="error-notice mt-4">{error}</p>}
+          <div className="mt-6 flex flex-wrap justify-end gap-3">
+            <button type="button" className="btn-secondary" disabled={moveBusy} onClick={() => setMovePrompt(null)}>Cancelar</button>
+            <button type="button" className="btn-primary" disabled={moveBusy} onClick={() => {
+              const select = document.getElementById("move-list-target") as HTMLSelectElement | null;
+              if (!select?.value) { setError("Elige un listado de destino."); return; }
+              void confirmMove(select.value);
+            }}>{moveBusy ? "Moviendo…" : "Mover artículos"}</button>
           </div>
         </Modal>
       )}
