@@ -40,11 +40,13 @@ export interface IList {
   cantidad: string;
   medida: string;
   precio: string;
+  precioValue?: number | null;
   precioTotal: string;
   precioKg: string;
   kgTotal: string;
   comprado: string;
   unit?: Unit;
+  description?: string;
   productUnit?: Unit;
   availableUnits?: Unit[];
   isProvisional?: boolean;

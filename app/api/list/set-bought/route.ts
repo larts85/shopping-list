@@ -10,7 +10,7 @@ export async function PUT(req: Request) {
     }
 
     const { idList, cantidad, medida, precio, unit } = propsSetBougth;
-    await setBought(idList, cantidad, medida, precio, unit);
+    await setBought(idList, cantidad, medida, precio ?? null, unit);
     return NextResponse.json({ message: "Success save data" }, { status: 200 });
   } catch (error) {
     return apiError(error);
