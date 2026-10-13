@@ -14,6 +14,7 @@ import {
 import type { Product } from "@/app/lib/types";
 import { compatibleUnits, type Unit } from "@/app/lib/units";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
+import Autocomplete from "@/shared/components/ui/Autocomplete";
 const kinds = {
   add: "Agregar producto",
   quantity: "Cambiar cantidad",
@@ -94,6 +95,10 @@ export default function Suggestions({
   const choices = products.filter(
     (p) => kind === "add" || listed.includes(p.id),
   );
+  useEffect(() => {
+    if (productId && !choices.some((product) => product.id === productId))
+      setProductId("");
+  }, [productId, choices]);
   if (!hasList)
     return (
       <p className="text-sm text-zinc-500">
@@ -120,6 +125,10 @@ export default function Suggestions({
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
+            if (!productId) {
+              setError("Selecciona un producto de la lista.");
+              return;
+            }
             void run(async () => {
               await submitSuggestion(
                 {
@@ -155,27 +164,21 @@ export default function Suggestions({
                 ))}
               </select>
             </label>
-            <label>
-              Producto
-              <select
-                className="field mt-2"
-                required
-                value={productId}
-                onChange={(e) => {
-                  setProductId(e.target.value);
-                  setUnit(
-                    products.find((p) => p.id === e.target.value)?.unit ?? "un",
-                  );
-                }}
-              >
-                <option value="">Selecciona un producto</option>
-                {choices.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Autocomplete
+              label="Producto"
+              value=""
+              selectedValue={productId}
+              selectedLabel={choices.find((p) => p.id === productId)?.name ?? ""}
+              options={choices.map((p) => ({ value: p.id, label: p.name }))}
+              onSelect={(option) => {
+                setProductId(option.value);
+                setUnit(products.find((p) => p.id === option.value)?.unit ?? "un");
+              }}
+              placeholder={choices.length ? "Selecciona un producto" : "No hay productos disponibles"}
+              disabled={busy || choices.length === 0}
+              required
+              className="field mt-2"
+            />
             {kind !== "remove" && (
               <>
                 <label>

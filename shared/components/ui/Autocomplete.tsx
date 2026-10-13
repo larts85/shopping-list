@@ -15,10 +15,13 @@ interface AutocompleteProps {
   options: AutocompleteOption[];
   onChange: (value: string) => void;
   onSelect?: (option: AutocompleteOption) => void;
+  selectedValue?: string;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
   emptyMessage?: string;
+  required?: boolean;
+  selectedLabel?: string;
 }
 
 function normalize(value: string) {
@@ -35,10 +38,13 @@ export default function Autocomplete({
   options,
   onChange,
   onSelect,
+  selectedValue,
   placeholder,
   disabled = false,
   className = "field mt-2",
   emptyMessage = "No se encontraron resultados.",
+  required = false,
+  selectedLabel,
 }: AutocompleteProps) {
   const generatedId = useId();
   const id = providedId ?? generatedId;
@@ -46,21 +52,25 @@ export default function Autocomplete({
   const rootRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const isEntitySelector = selectedValue !== undefined;
+  const [query, setQuery] = useState("");
+  const searchValue = isEntitySelector ? query : value;
   const filteredOptions = useMemo(() => {
-    const query = normalize(value.trim());
+    const normalizedQuery = normalize(searchValue.trim());
     return (
-      query
+      normalizedQuery
         ? options.filter((option) =>
-            normalize(`${option.label} ${option.description ?? ""}`).includes(
-              query,
-            ),
+            normalize(
+              `${option.label} ${option.description ?? ""}`,
+            ).includes(normalizedQuery),
           )
         : options
     ).slice(0, 50);
-  }, [options, value]);
+  }, [options, searchValue]);
 
   function selectOption(option: AutocompleteOption) {
-    onChange(option.label);
+    if (isEntitySelector) setQuery("");
+    else onChange(option.label);
     onSelect?.(option);
     setIsOpen(false);
     setActiveIndex(-1);
@@ -89,13 +99,17 @@ export default function Autocomplete({
           activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined
         }
         autoComplete="off"
-        value={value}
+        value={isEntitySelector ? query || selectedLabel || "" : value}
         placeholder={placeholder}
         disabled={disabled}
+        required={required}
         className={className}
         onFocus={() => setIsOpen(true)}
         onChange={(event) => {
-          onChange(event.target.value);
+          if (isEntitySelector) {
+            setQuery(event.target.value);
+            onChange("");
+          } else onChange(event.target.value);
           setActiveIndex(-1);
           setIsOpen(true);
         }}

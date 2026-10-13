@@ -11,6 +11,7 @@ import {
 } from "@/app/lib/itemClassification";
 import type { Category, Product } from "@/app/lib/types";
 import { units, unitLabels, type Unit } from "@/app/lib/units";
+import Autocomplete from "@/shared/components/ui/Autocomplete";
 
 interface BulkPasteProps {
   categories: Category[];
@@ -459,44 +460,30 @@ export default function BulkPaste({
                           </label>
                         ))}
                       </div>
-                      <label className="block text-xs font-medium text-zinc-500">
-                        Unidad principal
-                        <select
-                          value={item.unit}
-                          onChange={(event) =>
-                            handleUnitChange(idx, event.target.value as Unit)
-                          }
-                          className="field mt-1 text-sm"
-                          disabled={isSubmitting || !item.selected}
-                        >
-                          {item.availableUnits.map((unit) => (
-                            <option key={unit} value={unit}>
-                              {unitLabels[unit]}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <Autocomplete
+                        label="Unidad principal"
+                        value=""
+                        selectedValue={item.unit}
+                        selectedLabel={unitLabels[item.unit]}
+                        options={item.availableUnits.map((unit) => ({ value: unit, label: unitLabels[unit] }))}
+                        onSelect={(option) => handleUnitChange(idx, option.value as Unit)}
+                        className="field mt-1 text-sm"
+                        disabled={isSubmitting || !item.selected}
+                      />
                     </div>
 
                     {/* Category */}
                     <div className="min-w-[160px] sm:w-48">
-                      <label className="block text-xs font-medium text-zinc-500 sm:sr-only">
-                        Categoría
-                      </label>
-                      <select
-                        value={item.categoryId}
-                        onChange={(e) =>
-                          handleCategoryChange(idx, e.target.value)
-                        }
+                      <Autocomplete
+                        label="Categoría"
+                        value=""
+                        selectedValue={item.categoryId}
+                        selectedLabel={categories.find((c) => c.id === item.categoryId)?.name ?? ""}
+                        options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                        onSelect={(option) => handleCategoryChange(idx, option.value)}
                         className="field text-sm font-medium text-zinc-900"
                         disabled={isSubmitting || !item.selected}
-                      >
-                        {categories.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </div>
                   </div>
                 </li>

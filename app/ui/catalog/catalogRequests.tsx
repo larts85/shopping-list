@@ -9,7 +9,9 @@ import {
   type CatalogRequest,
 } from "@/app/actions/catalogRequests";
 import type { Category } from "@/app/lib/types";
-import { units, unitLabels, type Unit } from "@/app/lib/units";
+import { type Unit } from "@/app/lib/units";
+import Autocomplete from "@/shared/components/ui/Autocomplete";
+import UnitSelect from "@/shared/components/ui/UnitSelect";
 export default function CatalogRequests() {
   const [role, setRole] = useState<"admin" | "user">();
   const [categories, setCategories] = useState<Category[]>([]),
@@ -74,6 +76,10 @@ export default function CatalogRequests() {
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
+            if (kind === "product" && !categoryId) {
+              setError("Selecciona una categoría para el producto.");
+              return;
+            }
             void run(async () => {
               await submitCatalogRequest({
                 kind,
@@ -113,36 +119,18 @@ export default function CatalogRequests() {
             </label>
             {kind === "product" && (
               <>
-                <label>
-                  Categoría
-                  <select
-                    className="field mt-2"
-                    required
-                    value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                  >
-                    <option value="">Selecciona una categoría</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Unidad de medida
-                  <select
-                    className="field mt-2"
-                    value={unit}
-                    onChange={(e) => setUnit(e.target.value as Unit)}
-                  >
-                    {units.map((u) => (
-                      <option key={u} value={u}>
-                        {unitLabels[u]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <Autocomplete
+                  label="Categoría"
+                  value=""
+                  selectedValue={categoryId}
+                  selectedLabel={categories.find((c) => c.id === categoryId)?.name ?? ""}
+                  options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                  onSelect={(option) => setCategoryId(option.value)}
+                  placeholder="Selecciona una categoría"
+                  disabled={categories.length === 0}
+                  required
+                />
+                <UnitSelect value={unit} onChange={setUnit} />
               </>
             )}
           </div>
