@@ -132,6 +132,7 @@ export async function getHomeLists() {
 
 export async function createHousehold(
   name?: string,
+  activate = true,
 ): Promise<{ id: string; slug: string }> {
   const label = name === undefined ? defaultListName() : text(name);
   const { email } = await identity();
@@ -146,10 +147,11 @@ export async function createHousehold(
       "insert into household_members(household_id,email,role) values($1,$2,'suggester')",
       [home.id, email],
     );
-    await db.query(
-      "insert into user_preferences(email,household_id) values($1,$2) on conflict(email) do update set household_id=excluded.household_id",
-      [email, home.id],
-    );
+    if (activate)
+      await db.query(
+        "insert into user_preferences(email,household_id) values($1,$2) on conflict(email) do update set household_id=excluded.household_id",
+        [email, home.id],
+      );
     return home as { id: string; slug: string };
   });
 }
