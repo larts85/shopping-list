@@ -17,6 +17,10 @@ export default function Select({ listName, onAdded }: SelectProps) {
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [bulkProducts, setBulkProducts] = useState<Product[]>([]);
+  const [isLoadingBulkProducts, setIsLoadingBulkProducts] = useState(false);
+  const [bulkProductsLoaded, setBulkProductsLoaded] = useState(false);
+  const [bulkProductsError, setBulkProductsError] = useState("");
   const [error, setError] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const productRequest = useRef(0);
@@ -98,6 +102,26 @@ export default function Select({ listName, onAdded }: SelectProps) {
         setError("No pudimos cargar los productos. Intenta nuevamente.");
     } finally {
       if (requestId === productRequest.current) setIsLoading(false);
+    }
+  }
+
+  async function fetchBulkProducts() {
+    if (bulkProductsLoaded || isLoadingBulkProducts) return;
+    setIsLoadingBulkProducts(true);
+    setBulkProductsError("");
+    try {
+      const response = await listFetch("/api/products/get-products", {
+        method: "GET",
+      });
+      if (!response.ok) throw new Error("No pudimos cargar el catálogo.");
+      setBulkProducts(await response.json());
+      setBulkProductsLoaded(true);
+    } catch {
+      setBulkProductsError(
+        "No pudimos cargar el catálogo para clasificar los productos existentes.",
+      );
+    } finally {
+      setIsLoadingBulkProducts(false);
     }
   }
 
@@ -235,7 +259,10 @@ export default function Select({ listName, onAdded }: SelectProps) {
         </button>
         <button
           type="button"
-          onClick={() => setMode("bulk")}
+          onClick={() => {
+            setMode("bulk");
+            void fetchBulkProducts();
+          }}
           className={`min-h-11 border-b-2 px-5 py-2.5 text-sm font-medium transition-colors ${
             mode === "bulk"
               ? "border-zinc-900 font-semibold text-zinc-900"
@@ -249,7 +276,10 @@ export default function Select({ listName, onAdded }: SelectProps) {
       {mode === "bulk" ? (
         <BulkPaste
           categories={categories}
-          products={products}
+          products={bulkProducts}
+          isLoadingProducts={isLoadingBulkProducts}
+          productsError={bulkProductsError}
+          onRetryLoadProducts={fetchBulkProducts}
           onAdded={onAdded}
         />
       ) : (

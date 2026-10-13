@@ -57,7 +57,9 @@ export default function Suggestions({
       setItems(suggestions);
       setProducts(catalog);
       setListed(
-        list.filter((p) => p.comprado !== "1").map((p) => p.id_product),
+        list
+          .filter((p) => p.comprado !== "1" && p.id_product !== null)
+          .map((p) => p.id_product!),
       );
     } catch {
       setError("No pudimos cargar las sugerencias.");

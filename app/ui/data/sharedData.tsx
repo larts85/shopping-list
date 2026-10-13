@@ -210,7 +210,7 @@ export default function SharedData() {
           )}
           {owner &&
             data.pending.map((i) => (
-              <p key={i.id} className="flex flex-wrap gap-3">
+              <p key={i.id} className="flex flex-wrap gap-3 items-center">
                 Invitación pendiente: {i.email}
                 <button
                   disabled={busy}

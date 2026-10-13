@@ -29,7 +29,7 @@ export default function InvitationBanner() {
     void load();
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") void load();
-    }, 30000);
+    }, 60000);
     window.addEventListener("focus", load);
     return () => {
       active = false;
