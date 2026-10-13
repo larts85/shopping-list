@@ -127,6 +127,12 @@ export default function History() {
                   <p className="font-medium">
                     {String(item.purchase.name ?? "Producto")}
                   </p>
+                  {typeof item.purchase.description === "string" &&
+                    item.purchase.description.trim() && (
+                      <p className="text-sm text-zinc-500">
+                        {item.purchase.description}
+                      </p>
+                    )}
                   <p className="text-sm text-zinc-500">
                     {String(item.purchase.cantidad ?? "—")}{" "}
                     {isUnit(item.purchase.unit) ? item.purchase.unit : "un"}
