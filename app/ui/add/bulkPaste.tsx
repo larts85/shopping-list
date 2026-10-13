@@ -15,6 +15,9 @@ import { units, unitLabels, type Unit } from "@/app/lib/units";
 interface BulkPasteProps {
   categories: Category[];
   products?: Product[];
+  isLoadingProducts?: boolean;
+  productsError?: string;
+  onRetryLoadProducts?: () => Promise<void>;
   onAdded: () => Promise<void>;
 }
 
@@ -38,6 +41,9 @@ const PLACEHOLDER_EXAMPLE = `1-Control
 export default function BulkPaste({
   categories,
   products = [],
+  isLoadingProducts = false,
+  productsError = "",
+  onRetryLoadProducts,
   onAdded,
 }: BulkPasteProps) {
   const [rawText, setRawText] = useState("");
@@ -117,6 +123,27 @@ export default function BulkPaste({
     );
   };
 
+  const handleAvailableUnitChange = (
+    index: number,
+    unit: Unit,
+    checked: boolean,
+  ) => {
+    setItems((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== index) return item;
+        const availableUnits = checked
+          ? [...new Set([...item.availableUnits, unit])]
+          : item.availableUnits.filter((value) => value !== unit);
+        const nextUnits = availableUnits.length ? availableUnits : [item.unit];
+        return {
+          ...item,
+          availableUnits: nextUnits,
+          unit: nextUnits.includes(item.unit) ? item.unit : nextUnits[0],
+        };
+      }),
+    );
+  };
+
   const handleDeleteItem = (index: number) => {
     setItems((prev) => prev.filter((_, idx) => idx !== index));
   };
@@ -163,6 +190,7 @@ export default function BulkPaste({
         idCategory: item.categoryId,
         cantidad: item.quantity,
         unit: item.unit,
+        availableUnits: item.availableUnits,
       }));
 
       const res = await listFetch("/api/list/bulk-add", {
@@ -189,6 +217,24 @@ export default function BulkPaste({
 
   return (
     <div className="space-y-6">
+      {productsError && (
+        <div role="alert" className="error-notice">
+          <p>{productsError}</p>
+          <button
+            type="button"
+            className="btn-secondary mt-3"
+            onClick={() => void onRetryLoadProducts?.()}
+            disabled={isLoadingProducts}
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+      {isLoadingProducts && (
+        <p role="status" className="text-sm text-zinc-500">
+          Cargando catálogo para reconocer productos existentes…
+        </p>
+      )}
       {error && (
         <div role="alert" className="error-notice">
           <p>{error}</p>
@@ -249,7 +295,7 @@ export default function BulkPaste({
                 type="button"
                 onClick={handleAnalyze}
                 className="btn-primary"
-                disabled={!rawText.trim() || isSubmitting}
+                disabled={!rawText.trim() || isSubmitting || isLoadingProducts || !!productsError}
               >
                 Clasificar artículos
               </button>
@@ -269,6 +315,10 @@ export default function BulkPaste({
               <p className="mt-1 text-sm text-zinc-500">
                 Revisa las categorías sugeridas. Puedes modificar nombres,
                 cantidades, unidades o categorías antes de añadir a tu lista.
+              </p>
+              <p className="mt-2 text-xs text-zinc-500">
+                Los productos que no existen en esa categoría quedan como
+                provisionales de esta lista y no modifican el catálogo global.
               </p>
             </div>
 
@@ -383,25 +433,49 @@ export default function BulkPaste({
                       />
                     </div>
 
-                    {/* Unit */}
-                    <div className="w-24">
-                      <label className="block text-xs font-medium text-zinc-500 sm:sr-only">
-                        Unidad
+                    <div className="space-y-2">
+                      <label className="block text-xs font-medium text-zinc-500">
+                        Unidades disponibles
                       </label>
-                      <select
-                        value={item.unit}
-                        onChange={(e) =>
-                          handleUnitChange(idx, e.target.value as Unit)
-                        }
-                        className="field text-sm"
-                        disabled={isSubmitting || !item.selected}
-                      >
-                        {units.map((u) => (
-                          <option key={u} value={u}>
-                            {unitLabels[u]}
-                          </option>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1">
+                        {units.map((unit) => (
+                          <label
+                            key={unit}
+                            className="flex items-center gap-1 text-xs"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={item.availableUnits.includes(unit)}
+                              onChange={(event) =>
+                                handleAvailableUnitChange(
+                                  idx,
+                                  unit,
+                                  event.target.checked,
+                                )
+                              }
+                              disabled={isSubmitting || !item.selected}
+                            />
+                            {unitLabels[unit]}
+                          </label>
                         ))}
-                      </select>
+                      </div>
+                      <label className="block text-xs font-medium text-zinc-500">
+                        Unidad principal
+                        <select
+                          value={item.unit}
+                          onChange={(event) =>
+                            handleUnitChange(idx, event.target.value as Unit)
+                          }
+                          className="field mt-1 text-sm"
+                          disabled={isSubmitting || !item.selected}
+                        >
+                          {item.availableUnits.map((unit) => (
+                            <option key={unit} value={unit}>
+                              {unitLabels[unit]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
 
                     {/* Category */}
@@ -424,7 +498,6 @@ export default function BulkPaste({
                         ))}
                       </select>
                     </div>
-
                   </div>
                 </li>
               ))}

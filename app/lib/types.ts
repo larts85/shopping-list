@@ -34,7 +34,7 @@ export interface EditCategoryParams {
 
 export interface IList {
   id: string;
-  id_product: string;
+  id_product: string | null;
   name: string;
   id_category: string;
   cantidad: string;
@@ -47,4 +47,8 @@ export interface IList {
   unit?: Unit;
   productUnit?: Unit;
   availableUnits?: Unit[];
+  isProvisional?: boolean;
+  createdBy?: string | null;
+  catalogRequestEmail?: string | null;
+  catalogRequestStatus?: "pending" | "approved" | "rejected" | null;
 }

@@ -733,6 +733,23 @@ export default function List() {
                         >
                           {product.name}
                         </span>
+                        {product.isProvisional && (
+                          <span className="text-xs text-amber-700">
+                            Provisional · agregado por {product.createdBy}
+                            {product.catalogRequestEmail && (
+                              <>
+                                {" "}
+                                · solicitud{" "}
+                                {product.catalogRequestStatus === "approved"
+                                  ? "aprobada"
+                                  : product.catalogRequestStatus === "rejected"
+                                    ? "rechazada"
+                                    : "pendiente"}{" "}
+                                de {product.catalogRequestEmail}
+                              </>
+                            )}
+                          </span>
+                        )}
                         <span className="sr-only">
                           {product.comprado === "1"
                             ? ", desmarcar comprado"
