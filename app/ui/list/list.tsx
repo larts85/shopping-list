@@ -3,7 +3,7 @@ import { getActiveListId, setActiveListId } from "@/app/lib/listClient";
 import { listFetch } from "@/app/lib/listClient";
 import { useState, useEffect, useRef } from "react";
 import { ClipLoader } from "react-spinners";
-import { RiDeleteBin6Line } from "react-icons/ri";
+import { RiArrowLeftRightLine, RiDeleteBin6Line } from "react-icons/ri";
 import Modal from "@/shared/components/ui/Modal";
 import { completedPurchaseName } from "@/app/lib/completedPurchase";
 import BoughtListModal from "./boughtModal";
@@ -39,10 +39,12 @@ export default function List() {
   const [householdName, setHouseholdName] = useState("");
   const [isAddItemsOpen, setIsAddItemsOpen] = useState(false);
   const [movePrompt, setMovePrompt] = useState<{
-    target: { productId?: string; categoryId?: string };
+    target: { itemId?: string; categoryId?: string };
     name: string;
   } | null>(null);
   const [moveTargets, setMoveTargets] = useState<MoveTarget[]>([]);
+  const [moveDestination, setMoveDestination] = useState("");
+  const [newMoveListName, setNewMoveListName] = useState("");
   const [moveBusy, setMoveBusy] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [list, setList] = useState<Record<string, IList[]>>({});
@@ -91,7 +93,11 @@ export default function List() {
     )
       return;
     const refresh = () => {
-      if (document.visibilityState === "visible")
+      if (
+        document.visibilityState === "visible" &&
+        Object.keys(pendingProductUpdates.current).length === 0 &&
+        !isSavingEditsRef.current
+      )
         void Promise.all([fetchList(), fetchCategories()]).catch(() =>
           setError("No se pudo actualizar la lista compartida."),
         );
@@ -132,14 +138,17 @@ export default function List() {
 
   useEffect(() => {
     if (categories.length > 0) {
-      const initialVisibility = categories.reduce(
-        (acc, category) => {
-          acc[category.id] = true;
-          return acc;
-        },
-        {} as Record<string, boolean>,
-      );
-      setVisibleCategories(initialVisibility);
+      setVisibleCategories((current) => {
+        let changed = false;
+        const next = { ...current };
+        for (const category of categories) {
+          if (next[category.id] === undefined) {
+            next[category.id] = true;
+            changed = true;
+          }
+        }
+        return changed ? next : current;
+      });
     }
   }, [categories]);
 
@@ -182,7 +191,7 @@ export default function List() {
   }
 
   async function openMovePrompt(
-    target: { productId?: string; categoryId?: string },
+    target: { itemId?: string; categoryId?: string },
     name: string,
   ) {
     if (!canEditList || isLoading || pendingSaveCount > 0 || submitting.current)
@@ -192,14 +201,35 @@ export default function List() {
       const response = await listFetch("/api/list/cart-items?view=move-targets");
       if (!response.ok) throw new Error("No pudimos cargar tus otros listados.");
       const targets: MoveTarget[] = await response.json();
-      if (!targets.length) {
-        setError("No tienes otro listado disponible. Crea o acepta otro listado para mover artículos.");
-        return;
-      }
       setMoveTargets(targets);
+      setMoveDestination("");
+      setNewMoveListName("");
       setMovePrompt({ target, name });
     } catch (error) {
       setError(error instanceof Error ? error.message : "No pudimos cargar tus otros listados.");
+    }
+  }
+
+  async function performMove(targetHouseholdId: string) {
+    if (!movePrompt) return;
+    const selectedListId = getActiveListId();
+    const response = await listFetch("/api/list/cart-items", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...movePrompt.target, targetHouseholdId }),
+    });
+    const result = await response.json();
+    if (!response.ok)
+      throw new Error(result.error || "No pudimos mover los artículos.");
+    setMovePrompt(null);
+    if (getActiveListId() !== selectedListId) return;
+    setStatus(
+      `${result.moved} ${result.moved === 1 ? "artículo movido" : "artículos movidos"}${result.merged ? `; ${result.merged} duplicado${result.merged === 1 ? "" : "s"} combinado${result.merged === 1 ? "" : "s"} sumando cantidades` : ""}.`,
+    );
+    try {
+      await fetchList();
+    } catch {
+      setError("El movimiento se guardó, pero no pudimos actualizar el carrito.");
     }
   }
 
@@ -209,20 +239,54 @@ export default function List() {
     setError("");
     submitting.current = true;
     try {
-      const selectedListId = getActiveListId();
-      const response = await listFetch("/api/list/cart-items", {
+      await performMove(targetHouseholdId);
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos mover los artículos.",
+      );
+    } finally {
+      submitting.current = false;
+      setMoveBusy(false);
+    }
+  }
+
+  async function createAndMove() {
+    if (!movePrompt || moveBusy) return;
+    const name = newMoveListName.trim();
+    if (!name) {
+      setError("Escribe el nombre de la nueva lista.");
+      return;
+    }
+    setMoveBusy(true);
+    setError("");
+    submitting.current = true;
+    let createdName = "";
+    try {
+      const response = await listFetch("/api/households", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...movePrompt.target, targetHouseholdId }),
+        body: JSON.stringify({ action: "create", name, activate: false }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "No pudimos mover los artículos.");
-      setMovePrompt(null);
-      if (getActiveListId() !== selectedListId) return;
-      await fetchList();
-      setStatus(`${result.moved} ${result.moved === 1 ? "artículo movido" : "artículos movidos"}${result.merged ? `; ${result.merged} duplicado${result.merged === 1 ? "" : "s"} combinado${result.merged === 1 ? "" : "s"} sumando cantidades` : ""}.`);
+      if (!response.ok)
+        throw new Error(result.error || "No pudimos crear la lista.");
+      createdName = name;
+      const newTarget = { id: result.result as string, name };
+      setMoveTargets((targets) => [...targets, newTarget]);
+      setMoveDestination(newTarget.id);
+      await performMove(newTarget.id);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "No pudimos mover los artículos.");
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No pudimos mover los artículos.";
+      setError(
+        createdName
+          ? `La lista «${createdName}» se creó, pero no se pudo completar el movimiento: ${message}`
+          : message,
+      );
     } finally {
       submitting.current = false;
       setMoveBusy(false);
@@ -757,17 +821,26 @@ export default function List() {
               </button>
               <button
                 type="button"
-                className="ml-2 shrink-0 rounded-lg border border-zinc-300 px-2 py-1 text-xs"
-                disabled={!canEditList || isLoading || pendingSaveCount > 0}
-                onClick={() => void openMovePrompt({ categoryId: category.id }, category.name)}
-                title="Mover todos los artículos de esta categoría"
+                className="ml-2 flex size-9 shrink-0 items-center justify-center rounded-lg border border-zinc-300 text-zinc-500 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={
+                  !canEditList ||
+                  isLoading ||
+                  purchaseBusy ||
+                  !!purchaseConfirmation ||
+                  pendingSaveCount > 0
+                }
+                aria-label={`Mover los artículos de ${category.name} a otro listado`}
+                onClick={() =>
+                  void openMovePrompt({ categoryId: category.id }, category.name)
+                }
+                title={`Mover los artículos de ${category.name} a otro listado`}
               >
-                Mover
+                <RiArrowLeftRightLine aria-hidden="true" size={18} />
               </button>
             </div>
             {visibleCategories[category.id] && (
               <div id={`category-${category.id}`}>
-                <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] gap-2 border-y border-zinc-100 bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-500 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] sm:gap-2 sm:px-6">
+                <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem] gap-2 border-y border-zinc-100 bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-500 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem] sm:gap-2 sm:px-6">
                   <span>Producto</span>
                   <span className="text-center">Cantidad</span>
                   <span className="text-center">Unidad</span>
@@ -776,7 +849,7 @@ export default function List() {
                   {list[category.id].map((product) => (
                     <li
                       key={product.id}
-                      className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] sm:gap-2 sm:px-6"
+                      className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem] sm:gap-2 sm:px-6"
                     >
                       <button
                         disabled={
@@ -881,13 +954,22 @@ export default function List() {
                       />
                       <button
                         type="button"
-                        className="flex size-10 items-center justify-center rounded-lg text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-50"
-                        disabled={!canEditList || isLoading || pendingSaveCount > 0 || product.comprado === "1"}
+                        className="flex size-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={
+                          !canEditList ||
+                          isLoading ||
+                          purchaseBusy ||
+                          !!purchaseConfirmation ||
+                          pendingSaveCount > 0 ||
+                          product.comprado === "1"
+                        }
                         aria-label={`Mover ${product.name} a otro listado`}
-                        onClick={() => void openMovePrompt({ productId: product.id }, product.name)}
+                        onClick={() =>
+                          void openMovePrompt({ itemId: product.id }, product.name)
+                        }
                         title={`Mover ${product.name} a otro listado`}
                       >
-                        Mover
+                        <RiArrowLeftRightLine aria-hidden="true" size={20} />
                       </button>
                       <button
                         type="button"
@@ -967,7 +1049,9 @@ export default function List() {
         <Modal
           isOpen
           title="Mover a otro listado"
-          onClose={() => { if (!moveBusy) setMovePrompt(null); }}
+          onClose={() => {
+            if (!moveBusy) setMovePrompt(null);
+          }}
         >
           <h2 className="text-xl font-semibold">Mover a otro listado</h2>
           <p className="mt-3">
@@ -976,19 +1060,85 @@ export default function List() {
           <p className="mt-2 text-sm text-zinc-600">
             Los artículos comprados no se pueden mover. Las notas de sugerencias anteriores no se trasladan; los datos del catálogo y las notas asociadas permanecen con el producto.
           </p>
-          <label className="mt-5 block text-sm font-medium" htmlFor="move-list-target">Listado de destino</label>
-          <select id="move-list-target" className="mt-2 h-11 w-full rounded-lg border border-zinc-300 px-3" defaultValue="" disabled={moveBusy}>
+          <label
+            className="mt-5 block text-sm font-medium"
+            htmlFor="move-list-target"
+          >
+            Listado de destino
+          </label>
+          <select
+            id="move-list-target"
+            className="mt-2 h-11 w-full rounded-lg border border-zinc-300 px-3"
+            value={moveDestination}
+            onChange={(event) => {
+              setMoveDestination(event.target.value);
+              setError("");
+            }}
+            disabled={moveBusy}
+          >
             <option value="" disabled>Elige un listado</option>
-            {moveTargets.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}
+            {moveTargets.map((target) => (
+              <option key={target.id} value={target.id}>
+                {target.name}
+              </option>
+            ))}
+            <option value="__create_new__">Crear una nueva lista…</option>
           </select>
-          {error && <p role="alert" className="error-notice mt-4">{error}</p>}
+          {moveDestination === "__create_new__" && (
+            <label
+              className="mt-4 block text-sm font-medium"
+              htmlFor="new-move-list-name"
+            >
+              Nombre de la nueva lista
+              <input
+                id="new-move-list-name"
+                className="field mt-2"
+                value={newMoveListName}
+                onChange={(event) => {
+                  setNewMoveListName(event.target.value);
+                  setError("");
+                }}
+                maxLength={200}
+                disabled={moveBusy}
+                autoFocus
+              />
+            </label>
+          )}
+          {error && (
+            <p role="alert" className="error-notice mt-4">
+              {error}
+            </p>
+          )}
           <div className="mt-6 flex flex-wrap justify-end gap-3">
-            <button type="button" className="btn-secondary" disabled={moveBusy} onClick={() => setMovePrompt(null)}>Cancelar</button>
-            <button type="button" className="btn-primary" disabled={moveBusy} onClick={() => {
-              const select = document.getElementById("move-list-target") as HTMLSelectElement | null;
-              if (!select?.value) { setError("Elige un listado de destino."); return; }
-              void confirmMove(select.value);
-            }}>{moveBusy ? "Moviendo…" : "Mover artículos"}</button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={moveBusy}
+              onClick={() => setMovePrompt(null)}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={
+                moveBusy ||
+                !moveDestination ||
+                (moveDestination === "__create_new__" &&
+                  !newMoveListName.trim())
+              }
+              onClick={() => {
+                if (moveDestination === "__create_new__")
+                  void createAndMove();
+                else if (moveDestination) void confirmMove(moveDestination);
+              }}
+            >
+              {moveBusy
+                ? "Moviendo…"
+                : moveDestination === "__create_new__"
+                  ? "Crear lista y mover"
+                  : "Mover artículos"}
+            </button>
           </div>
         </Modal>
       )}
