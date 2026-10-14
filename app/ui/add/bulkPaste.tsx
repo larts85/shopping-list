@@ -10,7 +10,7 @@ import {
   type ClassifiedItem,
 } from "@/app/lib/itemClassification";
 import type { Category, Product } from "@/app/lib/types";
-import { units, unitLabels, type Unit } from "@/app/lib/units";
+import { unitLabels, unitsForCategory, type Unit } from "@/app/lib/units";
 import Autocomplete from "@/shared/components/ui/Autocomplete";
 
 interface BulkPasteProps {
@@ -105,16 +105,18 @@ export default function BulkPaste({
 
   const handleCategoryChange = (index: number, categoryId: string) => {
     const foundCat = categories.find((c) => c.id === categoryId);
+    const categoryName = foundCat?.name ?? "";
+    const allowedUnits = unitsForCategory(categoryName);
     setItems((prev) =>
-      prev.map((item, idx) =>
-        idx === index
-          ? {
-              ...item,
-              categoryId,
-              categoryName: foundCat ? foundCat.name : item.categoryName,
-            }
-          : item,
-      ),
+      prev.map((item, idx) => {
+        if (idx !== index) return item;
+        const availableUnits = item.availableUnits.filter((unit) =>
+          allowedUnits.includes(unit),
+        );
+        const unit = allowedUnits.includes(item.unit) ? item.unit : "un";
+        if (!availableUnits.includes(unit)) availableUnits.unshift(unit);
+        return { ...item, categoryId, categoryName, unit, availableUnits };
+      }),
     );
   };
 
@@ -439,7 +441,7 @@ export default function BulkPaste({
                         Unidades disponibles
                       </label>
                       <div className="flex flex-wrap gap-x-3 gap-y-1">
-                        {units.map((unit) => (
+                        {unitsForCategory(item.categoryName).map((unit) => (
                           <label
                             key={unit}
                             className="flex items-center gap-1 text-xs"

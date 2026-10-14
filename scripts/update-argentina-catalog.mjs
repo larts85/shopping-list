@@ -29,7 +29,7 @@ assert(
 );
 for (const p of catalog)
   assert(
-    p.name && p.category && ["un", "kg", "g", "lt", "ml"].includes(p.unit),
+    p.name && p.category && ["un", "kg", "g", "mg", "comp", "lt", "ml"].includes(p.unit),
     "Invalid catalog item",
   );
 const pool = new pg.Pool({

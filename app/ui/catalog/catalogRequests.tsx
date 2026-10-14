@@ -7,11 +7,19 @@ import {
   submitCatalogRequest,
   reviewCatalogRequest,
   type CatalogRequest,
+  type CatalogRequestSubmissionResult,
 } from "@/app/actions/catalogRequests";
 import type { Category } from "@/app/lib/types";
-import { type Unit } from "@/app/lib/units";
+import {
+  isUnitAllowedForCategory,
+  unitsForCategory,
+  type Unit,
+} from "@/app/lib/units";
 import Autocomplete from "@/shared/components/ui/Autocomplete";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
+import ActionMenu from "@/shared/components/ui/ActionMenu";
+import { RiCheckLine, RiCloseLine } from "react-icons/ri";
+import { getActiveListId } from "@/app/lib/listClient";
 export default function CatalogRequests() {
   const [role, setRole] = useState<"admin" | "user">();
   const [categories, setCategories] = useState<Category[]>([]),
@@ -24,6 +32,14 @@ export default function CatalogRequests() {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
+  const selectedCategoryName =
+    categories.find((category) => category.id === categoryId)?.name ?? "";
+  const handleCategoryChange = (nextCategoryId: string) => {
+    setCategoryId(nextCategoryId);
+    const nextCategoryName =
+      categories.find((category) => category.id === nextCategoryId)?.name ?? "";
+    if (!isUnitAllowedForCategory(unit, nextCategoryName)) setUnit("un");
+  };
   async function load() {
     const [user, cats, items] = await Promise.all([
       getCurrentUser(),
@@ -39,14 +55,22 @@ export default function CatalogRequests() {
       setError("No pudimos cargar el catálogo y sus solicitudes."),
     );
   }, []);
-  async function run(action: () => Promise<void>) {
+  async function run(
+    action: () => Promise<void | CatalogRequestSubmissionResult>,
+  ) {
     setBusy(true);
     setError("");
     setMessage("");
     try {
-      await action();
+      const result = await action();
       await load();
-      setMessage("Solicitud guardada.");
+      setMessage(
+        result && result.kind === "product"
+          ? result.addedToList
+            ? "Solicitud enviada y producto agregado a tus compras."
+            : "Solicitud guardada. Selecciona o crea una lista para agregar el producto a tus compras."
+          : "Solicitud guardada.",
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar.");
     } finally {
@@ -81,15 +105,19 @@ export default function CatalogRequests() {
               return;
             }
             void run(async () => {
-              await submitCatalogRequest({
-                kind,
-                name,
-                categoryId: kind === "product" ? categoryId : undefined,
-                unit: kind === "product" ? unit : undefined,
-                note,
-              });
+              const result = await submitCatalogRequest(
+                {
+                  kind,
+                  name,
+                  categoryId: kind === "product" ? categoryId : undefined,
+                  unit: kind === "product" ? unit : undefined,
+                  note,
+                },
+                getActiveListId(),
+              );
               setName("");
               setNote("");
+              return result;
             });
           }}
         >
@@ -125,13 +153,17 @@ export default function CatalogRequests() {
                   selectedValue={categoryId}
                   selectedLabel={categories.find((c) => c.id === categoryId)?.name ?? ""}
                   options={categories.map((c) => ({ value: c.id, label: c.name }))}
-                  onChange={setCategoryId}
-                  onSelect={(option) => setCategoryId(option.value)}
+                  onChange={handleCategoryChange}
+                  onSelect={(option) => handleCategoryChange(option.value)}
                   placeholder="Selecciona una categoría"
                   disabled={categories.length === 0}
                   required
                 />
-                <UnitSelect value={unit} onChange={setUnit} />
+                <UnitSelect
+                  value={unit}
+                  options={unitsForCategory(selectedCategoryName)}
+                  onChange={setUnit}
+                />
               </>
             )}
           </div>
@@ -178,25 +210,47 @@ export default function CatalogRequests() {
               {r.note ? ` · ${r.note}` : ""}
             </p>
             {role === "admin" && r.status === "pending" && (
-              <div className="flex gap-3">
-                <button
-                  className="btn-primary"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(() => reviewCatalogRequest(r.id, "approve"))
-                  }
-                >
-                  Aprobar
-                </button>
-                <button
-                  className="btn-secondary"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(() => reviewCatalogRequest(r.id, "reject"))
-                  }
-                >
-                  Rechazar
-                </button>
+              <div className="flex items-center gap-3">
+                <div className="hidden items-center gap-3 md:flex">
+                  <button
+                    className="btn-primary"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(() => reviewCatalogRequest(r.id, "approve"))
+                    }
+                  >
+                    Aprobar
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(() => reviewCatalogRequest(r.id, "reject"))
+                    }
+                  >
+                    Rechazar
+                  </button>
+                </div>
+                <ActionMenu
+                  label={`Acciones para la solicitud de ${r.name}`}
+                  items={[
+                    {
+                      label: "Aprobar solicitud",
+                      icon: RiCheckLine,
+                      disabled: busy,
+                      onSelect: () =>
+                        void run(() => reviewCatalogRequest(r.id, "approve")),
+                    },
+                    {
+                      label: "Rechazar solicitud",
+                      icon: RiCloseLine,
+                      destructive: true,
+                      disabled: busy,
+                      onSelect: () =>
+                        void run(() => reviewCatalogRequest(r.id, "reject")),
+                    },
+                  ]}
+                />
               </div>
             )}
           </li>

@@ -7,6 +7,8 @@ import {
   acceptInvitation,
   declineInvitation,
 } from "@/app/actions/households";
+import ActionMenu from "@/shared/components/ui/ActionMenu";
+import { RiCheckLine, RiCloseLine } from "react-icons/ri";
 type Invite = Awaited<ReturnType<typeof getPendingInvitations>>[number];
 export default function InvitationBanner() {
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -77,20 +79,40 @@ export default function InvitationBanner() {
             {i.owner_email} te invitó a <strong>{i.name}</strong>. Al aceptar
             podrás sugerir cambios.
           </p>
-          <button
-            disabled={busy}
-            className="btn-primary"
-            onClick={() => void respond(i.id, true)}
-          >
-            Aceptar y abrir
-          </button>
-          <button
-            disabled={busy}
-            className="btn-secondary"
-            onClick={() => void respond(i.id, false)}
-          >
-            Rechazar
-          </button>
+          <div className="hidden shrink-0 items-center gap-3 md:flex">
+            <button
+              disabled={busy}
+              className="btn-primary"
+              onClick={() => void respond(i.id, true)}
+            >
+              Aceptar y abrir
+            </button>
+            <button
+              disabled={busy}
+              className="btn-secondary"
+              onClick={() => void respond(i.id, false)}
+            >
+              Rechazar
+            </button>
+          </div>
+          <ActionMenu
+            label={`Acciones de la invitación a ${i.name}`}
+            items={[
+              {
+                label: "Aceptar y abrir lista",
+                icon: RiCheckLine,
+                disabled: busy,
+                onSelect: () => void respond(i.id, true),
+              },
+              {
+                label: "Rechazar invitación",
+                icon: RiCloseLine,
+                disabled: busy,
+                destructive: true,
+                onSelect: () => void respond(i.id, false),
+              },
+            ]}
+          />
         </div>
       ))}
       {error && (
