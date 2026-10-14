@@ -4,6 +4,7 @@ import { listFetch } from "@/app/lib/listClient";
 import { useState, useEffect, useRef } from "react";
 import { ClipLoader } from "react-spinners";
 import { RiArrowLeftRightLine, RiDeleteBin6Line } from "react-icons/ri";
+import ActionMenu from "@/shared/components/ui/ActionMenu";
 import Modal from "@/shared/components/ui/Modal";
 import { completedPurchaseName } from "@/app/lib/completedPurchase";
 import BoughtListModal from "./boughtModal";
@@ -803,53 +804,89 @@ export default function List() {
                   </span>
                 </button>
               </h2>
-              <button
-                className="shrink-0 rounded-lg border border-zinc-300 px-2 py-1 text-xs"
-                disabled={
-                  !canEditList ||
-                  isLoading ||
-                  purchaseBusy ||
-                  !!purchaseConfirmation ||
-                  pendingSaveCount > 0
-                }
-                aria-label={`Eliminar categoría ${category.name} de este carrito`}
-                onClick={() =>
-                  removeItems({ categoryId: category.id }, category.name)
-                }
-              >
-                Eliminar
-              </button>
-              <button
-                type="button"
-                className="ml-2 flex size-9 shrink-0 items-center justify-center rounded-lg border border-zinc-300 text-zinc-500 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={
-                  !canEditList ||
-                  isLoading ||
-                  purchaseBusy ||
-                  !!purchaseConfirmation ||
-                  pendingSaveCount > 0
-                }
-                aria-label={`Mover los artículos de ${category.name} a otro listado`}
-                onClick={() =>
-                  void openMovePrompt({ categoryId: category.id }, category.name)
-                }
-                title={`Mover los artículos de ${category.name} a otro listado`}
-              >
-                <RiArrowLeftRightLine aria-hidden="true" size={18} />
-              </button>
+              <div className="hidden shrink-0 items-center gap-2 md:flex">
+                <button
+                  type="button"
+                  className="rounded-lg border border-zinc-300 px-3 py-2 text-xs text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={
+                    !canEditList ||
+                    isLoading ||
+                    purchaseBusy ||
+                    !!purchaseConfirmation ||
+                    pendingSaveCount > 0
+                  }
+                  onClick={() =>
+                    removeItems({ categoryId: category.id }, category.name)
+                  }
+                >
+                  Eliminar
+                </button>
+                <button
+                  type="button"
+                  className="flex size-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={
+                    !canEditList ||
+                    isLoading ||
+                    purchaseBusy ||
+                    !!purchaseConfirmation ||
+                    pendingSaveCount > 0
+                  }
+                  aria-label={`Mover los artículos de ${category.name} a otro listado`}
+                  onClick={() =>
+                    void openMovePrompt({ categoryId: category.id }, category.name)
+                  }
+                  title={`Mover los artículos de ${category.name} a otro listado`}
+                >
+                  <RiArrowLeftRightLine aria-hidden="true" size={18} />
+                </button>
+              </div>
+              <ActionMenu
+                label={`Acciones para la categoría ${category.name}`}
+                items={[
+                  {
+                    label: "Mover artículos a otra lista",
+                    icon: RiArrowLeftRightLine,
+                    disabled:
+                      !canEditList ||
+                      isLoading ||
+                      purchaseBusy ||
+                      !!purchaseConfirmation ||
+                      pendingSaveCount > 0,
+                    onSelect: () =>
+                      void openMovePrompt(
+                        { categoryId: category.id },
+                        category.name,
+                      ),
+                  },
+                  {
+                    label: "Eliminar categoría del carrito",
+                    icon: RiDeleteBin6Line,
+                    destructive: true,
+                    disabled:
+                      !canEditList ||
+                      isLoading ||
+                      purchaseBusy ||
+                      !!purchaseConfirmation ||
+                      pendingSaveCount > 0,
+                    onSelect: () =>
+                      removeItems({ categoryId: category.id }, category.name),
+                  },
+                ]}
+              />
             </div>
             {visibleCategories[category.id] && (
               <div id={`category-${category.id}`}>
-                <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem] gap-2 border-y border-zinc-100 bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-500 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem] sm:gap-2 sm:px-6">
+                <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] gap-2 border-y border-zinc-100 bg-zinc-50 px-4 py-2 text-xs font-medium text-zinc-500 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] sm:gap-2 sm:px-6 md:grid-cols-[minmax(0,1fr)_3.5rem_4rem_5.5rem]">
                   <span>Producto</span>
                   <span className="text-center">Cantidad</span>
                   <span className="text-center">Unidad</span>
+                  <span aria-hidden="true" />
                 </div>
                 <ul className="divide-y divide-zinc-100">
                   {list[category.id].map((product) => (
                     <li
                       key={product.id}
-                      className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem_2.5rem] sm:gap-2 sm:px-6"
+                      className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] sm:gap-2 sm:px-6 md:grid-cols-[minmax(0,1fr)_3.5rem_4rem_5.5rem]"
                     >
                       <button
                         disabled={
@@ -922,7 +959,7 @@ export default function List() {
                       />
                       <UnitSelect
                         compact
-                        label={`Unidad de ${product.name}`}
+                        label="Unidad"
                         value={product.unit ?? "un"}
                         options={product.availableUnits ??
                           (product.comprado === "1"
@@ -952,43 +989,85 @@ export default function List() {
                           });
                         }}
                       />
-                      <button
-                        type="button"
-                        className="flex size-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={
-                          !canEditList ||
-                          isLoading ||
-                          purchaseBusy ||
-                          !!purchaseConfirmation ||
-                          pendingSaveCount > 0 ||
-                          product.comprado === "1"
-                        }
-                        aria-label={`Mover ${product.name} a otro listado`}
-                        onClick={() =>
-                          void openMovePrompt({ itemId: product.id }, product.name)
-                        }
-                        title={`Mover ${product.name} a otro listado`}
-                      >
-                        <RiArrowLeftRightLine aria-hidden="true" size={20} />
-                      </button>
-                      <button
-                        type="button"
-                        className="flex size-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={
-                          !canEditList ||
-                          isLoading ||
-                          purchaseBusy ||
-                          !!purchaseConfirmation ||
-                          pendingSaveCount > 0
-                        }
-                        aria-label={`Eliminar ${product.name} de este carrito`}
-                        onClick={() =>
-                          removeItems({ productId: product.id }, product.name)
-                        }
-                        title={`Eliminar ${product.name} de este carrito`}
-                      >
-                        <RiDeleteBin6Line aria-hidden="true" size={20} />
-                      </button>
+                      <div className="hidden items-center justify-end gap-1 md:flex">
+                        <button
+                          type="button"
+                          className="flex size-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={
+                            !canEditList ||
+                            isLoading ||
+                            purchaseBusy ||
+                            !!purchaseConfirmation ||
+                            pendingSaveCount > 0 ||
+                            product.comprado === "1"
+                          }
+                          aria-label={`Mover ${product.name} a otro listado`}
+                          onClick={() =>
+                            void openMovePrompt(
+                              { itemId: product.id },
+                              product.name,
+                            )
+                          }
+                          title={`Mover ${product.name} a otro listado`}
+                        >
+                          <RiArrowLeftRightLine aria-hidden="true" size={20} />
+                        </button>
+                        <button
+                          type="button"
+                          className="flex size-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={
+                            !canEditList ||
+                            isLoading ||
+                            purchaseBusy ||
+                            !!purchaseConfirmation ||
+                            pendingSaveCount > 0
+                          }
+                          aria-label={`Eliminar ${product.name} de este carrito`}
+                          onClick={() =>
+                            removeItems({ productId: product.id }, product.name)
+                          }
+                          title={`Eliminar ${product.name} de este carrito`}
+                        >
+                          <RiDeleteBin6Line aria-hidden="true" size={20} />
+                        </button>
+                      </div>
+                      <ActionMenu
+                        label={`Acciones para ${product.name}`}
+                        items={[
+                          {
+                            label: "Mover a otra lista",
+                            icon: RiArrowLeftRightLine,
+                            disabled:
+                              !canEditList ||
+                              isLoading ||
+                              purchaseBusy ||
+                              !!purchaseConfirmation ||
+                              pendingSaveCount > 0 ||
+                              product.comprado === "1",
+                            onSelect: () =>
+                              void openMovePrompt(
+                                { itemId: product.id },
+                                product.name,
+                              ),
+                          },
+                          {
+                            label: "Eliminar del carrito",
+                            icon: RiDeleteBin6Line,
+                            destructive: true,
+                            disabled:
+                              !canEditList ||
+                              isLoading ||
+                              purchaseBusy ||
+                              !!purchaseConfirmation ||
+                              pendingSaveCount > 0,
+                            onSelect: () =>
+                              removeItems(
+                                { productId: product.id },
+                                product.name,
+                              ),
+                          },
+                        ]}
+                      />
                     </li>
                   ))}
                 </ul>

@@ -7,6 +7,13 @@ export const unitLabels: Record<Unit, string> = {
   lt: "Litros",
   ml: "Mililitros",
 };
+export const unitAbbreviations: Record<Unit, string> = {
+  un: "un",
+  kg: "kg",
+  g: "gr",
+  lt: "lt",
+  ml: "ml",
+};
 export function isUnit(value: unknown): value is Unit {
   return typeof value === "string" && units.includes(value as Unit);
 }

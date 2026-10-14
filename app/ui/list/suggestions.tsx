@@ -15,6 +15,8 @@ import type { Product } from "@/app/lib/types";
 import { compatibleUnits, type Unit } from "@/app/lib/units";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
 import Autocomplete from "@/shared/components/ui/Autocomplete";
+import ActionMenu from "@/shared/components/ui/ActionMenu";
+import { RiCheckLine, RiCloseLine } from "react-icons/ri";
 const kinds = {
   add: "Agregar producto",
   quantity: "Cambiar cantidad",
@@ -238,7 +240,8 @@ export default function Suggestions({
               {s.note ? ` · ${s.note}` : ""}
             </p>
             {owner && s.status === "pending" && (
-              <div className="flex gap-3">
+              <div className="flex items-center gap-3">
+                <div className="hidden items-center gap-3 md:flex">
                 <button
                   className="btn-primary"
                   disabled={busy}
@@ -261,6 +264,31 @@ export default function Suggestions({
                 >
                   Rechazar
                 </button>
+                </div>
+                <ActionMenu
+                  label={`Acciones para la sugerencia de ${s.name}`}
+                  items={[
+                    {
+                      label: "Aprobar sugerencia",
+                      icon: RiCheckLine,
+                      disabled: busy,
+                      onSelect: () =>
+                        void run(() =>
+                          reviewSuggestion(s.id, "approve", getActiveListId()),
+                        ),
+                    },
+                    {
+                      label: "Rechazar sugerencia",
+                      icon: RiCloseLine,
+                      destructive: true,
+                      disabled: busy,
+                      onSelect: () =>
+                        void run(() =>
+                          reviewSuggestion(s.id, "reject", getActiveListId()),
+                        ),
+                    },
+                  ]}
+                />
               </div>
             )}
           </li>
