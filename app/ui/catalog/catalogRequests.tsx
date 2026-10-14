@@ -310,7 +310,10 @@ export default function CatalogRequests() {
                     className="btn-primary"
                     disabled={busy}
                     onClick={() =>
-                      void run(() => reviewCatalogRequest(r.id, "approve"))
+                      void run(
+                        () => reviewCatalogRequest(r.id, "approve"),
+                        "Solicitud aprobada.",
+                      )
                     }
                   >
                     Aprobar
@@ -319,7 +322,10 @@ export default function CatalogRequests() {
                     className="btn-secondary"
                     disabled={busy}
                     onClick={() =>
-                      void run(() => reviewCatalogRequest(r.id, "reject"))
+                      void run(
+                        () => reviewCatalogRequest(r.id, "reject"),
+                        "Solicitud rechazada.",
+                      )
                     }
                   >
                     Rechazar
@@ -333,7 +339,10 @@ export default function CatalogRequests() {
                       icon: RiCheckLine,
                       disabled: busy,
                       onSelect: () =>
-                        void run(() => reviewCatalogRequest(r.id, "approve")),
+                        void run(
+                          () => reviewCatalogRequest(r.id, "approve"),
+                          "Solicitud aprobada.",
+                        ),
                     },
                     {
                       label: "Rechazar solicitud",
@@ -341,7 +350,10 @@ export default function CatalogRequests() {
                       destructive: true,
                       disabled: busy,
                       onSelect: () =>
-                        void run(() => reviewCatalogRequest(r.id, "reject")),
+                        void run(
+                          () => reviewCatalogRequest(r.id, "reject"),
+                          "Solicitud rechazada.",
+                        ),
                     },
                   ]}
                 />
