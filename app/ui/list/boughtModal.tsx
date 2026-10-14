@@ -1,7 +1,7 @@
 "use client";
 import { listFetch } from "@/app/lib/listClient";
 import Modal from "@/shared/components/ui/Modal";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
 import { compatibleUnits, type Unit } from "@/app/lib/units";
 import { IList } from "@/app/lib/types";
@@ -35,15 +35,17 @@ const BoughtListModal: React.FC<ListModalProps> = ({
     ? availableUnits
     : compatibleUnits(productUnit);
   const unitMatches = options.includes(unitp);
+  const initialUnit = unitMatches ? unitp : (options[0] ?? productUnit);
   const [cantidad, setCantidad] = useState<number | string>(
     unitMatches ? cantidadp : "",
   );
-  const [unit, setUnit] = useState<Unit>(unitMatches ? unitp : productUnit);
+  const [unit, setUnit] = useState<Unit>(initialUnit);
   const medida = 1;
   const [precioUnitario, setPrecioUnitario] = useState("");
   const [precioTotal, setPrecioTotal] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const markBoughtRef = useRef<HTMLButtonElement>(null);
 
   if (!isOpen) return null;
 
@@ -101,7 +103,26 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         },
       });
 
-      if (!response.ok) throw new Error("Error registering purchase");
+      const result: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const errorMessage =
+          result &&
+          typeof result === "object" &&
+          "error" in result &&
+          typeof result.error === "string"
+            ? result.error
+            : "No pudimos registrar la compra. Intenta nuevamente.";
+        const errorId =
+          result &&
+          typeof result === "object" &&
+          "errorId" in result &&
+          typeof result.errorId === "string"
+            ? result.errorId
+            : null;
+        throw new Error(
+          errorId ? `${errorMessage} (referencia ${errorId})` : errorMessage,
+        );
+      }
       const updateList = {
         id: idList,
         id_product: idProduct,
@@ -127,7 +148,11 @@ const BoughtListModal: React.FC<ListModalProps> = ({
       setIsLoading(false);
       onClose(updateList);
     } catch (error) {
-      setError("No pudimos registrar la compra. Intenta nuevamente.");
+      setError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos registrar la compra. Intenta nuevamente.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -138,6 +163,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
       isOpen={isOpen}
       onClose={() => onClose(null)}
       title="Registrar compra"
+      initialFocusRef={markBoughtRef}
     >
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
@@ -233,7 +259,12 @@ const BoughtListModal: React.FC<ListModalProps> = ({
           >
             Cancelar
           </button>
-          <button className="btn-primary" type="submit" disabled={isLoading}>
+          <button
+            className="btn-primary"
+            type="submit"
+            disabled={isLoading}
+            ref={markBoughtRef}
+          >
             {isLoading ? "Guardando…" : "Marcar comprado"}
           </button>
         </div>
