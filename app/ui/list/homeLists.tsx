@@ -7,6 +7,11 @@ import {
   getActiveListId,
   setActiveListId,
 } from "@/app/lib/listClient";
+import {
+  acceptInvitation,
+  declineInvitation,
+  reviewHouseholdName,
+} from "@/app/actions/households";
 import type { getHomeLists } from "@/app/actions/households";
 import CreateListModal from "./createListModal";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
@@ -19,6 +24,8 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
   const [attempt, setAttempt] = useState(0);
   const [deletingId, setDeletingId] = useState("");
   const [deleteError, setDeleteError] = useState("");
+  const [respondingId, setRespondingId] = useState("");
+  const [notificationError, setNotificationError] = useState("");
   const router = useRouter();
   useEffect(() => {
     let cancelled = false;
@@ -91,7 +98,9 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
       }
     } catch (error) {
       setDeleteError(
-        error instanceof Error ? error.message : "No pudimos eliminar la lista.",
+        error instanceof Error
+          ? error.message
+          : "No pudimos eliminar la lista.",
       );
     } finally {
       setDeletingId("");
@@ -101,6 +110,85 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
     setActiveListId(list.id);
     window.dispatchEvent(new Event("active-list-changed"));
     router.push(`/lists/${list.slug}`);
+  }
+  async function respondToInvitation(
+    invitation: Data["invitations"][number],
+    accept: boolean,
+  ) {
+    setRespondingId(invitation.id);
+    setNotificationError("");
+    try {
+      if (accept) {
+        const list = await acceptInvitation(invitation.id);
+        setActiveListId(list.id);
+        window.dispatchEvent(new Event("active-list-changed"));
+        router.push(`/lists/${list.slug}`);
+        router.refresh();
+      } else {
+        await declineInvitation(invitation.id);
+        setData((previous) =>
+          previous
+            ? {
+                ...previous,
+                invitations: previous.invitations.filter(
+                  (item) => item.id !== invitation.id,
+                ),
+              }
+            : previous,
+        );
+        window.dispatchEvent(new Event("active-list-changed"));
+      }
+    } catch (error) {
+      setNotificationError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos responder a la invitación.",
+      );
+    } finally {
+      setRespondingId("");
+    }
+  }
+  async function reviewNameSuggestion(
+    suggestion: Data["pendingNameSuggestions"][number],
+    decision: "approve" | "reject",
+  ) {
+    setRespondingId(suggestion.id);
+    setNotificationError("");
+    try {
+      await reviewHouseholdName(
+        suggestion.id,
+        decision,
+        suggestion.household_id,
+      );
+      setData((previous) =>
+        previous
+          ? {
+              ...previous,
+              lists:
+                decision === "approve"
+                  ? previous.lists.map((list) =>
+                      list.id === suggestion.household_id
+                        ? { ...list, name: suggestion.name }
+                        : list,
+                    )
+                  : previous.lists,
+              pendingNameSuggestions: previous.pendingNameSuggestions.filter(
+                (item) => item.id !== suggestion.id,
+              ),
+            }
+          : previous,
+      );
+      window.dispatchEvent(new Event("active-list-changed"));
+      router.refresh();
+    } catch (error) {
+      setNotificationError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos revisar la sugerencia de nombre.",
+      );
+    } finally {
+      setRespondingId("");
+    }
   }
   function cards(lists: Data["lists"]) {
     return (
@@ -204,8 +292,7 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
               cards(own)
             ) : (
               <p className="panel text-zinc-500">
-                Todavía no tienes una lista propia. Usa Crear para
-                comenzar.
+                Todavía no tienes una lista propia. Usa Crear para comenzar.
               </p>
             )}
           </section>
@@ -221,6 +308,72 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
               </p>
             )}
           </section>
+          {data.pendingNameSuggestions.length > 0 && (
+            <section
+              className="space-y-4"
+              aria-labelledby="pending-name-suggestions"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2
+                  id="pending-name-suggestions"
+                  className="text-xl font-semibold"
+                >
+                  Cambios de nombre pendientes
+                  <span className="ml-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-100 px-2 text-xs font-bold text-amber-950 ring-1 ring-inset ring-amber-300">
+                    {data.pendingNameSuggestions.length}
+                  </span>
+                </h2>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {data.pendingNameSuggestions.map((suggestion) => (
+                  <article key={suggestion.id} className="panel space-y-3">
+                    <div>
+                      <h3 className="font-semibold">{suggestion.list_name}</h3>
+                      <p className="mt-1 text-sm text-zinc-600">
+                        {suggestion.email} propone “{suggestion.name}”.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href="/data"
+                        className="btn-secondary"
+                        onClick={() => {
+                          setActiveListId(suggestion.household_id);
+                          window.dispatchEvent(
+                            new Event("active-list-changed"),
+                          );
+                        }}
+                      >
+                        Ver en Accesos
+                      </Link>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        disabled={!!respondingId}
+                        onClick={() =>
+                          void reviewNameSuggestion(suggestion, "approve")
+                        }
+                      >
+                        {respondingId === suggestion.id
+                          ? "Guardando…"
+                          : "Aceptar nombre"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={!!respondingId}
+                        onClick={() =>
+                          void reviewNameSuggestion(suggestion, "reject")
+                        }
+                      >
+                        Rechazar
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
           {data.invitations.length > 0 && (
             <section className="space-y-4" aria-labelledby="pending-lists">
               <h2 id="pending-lists" className="text-xl font-semibold">
@@ -229,22 +382,42 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
               <div className="grid gap-4 sm:grid-cols-2">
                 {data.invitations.map((invite) => (
                   <article key={invite.id} className="panel space-y-2">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <h3 className="min-w-0 break-words text-lg font-semibold">
                         {invite.name}
                       </h3>
-                      <Link
-                        href={`/lists/${invite.slug}`}
-                        className="btn-secondary shrink-0"
-                        aria-label={`Ver invitación a ${invite.name}`}
-                      >
-                        Ver invitación
-                      </Link>
                     </div>
                     <p className="text-sm text-zinc-500">
                       {invite.owner_email} te invitó. Aún no tienes acceso a sus
                       productos.
                     </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        disabled={!!respondingId}
+                        onClick={() => void respondToInvitation(invite, true)}
+                      >
+                        {respondingId === invite.id
+                          ? "Abriendo…"
+                          : "Aceptar y abrir"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={!!respondingId}
+                        onClick={() => void respondToInvitation(invite, false)}
+                      >
+                        Rechazar
+                      </button>
+                      <Link
+                        href={`/lists/${invite.slug}`}
+                        className="btn-secondary"
+                        aria-label={`Abrir detalles de la invitación a ${invite.name}`}
+                      >
+                        Ver detalles
+                      </Link>
+                    </div>
                   </article>
                 ))}
               </div>
@@ -255,6 +428,11 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
       {deleteError && (
         <p role="alert" className="error-notice">
           {deleteError}
+        </p>
+      )}
+      {notificationError && (
+        <p role="alert" className="error-notice">
+          {notificationError}
         </p>
       )}
       {open && (

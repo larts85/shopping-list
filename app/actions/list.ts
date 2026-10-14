@@ -7,6 +7,7 @@ import {
   positive,
   requireRow,
   DataError,
+  householdRole,
 } from "../lib/database";
 import {
   purchaseValues,
@@ -55,10 +56,12 @@ export async function getList(scope?: string): Promise<IList[]> {
       id: r.id,
       id_product: r.id_product,
       name: r.name,
+      description: r.description ?? "",
       id_category: r.id_category,
       cantidad: r.cantidad ?? "",
       medida: r.medida ?? "",
       precio: r.precio == null ? "" : currency(Number(r.precio)),
+      precioValue: r.precio == null ? null : Number(r.precio),
       precioTotal:
         r.precio == null || r.cantidad == null
           ? ""
@@ -86,12 +89,12 @@ export async function setBought(
   id: string,
   cantidad: number,
   medida: number,
-  precio: number,
+  precio: number | null,
   unit?: Unit,
 ): Promise<void> {
   const values = purchaseValues(cantidad, medida, unit);
-  const price = positive(precio, true);
-  await withListEditor(async (db, h) => {
+  const price = precio == null ? null : positive(precio, true);
+  await withListItemEditor(async (db, h) => {
     const product = await db.query(
       `select c.name as category_name
        from shopping_list l
@@ -121,6 +124,78 @@ export async function setBought(
             values.medida,
             price,
             values.unit ?? null,
+          ],
+        )
+      ).rowCount,
+    );
+  });
+}
+
+export async function updateListItemDetails(
+  id: unknown,
+  input: {
+    description: unknown;
+    cantidad?: unknown;
+    unit?: unknown;
+    precio?: unknown;
+  },
+): Promise<void> {
+  const rowId = text(id);
+  if (typeof input.description !== "string")
+    throw new DataError("Descripción inválida");
+  const description = input.description.trim();
+  if (description.length > 500) throw new DataError("Descripción demasiado larga");
+
+  const hasCantidad = Object.hasOwn(input, "cantidad");
+  const cantidad =
+    !hasCantidad || input.cantidad === null || input.cantidad === ""
+      ? null
+      : positive(input.cantidad);
+  const hasUnit = Object.hasOwn(input, "unit");
+  if (hasUnit && !isUnit(input.unit)) throw new DataError("Unidad inválida");
+  const unit = hasUnit ? (input.unit as Unit) : null;
+  const hasPrice = Object.hasOwn(input, "precio");
+  const price =
+    !hasPrice || input.precio === null || input.precio === ""
+      ? null
+      : positive(input.precio, true);
+
+  await withListItemEditor(async (db, h, email) => {
+    const product = await db.query(
+      "select l.comprado,l.unit,p.unit product_unit,coalesce(p.available_units,l.provisional_available_units) available_units from shopping_list l left join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2 for update of l",
+      [h, rowId],
+    );
+    requireRow(product.rowCount);
+    const bought = product.rows[0].comprado;
+    const editingPurchase = hasCantidad || hasUnit || hasPrice;
+    if (bought && editingPurchase && (await householdRole(db, h, email)) !== "owner")
+      throw new DataError("Solo el propietario puede editar los datos de compra", 403);
+    if (bought && hasCantidad && cantidad === null)
+      throw new DataError("La cantidad comprada debe ser mayor que cero");
+    const currentUnit = product.rows[0].unit ?? product.rows[0].product_unit;
+    if (hasUnit && unit !== currentUnit)
+      requireAvailableUnit(unit!, product.rows[0].available_units);
+    if (hasPrice && !bought)
+      throw new DataError("El precio se registra al marcar el producto como comprado");
+
+    requireRow(
+      (
+        await db.query(
+          `update shopping_list set description=$3,
+             cantidad=case when $4 then $5 else cantidad end,
+             unit=case when $6 then $7 else unit end,
+             precio=case when $8 then $9 else precio end
+           where household_id=$1 and id=$2`,
+          [
+            h,
+            rowId,
+            description,
+            hasCantidad,
+            cantidad,
+            hasUnit,
+            unit,
+            hasPrice,
+            price,
           ],
         )
       ).rowCount,
@@ -369,13 +444,14 @@ export interface BulkAddItem {
 export async function bulkAddToList(
   items: BulkAddItem[],
   scope?: string,
-): Promise<{ added: number }> {
+): Promise<{ added: number; catalogRequests: number }> {
   if (!Array.isArray(items) || items.length === 0 || items.length > 500) {
     throw new DataError("Listado de artículos inválido");
   }
 
   return withListItemEditor(async (db, h, email) => {
     let addedCount = 0;
+    let catalogRequestCount = 0;
 
     for (const item of items) {
       if (!item || typeof item !== "object") {
@@ -432,10 +508,35 @@ export async function bulkAddToList(
           [h, productId, cantidad, requestedUnit],
         );
       } else {
-        const request = await db.query(
-          "select id from catalog_requests where kind='product' and status='pending' and lower(trim(name))=lower(trim($1)) and category_id=$2 and unit=$3 order by created_at,id limit 1",
-          [name, idCategory, requestedUnit],
-        );
+        let catalogRequestId: string | null = null;
+        await db.query("savepoint optional_catalog_request");
+        try {
+          const request = await db.query(
+            "select id from catalog_requests where kind='product' and status='pending' and lower(trim(name))=lower(trim($1)) and category_id=$2 and unit=$3 order by created_at,id limit 1",
+            [name, idCategory, requestedUnit],
+          );
+          catalogRequestId = request.rows[0]?.id ?? null;
+          if (!catalogRequestId) {
+            catalogRequestId = (
+              await db.query(
+                "insert into catalog_requests(email,kind,name,category_id,unit,note) values($1,'product',$2,$3,$4,$5) returning id",
+                [
+                  email,
+                  name,
+                  idCategory,
+                  requestedUnit,
+                  "Producto agregado como provisional a una lista compartida",
+                ],
+              )
+            ).rows[0].id;
+          }
+          if (catalogRequestId) catalogRequestCount++;
+          await db.query("release savepoint optional_catalog_request");
+        } catch {
+          await db.query("rollback to savepoint optional_catalog_request");
+          await db.query("release savepoint optional_catalog_request");
+          catalogRequestId = null;
+        }
         const provisional = await db.query(
           "select id,provisional_available_units from shopping_list where household_id=$1 and id_product is null and provisional_category_id=$2 and lower(trim(provisional_name))=lower(trim($3)) for update",
           [h, idCategory, name],
@@ -452,7 +553,7 @@ export async function bulkAddToList(
               cantidad=case when comprado then cantidad else $3 end,
               unit=case when comprado then unit else $4 end,
               provisional_available_units=$5,
-              catalog_request_id=coalesce(catalog_request_id,$6)
+              catalog_request_id=coalesce($6,catalog_request_id)
              where household_id=$1 and id=$2`,
             [
               h,
@@ -460,7 +561,7 @@ export async function bulkAddToList(
               cantidad,
               requestedUnit,
               availableUnits,
-              request.rows[0]?.id ?? null,
+              catalogRequestId,
             ],
           );
         } else {
@@ -477,7 +578,7 @@ export async function bulkAddToList(
               idCategory,
               email,
               requestedAvailableUnits,
-              request.rows[0]?.id ?? null,
+              catalogRequestId,
             ],
           );
         }
@@ -486,6 +587,6 @@ export async function bulkAddToList(
       addedCount++;
     }
 
-    return { added: addedCount };
+    return { added: addedCount, catalogRequests: catalogRequestCount };
   }, scope);
 }
