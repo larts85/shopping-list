@@ -21,7 +21,7 @@ import {
   unitsForCategory,
   type Unit,
 } from "../lib/units";
-import type { IList } from "../lib/types";
+import type { Category, IList } from "../lib/types";
 export async function addList(): Promise<void> {
   await withListItemEditor(async (db, h) => {
     await db.query(
@@ -239,6 +239,82 @@ export async function getListProductsByCategories(): Promise<
     },
     {} as Record<string, IList[]>,
   );
+}
+export async function getListPageData(scope?: string): Promise<{
+  list: Record<string, IList[]>;
+  categories: Category[];
+}> {
+  return withHousehold(async (db, household) => {
+    const [listRows, categoryRows] = await Promise.all([
+      db.query(
+        `select l.*,coalesce(p.name,l.provisional_name) name,
+          coalesce(p.id_category,l.provisional_category_id) id_category,
+          c.name as category_name,p.unit as product_unit,
+          coalesce(p.available_units,l.provisional_available_units) available_units,
+          l.id_product is null is_provisional,l.provisional_created_by,
+          cr.email catalog_request_email,cr.status catalog_request_status
+         from shopping_list l
+         left join catalog_products p on p.id=l.id_product
+         left join catalog_categories c on c.id=coalesce(p.id_category,l.provisional_category_id)
+         left join catalog_requests cr on cr.id=l.catalog_request_id
+         where l.household_id=$1 order by name,l.id`,
+        [household],
+      ),
+      db.query(
+        "select id,name from catalog_categories where not archived order by name,id",
+      ),
+    ]);
+    const currency = (n: number) =>
+      new Intl.NumberFormat("es-AR", {
+        style: "currency",
+        currency: "ARS",
+      }).format(n);
+    const grouped = listRows.rows.map((r) => ({
+      id: r.id,
+      id_product: r.id_product,
+      name: r.name,
+      description: r.description ?? "",
+      id_category: r.id_category,
+      cantidad: r.cantidad ?? "",
+      medida: r.medida ?? "",
+      precio: r.precio == null ? "" : currency(Number(r.precio)),
+      precioValue: r.precio == null ? null : Number(r.precio),
+      precioTotal:
+        r.precio_total == null && (r.precio == null || r.cantidad == null)
+          ? ""
+          : currency(
+              r.precio_total == null
+                ? Number(r.precio) * Number(r.cantidad)
+                : Number(r.precio_total),
+            ),
+      precioKg:
+        r.precio == null || r.medida == null
+          ? ""
+          : currency(Number(r.precio) / Number(r.medida)),
+      kgTotal:
+        r.cantidad == null || r.medida == null
+          ? ""
+          : String(Number(r.cantidad) * Number(r.medida)),
+      comprado: r.comprado ? "1" : "",
+      unit: r.unit ?? r.product_unit,
+      productUnit: r.product_unit ?? r.unit ?? "un",
+      availableUnits: unitsForCategory(r.category_name ?? ""),
+      isProvisional: r.is_provisional,
+      createdBy: r.provisional_created_by,
+      catalogRequestEmail: r.catalog_request_email,
+      catalogRequestStatus: r.catalog_request_status,
+    }));
+    return {
+      list: grouped.reduce(
+        (a, product) => {
+          (a[product.id_category] ||= []).push(product);
+          return a;
+        },
+        {} as Record<string, IList[]>,
+      ),
+      categories: categoryRows.rows as Category[],
+    };
+  }, scope);
 }
 export async function shoppingList(): Promise<IList[]> {
   return (await getList()).filter((p) => p.comprado === "1");

@@ -112,7 +112,7 @@ export default function List() {
         Object.keys(pendingProductUpdates.current).length === 0 &&
         !isSavingEditsRef.current
       )
-        void Promise.all([fetchList(), fetchCategories()]).catch(() =>
+        void fetchPageData().catch(() =>
           setError("No se pudo actualizar la lista compartida."),
         );
     };
@@ -132,19 +132,28 @@ export default function List() {
   ]);
 
   async function load() {
+    const startedAtRevision = revision.current;
     setIsLoading(true);
     setError("");
     try {
-      const data = await getHouseholdData(getActiveListId());
+      const [data, pageResponse] = await Promise.all([
+        getHouseholdData(getActiveListId()),
+        listFetch("/api/list/page-data", { method: "GET" }),
+      ]);
+      if (!pageResponse.ok) throw new Error("Error fetching list data");
+      const pageData = await pageResponse.json();
+      if (startedAtRevision !== revision.current) return;
       setActiveListId(data.household.id);
       setCanEditList(data.canEditList);
       setCanManageList(data.canManageList);
       setHouseholdName(data.household.name);
-      await Promise.all([fetchList(), fetchCategories()]);
+      setList(pageData.list);
+      setCategories(pageData.categories);
     } catch {
-      setError("No pudimos cargar tu lista. Intenta nuevamente.");
+      if (startedAtRevision === revision.current)
+        setError("No pudimos cargar tu lista. Intenta nuevamente.");
     } finally {
-      setIsLoading(false);
+      if (startedAtRevision === revision.current) setIsLoading(false);
     }
   }
   const [visibleCategories, setVisibleCategories] = useState<
@@ -167,22 +176,14 @@ export default function List() {
     }
   }, [categories]);
 
-  async function fetchCategories() {
-    const categoriesRespone = await listFetch(
-      "/api/categories/get-categories",
-      {
-        method: "GET",
-        headers: {
-          "content-type": "application/json",
-        },
-      },
-    );
-    if (!categoriesRespone.ok) {
-      throw new Error("Error fetching categories");
-    }
-    const categoriesData = await categoriesRespone.json();
-
-    setCategories(categoriesData);
+  async function fetchPageData() {
+    const startedAtRevision = revision.current;
+    const response = await listFetch("/api/list/page-data", { method: "GET" });
+    if (!response.ok) throw new Error("Error fetching list data");
+    const data = await response.json();
+    if (startedAtRevision !== revision.current) return;
+    setList(data.list);
+    setCategories(data.categories);
   }
 
   async function fetchList() {
@@ -750,7 +751,7 @@ export default function List() {
               <Select
                 listName={householdName}
                 onAdded={async (message) => {
-                  await Promise.all([fetchList(), fetchCategories()]);
+                  await fetchPageData();
                   setStatus(
                     message ?? `Productos agregados a ${householdName}.`,
                   );
