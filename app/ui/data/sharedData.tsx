@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { getActiveListId } from "@/app/lib/listClient";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -66,6 +67,9 @@ export default function SharedData() {
     }
   }
   const owner = data?.email === data?.household.owner_email;
+  const pendingNameCount =
+    data?.nameSuggestions.filter((suggestion) => suggestion.status === "pending")
+      .length ?? 0;
   return (
     <div className="panel mx-auto max-w-2xl space-y-6">
       <h2 className="text-xl font-semibold">Accesos de la lista</h2>
@@ -113,7 +117,22 @@ export default function SharedData() {
             </button>
           </form>
           <section aria-label="Sugerencias de nombre" className="space-y-3">
-            <h3 className="font-semibold">Sugerencias de nombre</h3>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-semibold">
+                Sugerencias de nombre
+                {pendingNameCount > 0 && (
+                  <span className="ml-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-100 px-2 text-xs font-bold text-amber-950 ring-1 ring-inset ring-amber-300">
+                    {pendingNameCount}
+                    <span className="sr-only"> pendientes</span>
+                  </span>
+                )}
+              </h3>
+              {pendingNameCount > 0 && (
+                <Link href="/" className="btn-secondary">
+                  Ver en Carritos
+                </Link>
+              )}
+            </div>
             <p className="text-sm">
               El propietario decide si cambia el nombre de la lista.
             </p>

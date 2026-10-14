@@ -47,9 +47,9 @@ export async function addHistorical(productIds: unknown) {
     const purchaseId = randomUUID();
     await db.query(
       `insert into historical(household_id,purchase,purchased_at)
-   select l.household_id,jsonb_build_object('id_list',l.id,'id_product',l.id_product,'name',coalesce(p.name,l.provisional_name),'id_category',coalesce(p.id_category,l.provisional_category_id),
+   select l.household_id,jsonb_build_object('id_list',l.id,'id_product',l.id_product,'name',coalesce(p.name,l.provisional_name),'description',l.description,'id_category',coalesce(p.id_category,l.provisional_category_id),
     'purchase_id',$3::text,'purchase_name',$4::text,'list_name',$5::text,
-    'unit',l.unit,'cantidad',l.cantidad,'medida',l.medida,'precio',l.precio,'precio_total',l.cantidad*l.precio,'precio_kg',l.precio/l.medida,'kg_total',l.cantidad*l.medida),$6::timestamptz
+    'unit',l.unit,'cantidad',l.cantidad,'medida',l.medida,'precio',l.precio,'precio_total',case when l.precio is null then null else l.cantidad*l.precio end,'precio_kg',case when l.precio is null then null else l.precio/l.medida end,'kg_total',l.cantidad*l.medida),$6::timestamptz
    from shopping_list l left join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.comprado and l.id=any($2::text[])`,
       [h, ids, purchaseId, purchaseName, household.rows[0].name, purchasedAt],
     );
