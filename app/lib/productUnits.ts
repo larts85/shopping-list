@@ -15,6 +15,13 @@ export function suggestProductUnit(name: string, category = ""): Unit {
   const product = normalizeProductName(name);
   const group = normalizeProductName(category);
   if (
+    group === "farmacia" &&
+    /\b(comprimidos?|comp|tabletas?|pastillas?|capsulas?|pildoras?|paracetamol|ibuprofeno)\b/.test(
+      product,
+    )
+  )
+    return "comp";
+  if (
     /\b(paquete|pack|pote|botella|lata|sobre|caja|rollo|bobina|frasco|bolsa|bidon)\b/.test(
       product,
     ) ||

@@ -10,7 +10,11 @@ import {
   type CatalogRequestSubmissionResult,
 } from "@/app/actions/catalogRequests";
 import type { Category } from "@/app/lib/types";
-import { type Unit } from "@/app/lib/units";
+import {
+  isUnitAllowedForCategory,
+  unitsForCategory,
+  type Unit,
+} from "@/app/lib/units";
 import Autocomplete from "@/shared/components/ui/Autocomplete";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
@@ -28,6 +32,14 @@ export default function CatalogRequests() {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
+  const selectedCategoryName =
+    categories.find((category) => category.id === categoryId)?.name ?? "";
+  const handleCategoryChange = (nextCategoryId: string) => {
+    setCategoryId(nextCategoryId);
+    const nextCategoryName =
+      categories.find((category) => category.id === nextCategoryId)?.name ?? "";
+    if (!isUnitAllowedForCategory(unit, nextCategoryName)) setUnit("un");
+  };
   async function load() {
     const [user, cats, items] = await Promise.all([
       getCurrentUser(),
@@ -141,13 +153,17 @@ export default function CatalogRequests() {
                   selectedValue={categoryId}
                   selectedLabel={categories.find((c) => c.id === categoryId)?.name ?? ""}
                   options={categories.map((c) => ({ value: c.id, label: c.name }))}
-                  onChange={setCategoryId}
-                  onSelect={(option) => setCategoryId(option.value)}
+                  onChange={handleCategoryChange}
+                  onSelect={(option) => handleCategoryChange(option.value)}
                   placeholder="Selecciona una categoría"
                   disabled={categories.length === 0}
                   required
                 />
-                <UnitSelect value={unit} onChange={setUnit} />
+                <UnitSelect
+                  value={unit}
+                  options={unitsForCategory(selectedCategoryName)}
+                  onChange={setUnit}
+                />
               </>
             )}
           </div>

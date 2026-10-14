@@ -9,6 +9,7 @@ import {
 } from "../lib/database";
 import {
   compatibleUnits,
+  isUnitAllowedForCategory,
   isUnit,
   isValidAvailableUnits,
   type Unit,
@@ -49,15 +50,18 @@ export async function submitCatalogRequest(
     throw new DataError("Unidad inválida");
   return withCatalog(async (db, email) => {
     const category = input.kind === "product" ? text(input.categoryId) : null;
-    if (category)
-      requireRow(
-        (
-          await db.query(
-            "select 1 from catalog_categories where id=$1 and not archived",
-            [category],
-          )
-        ).rowCount,
+    if (category) {
+      const categoryResult = await db.query(
+        "select name from catalog_categories where id=$1 and not archived",
+        [category],
       );
+      requireRow(categoryResult.rowCount);
+      if (
+        input.unit &&
+        !isUnitAllowedForCategory(input.unit, categoryResult.rows[0].name)
+      )
+        throw new DataError("Los comprimidos solo están disponibles en Farmacia");
+    }
     const created = await db.query(
       "insert into catalog_requests(email,kind,name,category_id,unit,note) values($1,$2,$3,$4,$5,$6) returning id",
       [
@@ -219,14 +223,16 @@ export async function reviewCatalogRequest(
             )
           ).rows[0].id;
       } else {
-        requireRow(
-          (
-            await db.query(
-              "select 1 from catalog_categories where id=$1 and not archived",
-              [request.category_id],
-            )
-          ).rowCount,
+        const requestCategory = await db.query(
+          "select name from catalog_categories where id=$1 and not archived",
+          [request.category_id],
         );
+        requireRow(requestCategory.rowCount);
+        if (
+          isUnit(request.unit) &&
+          !isUnitAllowedForCategory(request.unit, requestCategory.rows[0].name)
+        )
+          throw new DataError("Los comprimidos solo están disponibles en Farmacia");
         const existing = await db.query(
           "select id,unit,available_units from catalog_products where lower(trim(name))=lower(trim($1)) and id_category=$2 and not archived order by id limit 1 for update",
           [request.name, request.category_id],

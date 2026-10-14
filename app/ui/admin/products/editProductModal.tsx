@@ -4,7 +4,11 @@ import Modal from "@/shared/components/ui/Modal";
 
 import { useState, SyntheticEvent } from "react";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
-import type { Unit } from "@/app/lib/units";
+import {
+  isUnitAllowedForCategory,
+  unitsForCategory,
+  type Unit,
+} from "@/app/lib/units";
 import { capitalize } from "../../utils/capitalize";
 import AvailableUnitsField from "./availableUnitsField";
 import Autocomplete from "@/shared/components/ui/Autocomplete";
@@ -37,6 +41,18 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const categoryName = categories.find((category) => category.id === categoryId)?.name ?? "";
+
+  const handleCategoryChange = (nextCategoryId: string) => {
+    const nextCategoryName = categories.find((category) => category.id === nextCategoryId)?.name ?? "";
+    setCategoryId(nextCategoryId);
+    if (!isUnitAllowedForCategory(unit, nextCategoryName)) {
+      setUnit("un");
+      setAvailableUnits(["un"]);
+    } else {
+      setAvailableUnits((current) => current.filter((value) => unitsForCategory(nextCategoryName).includes(value)));
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -118,8 +134,8 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
           selectedValue={categoryId}
           selectedLabel={categories.find((c) => c.id === categoryId)?.name ?? ""}
           options={categories.map((c) => ({ value: c.id, label: c.name }))}
-          onChange={setCategoryId}
-          onSelect={(option) => setCategoryId(option.value)}
+          onChange={handleCategoryChange}
+          onSelect={(option) => handleCategoryChange(option.value)}
           disabled={isSubmitting}
           required
           className="field mt-2"
@@ -128,6 +144,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
           Unidad de medida
           <UnitSelect
             value={unit}
+            options={unitsForCategory(categoryName)}
             onChange={(value) => {
               setUnit(value);
               setAvailableUnits((current) =>
@@ -141,6 +158,7 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
           selected={availableUnits}
           onChange={setAvailableUnits}
           requiredUnit={unit}
+          categoryName={categoryName}
           disabled={isSubmitting}
         />
         <div className="flex justify-end space-x-4">

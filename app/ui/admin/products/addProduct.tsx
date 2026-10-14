@@ -9,6 +9,8 @@ import { BiEditAlt } from "react-icons/bi";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
 import {
   compatibleUnits,
+  isUnitAllowedForCategory,
+  unitsForCategory,
   unitAbbreviations,
   unitLabels,
   type Unit,
@@ -65,6 +67,14 @@ export default function AddProduct() {
 
   const handleCategorySearchChange = (categoryId: string) => {
     setSelectedCategoy(categoryId);
+    const categoryName = categories.find((category) => category.id === categoryId)?.name ?? "";
+    const allowedUnits = unitsForCategory(categoryName);
+    setAvailableUnits((current) => current.filter((availableUnit) => allowedUnits.includes(availableUnit)));
+    if (!isUnitAllowedForCategory(unit, categoryName)) {
+      setUnit("un");
+      setAvailableUnits(["un"]);
+      setUnitChosen(false);
+    }
     if (!categoryId) {
       setProducts([]);
       setSelectedProductIds([]);
@@ -293,6 +303,9 @@ export default function AddProduct() {
           Unidad de medida
           <UnitSelect
             value={unit}
+            options={unitsForCategory(
+              categories.find((category) => category.id === selectedCategory)?.name ?? "",
+            )}
             onChange={(value) => {
               setUnit(value);
               setAvailableUnits((current) =>
@@ -308,6 +321,7 @@ export default function AddProduct() {
             selected={availableUnits}
             onChange={setAvailableUnits}
             requiredUnit={unit}
+            categoryName={categories.find((category) => category.id === selectedCategory)?.name ?? ""}
             disabled={isSubmitting}
           />
         </div>
@@ -400,6 +414,7 @@ export default function AddProduct() {
               <AvailableUnitsField
                 selected={bulkUnits}
                 onChange={setBulkUnits}
+                categoryName={categories.find((category) => category.id === bulkCategoryId)?.name ?? categories.find((category) => category.id === selectedCategory)?.name ?? ""}
                 disabled={bulkBusy}
               />
               <div className="flex flex-wrap gap-3">

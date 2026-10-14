@@ -7,7 +7,11 @@ import {
   withHousehold,
   withListEditor,
 } from "../lib/database";
-import { compatibleUnits, isUnit } from "../lib/units";
+import {
+  compatibleUnits,
+  isUnit,
+  isUnitAllowedForCategory,
+} from "../lib/units";
 import { purchaseDate, purchaseHistoryGroupKey } from "../lib/purchaseHistory";
 export async function addHistorical(productIds: unknown) {
   if (
@@ -142,6 +146,7 @@ export async function repeatPurchase(
     );
 
     let fallbackCategoryId: string | undefined;
+    let pharmacyCategoryId: string | undefined;
     let count = 0;
     for (const item of purchases) {
       const record = item.purchase;
@@ -159,7 +164,7 @@ export async function repeatPurchase(
 
       const catalogProduct = catalogProductId
         ? await db.query(
-            `select p.id,p.unit,p.available_units,p.id_category
+            `select p.id,p.unit,p.available_units,p.id_category,c.name as category_name
              from catalog_products p
              join catalog_categories c on c.id=p.id_category
              where p.id=$1 and not p.archived and not c.archived for share of p,c`,
@@ -169,7 +174,8 @@ export async function repeatPurchase(
 
       if (
         catalogProduct.rowCount &&
-        (catalogProduct.rows[0].available_units as string[]).includes(itemUnit)
+        (catalogProduct.rows[0].available_units as string[]).includes(itemUnit) &&
+        isUnitAllowedForCategory(itemUnit, catalogProduct.rows[0].category_name)
       ) {
         const productId = catalogProduct.rows[0].id as string;
         const inserted = await db.query(
@@ -196,12 +202,23 @@ export async function repeatPurchase(
             ? record.id_category.trim()
             : undefined;
         let categoryId: string | undefined;
+        let categoryName: string | undefined;
         if (requestedCategoryId) {
           const category = await db.query(
-            "select id from catalog_categories where id=$1 and not archived",
+            "select id,name from catalog_categories where id=$1 and not archived",
             [requestedCategoryId],
           );
           categoryId = category.rows[0]?.id as string | undefined;
+          categoryName = category.rows[0]?.name as string | undefined;
+        }
+        if (itemUnit === "comp" && categoryName !== "Farmacia") {
+          pharmacyCategoryId ??= (
+            await db.query(
+              "select id from catalog_categories where lower(trim(name))='farmacia' and not archived order by id limit 1",
+            )
+          ).rows[0]?.id as string | undefined;
+          categoryId = pharmacyCategoryId;
+          categoryName = categoryId ? "Farmacia" : undefined;
         }
         if (!categoryId) {
           fallbackCategoryId ??= (
@@ -210,10 +227,22 @@ export async function repeatPurchase(
             )
           ).rows[0]?.id as string | undefined;
           categoryId = fallbackCategoryId;
+          categoryName = (
+            await db.query(
+              "select name from catalog_categories where id=$1",
+              [categoryId],
+            )
+          ).rows[0]?.name as string | undefined;
         }
         if (!categoryId)
           throw new DataError(
             `No hay una categoría activa para volver a agregar ${productName}`,
+            409,
+          );
+
+        if (!isUnitAllowedForCategory(itemUnit, categoryName ?? ""))
+          throw new DataError(
+            `No hay una categoría compatible para volver a agregar ${productName}`,
             409,
           );
 

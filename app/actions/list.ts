@@ -15,6 +15,7 @@ import {
 import {
   compatibleUnits,
   isUnit,
+  isUnitAllowedForCategory,
   isValidAvailableUnits,
   type Unit,
 } from "../lib/units";
@@ -370,6 +371,12 @@ export async function bulkAddToList(
         [idCategory],
       );
       requireRow(catCheck.rowCount);
+      if (
+        requestedAvailableUnits.some(
+          (unit) => !isUnitAllowedForCategory(unit, catCheck.rows[0].name),
+        )
+      )
+        throw new DataError("Los comprimidos solo están disponibles en Farmacia");
 
       let productId: string | undefined;
       const existing = await db.query(

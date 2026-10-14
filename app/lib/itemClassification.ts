@@ -58,7 +58,7 @@ export function parseRawItemList(text: string): ParsedItem[] {
     // Matches numbers at start followed by unit/multiplier or space and item name
     // (e.g. "2 Jgos...", "1.5 kg...", "3 x ...")
     const qtyMatch = line.match(
-      /^(\d+(?:[.,]\d+)?)\s*(?:(kg|kgs?|kilogramos?|mg|mgs?|miligramos?|g|grs?|gramos?|lt|lts?|litros?|ml|mililitros?|u|un(?:idad(?:es)?)?)\b\s+|(?:x|de)\s+|\s+)(.+)$/i,
+      /^(\d+(?:[.,]\d+)?)\s*(?:(kg|kgs?|kilogramos?|mg|mgs?|miligramos?|comp(?:s)?|comprimidos?|tabletas?|pastillas?|cápsulas?|capsulas?|g|grs?|gramos?|lt|lts?|litros?|ml|mililitros?|u|un(?:idad(?:es)?)?)\b\s+|(?:x|de)\s+|\s+)(.+)$/i,
     );
     if (qtyMatch && qtyMatch[1] && qtyMatch[3]) {
       const parsedQty = parseFloat(qtyMatch[1].replace(",", "."));
@@ -68,7 +68,9 @@ export function parseRawItemList(text: string): ParsedItem[] {
         const parsedUnit = qtyMatch[2]?.toLowerCase();
         if (parsedUnit) {
           if (["kg", "kgs", "kilogramo", "kilogramos"].includes(parsedUnit)) unit = "kg";
-          else if (["mg", "mgs", "miligramo", "miligramos", "g", "gr", "grs", "gramo", "gramos"].includes(parsedUnit)) unit = parsedUnit.startsWith("m") ? "mg" : "g";
+          else if (["mg", "mgs", "miligramo", "miligramos"].includes(parsedUnit)) unit = "mg";
+          else if (["comp", "comps", "comprimido", "comprimidos", "tableta", "tabletas", "pastilla", "pastillas", "cápsula", "cápsulas", "capsula", "capsulas"].includes(parsedUnit)) unit = "comp";
+          else if (["g", "gr", "grs", "gramo", "gramos"].includes(parsedUnit)) unit = "g";
           else if (["lt", "lts", "litro", "litros"].includes(parsedUnit)) unit = "lt";
           else if (["ml", "mililitro", "mililitros"].includes(parsedUnit)) unit = "ml";
           else unit = "un";
@@ -165,12 +167,23 @@ const CATEGORY_RULES: CategoryRule[] = [
       /\b(cortina|mantel|sabana|almohad|gavet|mueble|cajoner|soga|tender|tendedero|percha|canasto|ropero|colcha|frazada|toalla|toallon|control|velador|adorno|espejo|cuadro)\w*/,
     ],
   },
-  // 5. Dietética / Farmacia
+  // 5. Farmacia
+  {
+    target: "farmacia",
+    patterns: [
+      /\bpastill\w*/,
+      /\bcomprim\w*/,
+      /\btablet\w*/,
+      /\bcapsul\w*/,
+      /\bmedicam\w*/,
+      /\bparacetamol\w*/,
+      /\bibuprofeno\w*/,
+    ],
+  },
+  // 6. Dietética
   {
     target: "dietetica",
     patterns: [
-      /\bpastill\w*/,
-      /\bmedicam\w*/,
       /\bvitamin\w*/,
       /\bsuplement\w*/,
       /\bfrutos secos\b/,
@@ -184,7 +197,7 @@ const CATEGORY_RULES: CategoryRule[] = [
       /\bavena\w*/,
     ],
   },
-  // 6. Ferretería / Electricidad
+  // 7. Ferretería / Electricidad
   {
     target: "ferreteria",
     patterns: [
