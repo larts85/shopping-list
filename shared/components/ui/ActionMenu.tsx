@@ -82,14 +82,15 @@ export default function ActionMenu({
   }
 
   return (
-    <div ref={rootRef} className="relative md:hidden">
+    <div ref={rootRef} className="relative shrink-0 md:hidden">
       <button
         ref={triggerRef}
         type="button"
-        className="flex size-10 items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-700"
+        className="flex size-10 shrink-0 touch-manipulation items-center justify-center rounded-lg text-zinc-600 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-700"
         aria-label={label}
         aria-expanded={open}
         aria-controls={menuId}
+        aria-haspopup="menu"
         onClick={toggleMenu}
       >
         <RiMore2Fill aria-hidden="true" size={21} />
@@ -100,6 +101,7 @@ export default function ActionMenu({
           <ul
             ref={menuRef}
             id={menuId}
+            role="menu"
             className="fixed z-50 min-w-52 rounded-xl border border-zinc-200 bg-white p-1.5 shadow-lg"
             style={{ top: position.top, right: position.right }}
           >
@@ -114,6 +116,7 @@ export default function ActionMenu({
                 <li key={itemLabel}>
                   <button
                     type="button"
+                    role="menuitem"
                     className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 ${destructive ? "text-red-700 hover:bg-red-50" : "text-zinc-800"}`}
                     disabled={disabled}
                     onClick={() => {

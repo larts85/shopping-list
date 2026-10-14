@@ -11,6 +11,7 @@ import {
   reviewHouseholdName,
 } from "../../actions/households";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
+import ConfirmModal from "@/shared/components/ui/ConfirmModal";
 import { RiCheckLine, RiCloseLine, RiDeleteBin6Line } from "react-icons/ri";
 type Data = Awaited<ReturnType<typeof getHouseholdData>>;
 export default function SharedData() {
@@ -20,6 +21,7 @@ export default function SharedData() {
   const [error, setError] = useState("");
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
+  const [emailToRevoke, setEmailToRevoke] = useState<string | null>(null);
   const router = useRouter();
   async function load(resetName = true) {
     try {
@@ -219,16 +221,7 @@ export default function SharedData() {
                     <button
                       className="btn-secondary hidden md:inline-flex"
                       disabled={busy}
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `¿Quitar el acceso de ${m.email} a esta lista?`,
-                          )
-                        )
-                          void run(() =>
-                            revokeAccess(m.email, getActiveListId()),
-                          );
-                      }}
+                      onClick={() => setEmailToRevoke(m.email)}
                     >
                       Quitar acceso
                     </button>
@@ -240,16 +233,7 @@ export default function SharedData() {
                           icon: RiDeleteBin6Line,
                           destructive: true,
                           disabled: busy,
-                          onSelect: () => {
-                            if (
-                              window.confirm(
-                                `¿Quitar el acceso de ${m.email} a esta lista?`,
-                              )
-                            )
-                              void run(() =>
-                                revokeAccess(m.email, getActiveListId()),
-                              );
-                          },
+                          onSelect: () => setEmailToRevoke(m.email),
                         },
                       ]}
                     />
@@ -306,6 +290,23 @@ export default function SharedData() {
           }}
         />
       )}
+      <ConfirmModal
+        isOpen={!!emailToRevoke}
+        title="Quitar acceso"
+        message={emailToRevoke ? `¿Quitar el acceso de ${emailToRevoke} a esta lista?` : ""}
+        confirmLabel="Quitar acceso"
+        destructive
+        busy={busy}
+        onClose={() => {
+          if (!busy) setEmailToRevoke(null);
+        }}
+        onConfirm={() => {
+          if (!emailToRevoke) return;
+          const email = emailToRevoke;
+          setEmailToRevoke(null);
+          void run(() => revokeAccess(email, getActiveListId()));
+        }}
+      />
     </div>
   );
 }

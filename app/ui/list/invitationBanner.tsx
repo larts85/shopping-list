@@ -8,12 +8,14 @@ import {
   declineInvitation,
 } from "@/app/actions/households";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
+import ConfirmModal from "@/shared/components/ui/ConfirmModal";
 import { RiCheckLine, RiCloseLine } from "react-icons/ri";
 type Invite = Awaited<ReturnType<typeof getPendingInvitations>>[number];
 export default function InvitationBanner() {
   const [invites, setInvites] = useState<Invite[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [invitationToAccept, setInvitationToAccept] = useState<Invite | null>(null);
   const router = useRouter();
   useEffect(() => {
     let active = true;
@@ -40,13 +42,6 @@ export default function InvitationBanner() {
     };
   }, []);
   async function respond(id: string, accept: boolean) {
-    if (
-      accept &&
-      !window.confirm(
-        "Abrir la lista compartida descarta los cambios sin guardar de la pantalla actual. ¿Continuar?",
-      )
-    )
-      return;
     setBusy(true);
     setError("");
     try {
@@ -83,7 +78,7 @@ export default function InvitationBanner() {
             <button
               disabled={busy}
               className="btn-primary"
-              onClick={() => void respond(i.id, true)}
+              onClick={() => setInvitationToAccept(i)}
             >
               Aceptar y abrir
             </button>
@@ -102,7 +97,7 @@ export default function InvitationBanner() {
                 label: "Aceptar y abrir lista",
                 icon: RiCheckLine,
                 disabled: busy,
-                onSelect: () => void respond(i.id, true),
+                onSelect: () => setInvitationToAccept(i),
               },
               {
                 label: "Rechazar invitación",
@@ -120,6 +115,22 @@ export default function InvitationBanner() {
           {error}
         </p>
       )}
+      <ConfirmModal
+        isOpen={!!invitationToAccept}
+        title="Aceptar invitación"
+        message="Abrir la lista compartida descarta los cambios sin guardar de la pantalla actual. ¿Continuar?"
+        confirmLabel="Aceptar y abrir"
+        busy={busy}
+        onClose={() => {
+          if (!busy) setInvitationToAccept(null);
+        }}
+        onConfirm={() => {
+          if (!invitationToAccept) return;
+          const id = invitationToAccept.id;
+          setInvitationToAccept(null);
+          void respond(id, true);
+        }}
+      />
     </section>
   );
 }
