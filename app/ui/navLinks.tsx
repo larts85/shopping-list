@@ -19,7 +19,9 @@ const adminLinks = [
 ];
 export default function NavLinks({ admin = false }: { admin?: boolean }) {
   const pathname = usePathname();
-  const [hasPending, setHasPending] = useState(false);
+  const [pendingByHref, setPendingByHref] = useState<Record<string, number>>(
+    {},
+  );
   const [isAdmin, setIsAdmin] = useState(false);
   const [listHref, setListHref] = useState("");
   useEffect(() => {
@@ -34,8 +36,21 @@ export default function NavLinks({ admin = false }: { admin?: boolean }) {
         if (response.ok) {
           const data: Awaited<ReturnType<typeof getHomeLists>> =
             await response.json();
-          if (active) setHasPending(data.invitations.length > 0);
-          const list = data.lists.find((list) => list.id === getActiveListId());
+          const activeListId = getActiveListId();
+          const activeListSuggestions =
+            data.pendingListSuggestions.find(
+              (item) => item.household_id === activeListId,
+            )?.count ?? 0;
+          const activeNameSuggestions = data.pendingNameSuggestions.filter(
+            (item) => item.household_id === activeListId,
+          ).length;
+          if (active)
+            setPendingByHref({
+              "/": data.invitations.length + data.pendingNameSuggestions.length,
+              "/catalog": activeListSuggestions + data.pendingCatalogRequests,
+              "/data": activeNameSuggestions,
+            });
+          const list = data.lists.find((list) => list.id === activeListId);
           if (active) setListHref(list ? `/lists/${list.slug}` : "");
         }
       } catch {
@@ -78,18 +93,20 @@ export default function NavLinks({ admin = false }: { admin?: boolean }) {
             key={href}
             href={href}
             aria-current={active ? "page" : undefined}
-            className={`flex min-h-11 shrink-0 items-center justify-center rounded-xl px-2 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${admin ? "flex-1 sm:justify-start" : ""} ${active ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"}`}
+            aria-label={
+              (pendingByHref[href] ?? 0) > 0
+                ? `${label}, ${pendingByHref[href]} notificaciones pendientes`
+                : undefined
+            }
+            className={`group flex min-h-11 shrink-0 items-center justify-center rounded-xl px-2 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${admin ? "flex-1 sm:justify-start" : ""} ${active ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"}`}
           >
             {label}
-            {href === "/" && hasPending && (
-              <span className="ml-2 flex items-center">
-                <span
-                  aria-hidden="true"
-                  className="size-1.5 rounded-full bg-black ring-1 ring-white"
-                />
-                <span className="sr-only">
-                  Invitaciones pendientes de aceptar o rechazar
-                </span>
+            {(pendingByHref[href] ?? 0) > 0 && (
+              <span
+                aria-hidden="true"
+                className={`ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ring-1 ring-inset transition-colors ${active ? "bg-white text-zinc-950 ring-white group-hover:bg-amber-300" : "bg-amber-100 text-amber-950 ring-amber-300 group-hover:bg-amber-200 group-hover:ring-amber-400"}`}
+              >
+                {(pendingByHref[href] ?? 0) > 9 ? "9+" : pendingByHref[href]}
               </span>
             )}
           </Link>

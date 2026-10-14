@@ -31,14 +31,17 @@ const BoughtListModal: React.FC<ListModalProps> = ({
   productUnit,
   availableUnits,
 }) => {
-  const options = availableUnits.length ? availableUnits : compatibleUnits(productUnit);
+  const options = availableUnits.length
+    ? availableUnits
+    : compatibleUnits(productUnit);
   const unitMatches = options.includes(unitp);
   const [cantidad, setCantidad] = useState<number | string>(
     unitMatches ? cantidadp : "",
   );
   const [unit, setUnit] = useState<Unit>(unitMatches ? unitp : productUnit);
   const medida = 1;
-  const [precio, setPrecio] = useState<number | string>("");
+  const [precioUnitario, setPrecioUnitario] = useState("");
+  const [precioTotal, setPrecioTotal] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -50,23 +53,45 @@ const BoughtListModal: React.FC<ListModalProps> = ({
       Number(cantidad) <= 0 ||
       !Number.isFinite(Number(medida)) ||
       Number(medida) <= 0 ||
-      !Number.isFinite(Number(precio)) ||
-      Number(precio) < 0 ||
-      precio === ""
+      (precioUnitario !== "" &&
+        (!Number.isFinite(Number(precioUnitario)) ||
+          Number(precioUnitario) < 0)) ||
+      (precioTotal !== "" &&
+        (!Number.isFinite(Number(precioTotal)) || Number(precioTotal) < 0))
     ) {
-      setError("Completa una cantidad mayor que cero y un precio válido.");
+      setError("Completa una cantidad mayor que cero y revisa el precio.");
       return;
     }
     setIsLoading(true);
     setError("");
 
     try {
+      const precio =
+        precioTotal !== ""
+          ? Number(precioTotal)
+          : precioUnitario === ""
+            ? null
+            : Number(precioUnitario);
+      const precioMode = precioTotal !== "" ? "total" : "unit";
+      const unitPrice =
+        precio === null
+          ? null
+          : precioMode === "total"
+            ? precio / Number(cantidad)
+            : precio;
+      const totalPrice =
+        precio === null
+          ? null
+          : precioMode === "total"
+            ? precio
+            : Number(cantidad) * precio;
       const propsBought = {
         idList,
         cantidad,
         medida: Number(medida),
         unit,
-        precio: Number(precio),
+        precio,
+        precioMode,
       };
       const response = await listFetch("/api/list/set-bought", {
         method: "PUT",
@@ -84,8 +109,15 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         id_category: idCategory,
         cantidad: cantidad.toString(),
         medida: medida.toString(),
-        precio: precio.toString(),
-        precioTotal: "",
+        precio: unitPrice === null ? "" : unitPrice.toString(),
+        precioValue: unitPrice,
+        precioTotal:
+          totalPrice === null
+            ? ""
+            : new Intl.NumberFormat("es-AR", {
+                style: "currency",
+                currency: "ARS",
+              }).format(totalPrice),
         precioKg: "",
         kgTotal: "",
         comprado: "1",
@@ -142,8 +174,8 @@ const BoughtListModal: React.FC<ListModalProps> = ({
           handleClick();
         }}
       >
-        <div className="grid grid-cols-2 gap-4">
-          <label className="text-sm font-medium">
+        <div className="grid grid-cols-2 items-start gap-4">
+          <label className="min-w-0 text-sm font-medium">
             Cantidad
             <input
               type="number"
@@ -159,26 +191,36 @@ const BoughtListModal: React.FC<ListModalProps> = ({
               }}
             />
           </label>
-          <label className="text-sm font-medium">
-            Unidad de medida
-            <UnitSelect
-              value={unit}
-              onChange={setUnit}
-              options={options}
-              disabled={isLoading}
-            />
-          </label>
+          <UnitSelect
+            value={unit}
+            onChange={setUnit}
+            options={options}
+            disabled={isLoading}
+          />
           <label className="col-span-2 text-sm font-medium">
-            Precio por {unit}
+            Precio por unidad de medida (opcional)
             <input
               type="number"
-              required
               min="0"
               step="any"
               className="field mt-2"
-              placeholder="Precio"
-              value={precio}
-              onChange={(e) => setPrecio(e.target.value)}
+              placeholder="Precio por unidad de medida"
+              value={precioUnitario}
+              disabled={isLoading || precioTotal !== ""}
+              onChange={(e) => setPrecioUnitario(e.target.value)}
+            />
+          </label>
+          <label className="col-span-2 text-sm font-medium">
+            Total de esta compra (opcional)
+            <input
+              type="number"
+              min="0"
+              step="any"
+              className="field mt-2"
+              placeholder="Total pagado por este producto"
+              value={precioTotal}
+              disabled={isLoading || precioUnitario !== ""}
+              onChange={(e) => setPrecioTotal(e.target.value)}
             />
           </label>
         </div>

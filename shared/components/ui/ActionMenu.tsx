@@ -16,9 +16,11 @@ export interface ActionMenuItem {
 export default function ActionMenu({
   label = "Más acciones",
   items,
+  alwaysVisible = false,
 }: {
   label?: string;
   items: ActionMenuItem[];
+  alwaysVisible?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; right: number }>();
@@ -82,7 +84,10 @@ export default function ActionMenu({
   }
 
   return (
-    <div ref={rootRef} className="relative shrink-0 md:hidden">
+    <div
+      ref={rootRef}
+      className={`relative shrink-0 ${alwaysVisible ? "" : "md:hidden"}`}
+    >
       <button
         ref={triggerRef}
         type="button"

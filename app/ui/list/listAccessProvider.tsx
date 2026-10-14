@@ -3,9 +3,12 @@
 import Link from "next/link";
 import InvitationBanner from "./invitationBanner";
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { resolveListSlug } from "@/app/actions/households";
-import { acceptInvitation } from "@/app/actions/households";
+import {
+  acceptInvitation,
+  declineInvitation,
+} from "@/app/actions/households";
 import { getHouseholdData } from "@/app/actions/households";
 import { getActiveListId, setActiveListId } from "@/app/lib/listClient";
 
@@ -28,6 +31,7 @@ export default function ListAccessProvider({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const requiresList =
     pathname !== "/" &&
     pathname !== "/catalog" &&
@@ -44,6 +48,7 @@ export default function ListAccessProvider({
       >
     >();
   const [error, setError] = useState("");
+  const [invitationError, setInvitationError] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
 
@@ -115,27 +120,57 @@ export default function ListAccessProvider({
           {invitation.owner} te invitó a <strong>{invitation.name}</strong>.
           Podrás editar artículos y sugerir un nombre al propietario.
         </p>
-        <button
-          className="btn-primary"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              await acceptInvitation(invitation.invitationId);
-              setInvitation(undefined);
-              setAttempt((value) => value + 1);
-            } catch {
-              setInvitation(undefined);
-              setError(
-                "La invitación ya no está disponible. Solicita una nueva al propietario.",
-              );
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          Aceptar y abrir
-        </button>
+        {invitationError && (
+          <p role="alert" className="error-notice">
+            {invitationError}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await acceptInvitation(invitation.invitationId);
+                setInvitation(undefined);
+                setAttempt((value) => value + 1);
+              } catch {
+                setInvitation(undefined);
+                setError(
+                  "La invitación ya no está disponible. Solicita una nueva al propietario.",
+                );
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Aceptar y abrir
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setInvitationError("");
+              try {
+                await declineInvitation(invitation.invitationId);
+                router.push("/");
+                router.refresh();
+              } catch {
+                setInvitationError(
+                  "No pudimos rechazar la invitación. Intenta nuevamente.",
+                );
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Rechazar
+          </button>
+        </div>
       </section>
     );
   if (readyPath === pathname && !error)
