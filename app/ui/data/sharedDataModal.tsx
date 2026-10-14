@@ -41,6 +41,10 @@ export default function SharedDataModal({
               setError("");
               try {
                 const result = await shareHousehold(email, getActiveListId());
+                if (result.status === "error") {
+                  setError(result.error);
+                  return;
+                }
                 setLink(
                   new URL(`/lists/${result.slug}`, window.location.origin).href,
                 );
