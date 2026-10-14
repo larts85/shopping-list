@@ -133,6 +133,27 @@ try {
       "preview_lists.",
     ),
   );
+  const purchaseDetailsMigration = migrationNames.find((n) =>
+    n.includes("purchase_details_and_optional_price"),
+  );
+  assert.ok(purchaseDetailsMigration);
+  await db.exec(
+    readFileSync("supabase/migrations/" + purchaseDetailsMigration, "utf8").replaceAll(
+      "public.",
+      "preview_lists.",
+    ),
+  );
+  const exactPurchaseTotalMigration = migrationNames.find((n) =>
+    n.includes("preserve_exact_purchase_total"),
+  );
+  assert.ok(exactPurchaseTotalMigration);
+  await db.exec(
+    readFileSync("supabase/migrations/" + exactPurchaseTotalMigration, "utf8").replaceAll(
+      "public.",
+      "preview_lists.",
+    ),
+  );
+  checks++;
   const protection = (
     await db.query(
       "select relrowsecurity as rls, has_table_privilege('anon','preview_lists.list_name_suggestions','select') as anon_read, has_table_privilege('authenticated','preview_lists.list_name_suggestions','insert') as authenticated_write from pg_class where oid='preview_lists.list_name_suggestions'::regclass",
@@ -219,6 +240,133 @@ try {
     if (next.exitCode !== null) throw new Error(output);
     await new Promise((r) => setTimeout(r, 500));
   }
+  // Verify both purchase price modes against a disposable local PGlite fixture.
+  await db.query(
+    "insert into preview_lists.app_users(email,role) values($1,'admin') on conflict(email) do nothing",
+    [admin],
+  );
+  const unitPriceItemId = randomUUID();
+  const totalPriceItemId = randomUUID();
+  await db.query(
+    `insert into preview_lists.shopping_list(
+       id,household_id,id_product,cantidad,medida,precio,comprado,unit,
+       provisional_name,provisional_category_id,provisional_created_by,
+       provisional_available_units
+     ) values
+       ($1,$3,null,1,1,0,false,'un','Precio unitario regresión','old-category',$4,array['un']),
+       ($2,$3,null,1,1,0,false,'un','Precio total regresión','old-category',$4,array['un'])`,
+    [unitPriceItemId, totalPriceItemId, homeA, admin],
+  );
+  await req(
+    "/api/list/set-bought",
+    "PUT",
+    {
+      idList: unitPriceItemId,
+      cantidad: 3,
+      medida: 1,
+      precio: 12.34,
+      precioMode: "unit",
+      unit: "un",
+    },
+    admin,
+    200,
+    homeA,
+  );
+  await req(
+    "/api/list/set-bought",
+    "PUT",
+    {
+      idList: totalPriceItemId,
+      cantidad: 3,
+      medida: 1,
+      precio: 29.99,
+      precioMode: "total",
+      unit: "un",
+    },
+    admin,
+    200,
+    homeA,
+  );
+  const currency = (amount) =>
+    new Intl.NumberFormat("es-AR", {
+      style: "currency",
+      currency: "ARS",
+    }).format(amount);
+  const pricedList = await req(
+    "/api/list/get-list",
+    "GET",
+    undefined,
+    admin,
+    200,
+    homeA,
+  );
+  const unitPriced = pricedList.find((item) => item.id === unitPriceItemId);
+  const totalPriced = pricedList.find((item) => item.id === totalPriceItemId);
+  assert.equal(unitPriced.precioTotal, currency(37.02));
+  assert.equal(totalPriced.precioTotal, currency(29.99));
+  assert.ok(Math.abs(Number(totalPriced.precioValue) * 3 - 29.99) < 1e-9);
+  checks += 3;
+  await req(
+    "/api/list/item-details",
+    "PATCH",
+    {
+      id: totalPriceItemId,
+      description: "",
+      cantidad: 3,
+      unit: "un",
+      precio: Number(totalPriced.precioValue),
+    },
+    admin,
+    200,
+    homeA,
+  );
+  const detailsRefresh = await req(
+    "/api/list/get-list",
+    "GET",
+    undefined,
+    admin,
+    200,
+    homeA,
+  );
+  assert.equal(
+    detailsRefresh.find((item) => item.id === totalPriceItemId).precioTotal,
+    currency(29.99),
+  );
+  checks++;
+  const pricePurchase = await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [unitPriceItemId, totalPriceItemId] },
+    admin,
+    200,
+    homeA,
+  );
+  const priceHistory = await req(
+    "/api/historical/get-historical",
+    "GET",
+    undefined,
+    admin,
+    200,
+    homeA,
+  );
+  const unitSnapshot = priceHistory.items.find(
+    (item) => item.purchase.id_list === unitPriceItemId,
+  );
+  const totalSnapshot = priceHistory.items.find(
+    (item) => item.purchase.id_list === totalPriceItemId,
+  );
+  assert.equal(unitSnapshot.purchase.purchase_id, pricePurchase.purchaseId);
+  assert.equal(Number(unitSnapshot.purchase.precio_total), 37.02);
+  assert.equal(totalSnapshot.purchase.purchase_id, pricePurchase.purchaseId);
+  assert.equal(Number(totalSnapshot.purchase.precio_total), 29.99);
+  assert.ok(
+    Math.abs(Number(totalSnapshot.purchase.precio) * 3 - 29.99) < 1e-9,
+  );
+  checks += 5;
+  await db.query(
+    "delete from preview_lists.historical where purchase->>'purchase_id'=$1",
+    [pricePurchase.purchaseId],
+  );
   // Cart mutations must stay scoped and leave the global catalog untouched.
   const original = (
     await db.query(
@@ -559,7 +707,7 @@ try {
   await req(
     "/api/list/update-multiple-products",
     "PUT",
-    [{ id: list[0].id, cantidad: 1, medida: 1, precio: 0, unit: "lt" }],
+    [{ id: list[0].id, cantidad: 1, medida: 1, precio: 0, unit: "bad" }],
     user,
     400,
   );
@@ -923,6 +1071,10 @@ try {
     200,
     second,
   );
+  await db.query(
+    "delete from preview_lists.shopping_list where household_id=$1 and id_product=$2 and not comprado",
+    [second, newProduct.id],
+  );
   await req(
     "/api/historical/add-historical",
     "POST",
@@ -950,10 +1102,10 @@ try {
     200,
     second,
   );
-  assert.equal(
-    (await req("/api/list/get-list", "GET", undefined, user, 200, second))
-      .length,
-    1,
+  assert.ok(
+    (await req("/api/list/get-list", "GET", undefined, user, 200, second)).some(
+      (item) => item.id_product === newProduct.id,
+    ),
   );
   checks++;
   const ownerAfterAcceptance = await req(

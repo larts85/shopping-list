@@ -35,22 +35,30 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
   idCategory,
 }) => {
   const [unit, setUnit] = useState<Unit>(unitProduct);
-  const [availableUnits, setAvailableUnits] = useState<Unit[]>(availableUnitsProduct);
+  const [availableUnits, setAvailableUnits] = useState<Unit[]>(
+    availableUnitsProduct,
+  );
   const [newNameProduct, setNewNameProduct] = useState(nameProduct);
   const [categoryId, setCategoryId] = useState(idCategory);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const categoryName = categories.find((category) => category.id === categoryId)?.name ?? "";
+  const categoryName =
+    categories.find((category) => category.id === categoryId)?.name ?? "";
 
   const handleCategoryChange = (nextCategoryId: string) => {
-    const nextCategoryName = categories.find((category) => category.id === nextCategoryId)?.name ?? "";
+    const nextCategoryName =
+      categories.find((category) => category.id === nextCategoryId)?.name ?? "";
     setCategoryId(nextCategoryId);
     if (!isUnitAllowedForCategory(unit, nextCategoryName)) {
       setUnit("un");
       setAvailableUnits(["un"]);
     } else {
-      setAvailableUnits((current) => current.filter((value) => unitsForCategory(nextCategoryName).includes(value)));
+      setAvailableUnits((current) =>
+        current.filter((value) =>
+          unitsForCategory(nextCategoryName).includes(value),
+        ),
+      );
     }
   };
 
@@ -132,7 +140,9 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
           label="Categoría"
           value=""
           selectedValue={categoryId}
-          selectedLabel={categories.find((c) => c.id === categoryId)?.name ?? ""}
+          selectedLabel={
+            categories.find((c) => c.id === categoryId)?.name ?? ""
+          }
           options={categories.map((c) => ({ value: c.id, label: c.name }))}
           onChange={handleCategoryChange}
           onSelect={(option) => handleCategoryChange(option.value)}
@@ -140,20 +150,17 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
           required
           className="field mt-2"
         />
-        <label className="block text-sm font-medium">
-          Unidad de medida
-          <UnitSelect
-            value={unit}
-            options={unitsForCategory(categoryName)}
-            onChange={(value) => {
-              setUnit(value);
-              setAvailableUnits((current) =>
-                current.includes(value) ? current : [...current, value],
-              );
-            }}
-            disabled={isSubmitting}
-          />
-        </label>
+        <UnitSelect
+          value={unit}
+          options={unitsForCategory(categoryName)}
+          onChange={(value) => {
+            setUnit(value);
+            setAvailableUnits((current) =>
+              current.includes(value) ? current : [...current, value],
+            );
+          }}
+          disabled={isSubmitting}
+        />
         <AvailableUnitsField
           selected={availableUnits}
           onChange={setAvailableUnits}

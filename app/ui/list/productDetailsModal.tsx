@@ -84,17 +84,37 @@ export default function ProductDetailsModal({
         const result = await response.json().catch(() => null);
         throw new Error(result?.error || "No pudimos guardar los detalles.");
       }
+      const updatedPrice = bought
+        ? precio === ""
+          ? null
+          : Number(precio)
+        : item.precioValue ?? null;
+      const purchaseChanged =
+        bought &&
+        canManageList &&
+        (Number(cantidad) !== Number(item.cantidad) ||
+          unit !== (item.unit ?? item.productUnit ?? "un") ||
+          updatedPrice !== (item.precioValue ?? null));
+      const updatedPrecioTotal = purchaseChanged
+        ? updatedPrice === null
+          ? ""
+          : new Intl.NumberFormat("es-AR", {
+              style: "currency",
+              currency: "ARS",
+            }).format(Number(cantidad) * updatedPrice)
+        : item.precioTotal;
       onClose({
         ...item,
         description: trimmedDescription,
+        precioTotal: updatedPrecioTotal,
         ...(canEditPurchase
           ? {
               cantidad: cantidad.toString(),
               unit,
               ...(bought
                 ? {
-                    precio: precio === "" ? "" : precio,
-                    precioValue: precio === "" ? null : Number(precio),
+                    precio: updatedPrice === null ? "" : String(updatedPrice),
+                    precioValue: updatedPrice,
                   }
                 : {}),
             }
@@ -160,8 +180,8 @@ export default function ProductDetailsModal({
             Solo el propietario puede editar los datos de una compra registrada.
           </p>
         )}
-        <div className="mt-5 grid grid-cols-2 gap-4">
-          <label className="text-sm font-medium">
+        <div className="mt-5 grid grid-cols-2 items-start gap-4">
+          <label className="min-w-0 text-sm font-medium">
             Cantidad
             <input
               type="number"
@@ -174,18 +194,20 @@ export default function ProductDetailsModal({
               disabled={isSaving || !canEditPurchase}
             />
           </label>
-          <label className="text-sm font-medium">
+          <label className="min-w-0 text-sm font-medium">
             Unidad
             <UnitSelect
+              label="Unidad"
               value={unit}
               onChange={setUnit}
               options={options}
               disabled={isSaving || !canEditPurchase}
+              hideLabel
             />
           </label>
           {bought && (
             <label className="col-span-2 text-sm font-medium">
-              Precio por {unit} (opcional)
+              Precio por unidad de medida (opcional)
               <input
                 type="number"
                 min="0"

@@ -63,9 +63,13 @@ export async function getList(scope?: string): Promise<IList[]> {
       precio: r.precio == null ? "" : currency(Number(r.precio)),
       precioValue: r.precio == null ? null : Number(r.precio),
       precioTotal:
-        r.precio == null || r.cantidad == null
+        r.precio_total == null && (r.precio == null || r.cantidad == null)
           ? ""
-          : currency(Number(r.precio) * Number(r.cantidad)),
+          : currency(
+              r.precio_total == null
+                ? Number(r.precio) * Number(r.cantidad)
+                : Number(r.precio_total),
+            ),
       precioKg:
         r.precio == null || r.medida == null
           ? ""
@@ -91,9 +95,12 @@ export async function setBought(
   medida: number,
   precio: number | null,
   unit?: Unit,
+  precioMode: "unit" | "total" = "unit",
 ): Promise<void> {
   const values = purchaseValues(cantidad, medida, unit);
-  const price = precio == null ? null : positive(precio, true);
+  if (precioMode !== "unit" && precioMode !== "total")
+    throw new DataError("Modo de precio inválido");
+  const enteredPrice = precio == null ? null : positive(precio, true);
   await withListItemEditor(async (db, h) => {
     const product = await db.query(
       `select c.name as category_name
@@ -112,8 +119,10 @@ export async function setBought(
     requireRow(
       (
         await db.query(
-          `update shopping_list set cantidad=$3,medida=$4,precio=$5,comprado=true,
-             unit=coalesce($6,unit),
+          `update shopping_list set cantidad=$3,medida=$4,
+             precio=case when $5::numeric is null then null when $7::text='total' then $5::numeric/$3::numeric else $5::numeric end,
+             precio_total=case when $5::numeric is null then null when $7::text='total' then $5::numeric else $3::numeric*$5::numeric end,
+             comprado=true,unit=coalesce($6,unit),
              provisional_available_units=case when id_product is null and $6::text is not null
                then array[$6::text] else provisional_available_units end
            where household_id=$1 and id=$2`,
@@ -122,8 +131,9 @@ export async function setBought(
             text(id),
             values.cantidad,
             values.medida,
-            price,
+            enteredPrice,
             values.unit ?? null,
+            precioMode,
           ],
         )
       ).rowCount,
@@ -162,7 +172,7 @@ export async function updateListItemDetails(
 
   await withListItemEditor(async (db, h, email) => {
     const product = await db.query(
-      "select l.comprado,l.unit,p.unit product_unit,coalesce(p.available_units,l.provisional_available_units) available_units from shopping_list l left join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2 for update of l",
+      "select l.comprado,l.cantidad,l.precio,l.unit,p.unit product_unit,coalesce(p.available_units,l.provisional_available_units) available_units from shopping_list l left join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2 for update of l",
       [h, rowId],
     );
     requireRow(product.rowCount);
@@ -173,6 +183,17 @@ export async function updateListItemDetails(
     if (bought && hasCantidad && cantidad === null)
       throw new DataError("La cantidad comprada debe ser mayor que cero");
     const currentUnit = product.rows[0].unit ?? product.rows[0].product_unit;
+    const quantityChanged =
+      hasCantidad && Number(cantidad) !== Number(product.rows[0].cantidad);
+    const unitChanged = hasUnit && unit !== currentUnit;
+    const priceChanged =
+      hasPrice &&
+      (price === null
+        ? product.rows[0].precio !== null
+        : product.rows[0].precio === null ||
+          Number(price) !== Number(product.rows[0].precio));
+    const recalculateTotal =
+      bought && (quantityChanged || unitChanged || priceChanged);
     if (hasUnit && unit !== currentUnit)
       requireAvailableUnit(unit!, product.rows[0].available_units);
     if (hasPrice && !bought)
@@ -184,7 +205,12 @@ export async function updateListItemDetails(
           `update shopping_list set description=$3,
              cantidad=case when $4 then $5 else cantidad end,
              unit=case when $6 then $7 else unit end,
-             precio=case when $8 then $9 else precio end
+             precio=case when $8 then $9 else precio end,
+             precio_total=case when $10 then
+               case when (case when $8 then $9 else precio end) is null then null
+                 else (case when $4 then $5 else cantidad end)*
+                   (case when $8 then $9 else precio end) end
+               else precio_total end
            where household_id=$1 and id=$2`,
           [
             h,
@@ -196,6 +222,7 @@ export async function updateListItemDetails(
             unit,
             hasPrice,
             price,
+            recalculateTotal,
           ],
         )
       ).rowCount,

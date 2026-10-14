@@ -69,9 +69,12 @@ export default function AddProduct() {
 
   const handleCategorySearchChange = (categoryId: string) => {
     setSelectedCategoy(categoryId);
-    const categoryName = categories.find((category) => category.id === categoryId)?.name ?? "";
+    const categoryName =
+      categories.find((category) => category.id === categoryId)?.name ?? "";
     const allowedUnits = unitsForCategory(categoryName);
-    setAvailableUnits((current) => current.filter((availableUnit) => allowedUnits.includes(availableUnit)));
+    setAvailableUnits((current) =>
+      current.filter((availableUnit) => allowedUnits.includes(availableUnit)),
+    );
     if (!isUnitAllowedForCategory(unit, categoryName)) {
       setUnit("un");
       setAvailableUnits(["un"]);
@@ -270,18 +273,25 @@ export default function AddProduct() {
           label="Categoría"
           value=""
           selectedValue={selectedCategory}
-          selectedLabel={categories.find((c) => c.id === selectedCategory)?.name ?? ""}
+          selectedLabel={
+            categories.find((c) => c.id === selectedCategory)?.name ?? ""
+          }
           options={categories.map((c) => ({ value: c.id, label: c.name }))}
           onChange={handleCategorySearchChange}
           onSelect={(option) => {
             handleCategorySearchChange(option.value);
             if (!unitChosen) {
-              const suggestedUnit = suggestProductUnit(newProductName, option.label);
+              const suggestedUnit = suggestProductUnit(
+                newProductName,
+                option.label,
+              );
               setUnit(suggestedUnit);
               setAvailableUnits(compatibleUnits(suggestedUnit));
             }
           }}
-          placeholder={isLoading ? "Cargando categorías…" : "Selecciona una categoría"}
+          placeholder={
+            isLoading ? "Cargando categorías…" : "Selecciona una categoría"
+          }
           disabled={isSubmitting || isLoading}
           required
         />
@@ -301,29 +311,30 @@ export default function AddProduct() {
           placeholder="Ej.: Arroz, leche, jabón…"
           disabled={isSubmitting || !selectedCategory}
         />
-        <label className="text-sm font-medium">
-          Unidad de medida
-          <UnitSelect
-            value={unit}
-            options={unitsForCategory(
-              categories.find((category) => category.id === selectedCategory)?.name ?? "",
-            )}
-            onChange={(value) => {
-              setUnit(value);
-              setAvailableUnits((current) =>
-                current.includes(value) ? current : [...current, value],
-              );
-              setUnitChosen(true);
-            }}
-            disabled={isSubmitting}
-          />
-        </label>
+        <UnitSelect
+          value={unit}
+          options={unitsForCategory(
+            categories.find((category) => category.id === selectedCategory)
+              ?.name ?? "",
+          )}
+          onChange={(value) => {
+            setUnit(value);
+            setAvailableUnits((current) =>
+              current.includes(value) ? current : [...current, value],
+            );
+            setUnitChosen(true);
+          }}
+          disabled={isSubmitting}
+        />
         <div className="lg:col-span-2">
           <AvailableUnitsField
             selected={availableUnits}
             onChange={setAvailableUnits}
             requiredUnit={unit}
-            categoryName={categories.find((category) => category.id === selectedCategory)?.name ?? ""}
+            categoryName={
+              categories.find((category) => category.id === selectedCategory)
+                ?.name ?? ""
+            }
             disabled={isSubmitting}
           />
         </div>
@@ -396,8 +407,13 @@ export default function AddProduct() {
                   label="Cambiar categoría"
                   value=""
                   selectedValue={bulkCategoryId}
-                  selectedLabel={categories.find((c) => c.id === bulkCategoryId)?.name ?? ""}
-                  options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                  selectedLabel={
+                    categories.find((c) => c.id === bulkCategoryId)?.name ?? ""
+                  }
+                  options={categories.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                  }))}
                   onChange={setBulkCategoryId}
                   onSelect={(option) => setBulkCategoryId(option.value)}
                   disabled={bulkBusy}
@@ -416,7 +432,14 @@ export default function AddProduct() {
               <AvailableUnitsField
                 selected={bulkUnits}
                 onChange={setBulkUnits}
-                categoryName={categories.find((category) => category.id === bulkCategoryId)?.name ?? categories.find((category) => category.id === selectedCategory)?.name ?? ""}
+                categoryName={
+                  categories.find((category) => category.id === bulkCategoryId)
+                    ?.name ??
+                  categories.find(
+                    (category) => category.id === selectedCategory,
+                  )?.name ??
+                  ""
+                }
                 disabled={bulkBusy}
               />
               <div className="flex flex-wrap gap-3">
@@ -467,12 +490,15 @@ export default function AddProduct() {
                 <span className="min-w-0 break-words text-sm font-medium">
                   {product.name}
                   {(() => {
-                    const available =
-                      product.availableUnits ?? [product.unit ?? "un"];
+                    const available = product.availableUnits ?? [
+                      product.unit ?? "un",
+                    ];
                     return (
                       <span
                         className="ml-2 text-xs font-normal text-zinc-500"
-                        title={available.map((unit) => unitLabels[unit]).join(" / ")}
+                        title={available
+                          .map((unit) => unitLabels[unit])
+                          .join(" / ")}
                         aria-label={`Unidades disponibles: ${available
                           .map((unit) => unitLabels[unit])
                           .join(" / ")}`}
