@@ -15,6 +15,7 @@ import {
 import type { getHomeLists } from "@/app/actions/households";
 import CreateListModal from "./createListModal";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
+import ConfirmModal from "@/shared/components/ui/ConfirmModal";
 import { RiArrowRightLine, RiDeleteBin6Line } from "react-icons/ri";
 type Data = Awaited<ReturnType<typeof getHomeLists>>;
 export default function HomeLists({ defaultName }: { defaultName: string }) {
@@ -24,6 +25,7 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
   const [attempt, setAttempt] = useState(0);
   const [deletingId, setDeletingId] = useState("");
   const [deleteError, setDeleteError] = useState("");
+  const [listToDelete, setListToDelete] = useState<Data["lists"][number] | null>(null);
   const [respondingId, setRespondingId] = useState("");
   const [notificationError, setNotificationError] = useState("");
   const router = useRouter();
@@ -61,13 +63,7 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
     data?.lists.filter((list) => list.owner_email === data.email) || [];
   const shared =
     data?.lists.filter((list) => list.owner_email !== data.email) || [];
-  async function deleteList(list: Data["lists"][number]) {
-    if (
-      !window.confirm(
-        `¿Eliminar la lista “${list.name}”? Se borrarán sus compras, historial e invitaciones. Esta acción no se puede deshacer.`,
-      )
-    )
-      return;
+  async function deleteList(list: Data["lists"][number]): Promise<boolean> {
     setDeletingId(list.id);
     setDeleteError("");
     try {
@@ -96,12 +92,14 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
         router.push("/");
         router.refresh();
       }
+      return true;
     } catch (error) {
       setDeleteError(
         error instanceof Error
           ? error.message
           : "No pudimos eliminar la lista.",
       );
+      return false;
     } finally {
       setDeletingId("");
     }
@@ -216,7 +214,7 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
                     type="button"
                     className="btn-secondary text-red-700 hover:bg-red-50"
                     disabled={!!deletingId}
-                    onClick={() => void deleteList(list)}
+                    onClick={() => setListToDelete(list)}
                   >
                     {deletingId === list.id ? "Eliminando…" : "Eliminar"}
                   </button>
@@ -237,7 +235,7 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
                           icon: RiDeleteBin6Line,
                           destructive: true,
                           disabled: !!deletingId,
-                          onSelect: () => void deleteList(list),
+                          onSelect: () => setListToDelete(list),
                         },
                       ]
                     : []),
@@ -441,6 +439,27 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
           onClose={() => setOpen(false)}
         />
       )}
+      <ConfirmModal
+        isOpen={!!listToDelete}
+        title="Eliminar lista"
+        message={
+          listToDelete
+            ? `¿Eliminar la lista “${listToDelete.name}”? Se borrarán sus compras, historial e invitaciones. Esta acción no se puede deshacer.`
+            : ""
+        }
+        confirmLabel="Eliminar lista"
+        destructive
+        busy={!!deletingId}
+        onClose={() => {
+          if (!deletingId) setListToDelete(null);
+        }}
+        onConfirm={() => {
+          if (listToDelete)
+            void deleteList(listToDelete).then((deleted) => {
+              if (deleted) setListToDelete(null);
+            });
+        }}
+      />
     </div>
   );
 }

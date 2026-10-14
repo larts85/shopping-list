@@ -10,6 +10,7 @@ import {
 } from "react-icons/ri";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
 import Modal from "@/shared/components/ui/Modal";
+import ConfirmModal from "@/shared/components/ui/ConfirmModal";
 import { completedPurchaseName } from "@/app/lib/completedPurchase";
 import BoughtListModal from "./boughtModal";
 import ProductDetailsModal from "./productDetailsModal";
@@ -47,6 +48,10 @@ export default function List() {
   const [movePrompt, setMovePrompt] = useState<{
     target: { itemId?: string; categoryId?: string };
     name: string;
+  } | null>(null);
+  const [removeConfirmation, setRemoveConfirmation] = useState<{
+    target: { productId?: string; categoryId?: string };
+    message: string;
   } | null>(null);
   const [moveTargets, setMoveTargets] = useState<MoveTarget[]>([]);
   const [moveDestination, setMoveDestination] = useState("");
@@ -519,7 +524,7 @@ export default function List() {
     const message = target.categoryId
       ? `¿Eliminar la categoría ${name} de este carrito? Se eliminarán todos sus artículos de este carrito. La categoría y los productos del catálogo global y de otros carritos se conservan.`
       : `¿Eliminar ${name} de este carrito? El producto se conserva en el catálogo y en otros carritos.`;
-    if (window.confirm(message)) void mutateCart("DELETE", target);
+    setRemoveConfirmation({ target, message });
   };
 
   const handleOpenModal = (list: IList) => {
@@ -1209,6 +1214,21 @@ export default function List() {
           </div>
         </Modal>
       )}
+      <ConfirmModal
+        isOpen={!!removeConfirmation}
+        title="Eliminar del carrito"
+        message={removeConfirmation?.message ?? ""}
+        confirmLabel="Eliminar"
+        destructive
+        busy={isLoading}
+        onClose={() => setRemoveConfirmation(null)}
+        onConfirm={() => {
+          if (!removeConfirmation) return;
+          const { target } = removeConfirmation;
+          setRemoveConfirmation(null);
+          void mutateCart("DELETE", target);
+        }}
+      />
       {movePrompt && (
         <Modal
           isOpen
