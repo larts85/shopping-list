@@ -136,17 +136,16 @@ export default function List() {
     setIsLoading(true);
     setError("");
     try {
-      const [data, pageResponse] = await Promise.all([
-        getHouseholdData(getActiveListId()),
-        listFetch("/api/list/page-data", { method: "GET" }),
-      ]);
+      const pageResponse = await listFetch("/api/list/page-data", {
+        method: "GET",
+      });
       if (!pageResponse.ok) throw new Error("Error fetching list data");
       const pageData = await pageResponse.json();
       if (startedAtRevision !== revision.current) return;
-      setActiveListId(data.household.id);
-      setCanEditList(data.canEditList);
-      setCanManageList(data.canManageList);
-      setHouseholdName(data.household.name);
+      setActiveListId(pageData.household.id);
+      setCanEditList(pageData.canEditList);
+      setCanManageList(pageData.canManageList);
+      setHouseholdName(pageData.household.name);
       setList(pageData.list);
       setCategories(pageData.categories);
     } catch {

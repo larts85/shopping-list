@@ -241,11 +241,14 @@ export async function getListProductsByCategories(): Promise<
   );
 }
 export async function getListPageData(scope?: string): Promise<{
+  household: { id: string; name: string };
+  canEditList: boolean;
+  canManageList: boolean;
   list: Record<string, IList[]>;
   categories: Category[];
 }> {
-  return withHousehold(async (db, household) => {
-    const [listRows, categoryRows] = await Promise.all([
+  return withHousehold(async (db, household, email) => {
+    const [listRows, categoryRows, householdRows] = await Promise.all([
       db.query(
         `select l.*,coalesce(p.name,l.provisional_name) name,
           coalesce(p.id_category,l.provisional_category_id) id_category,
@@ -262,6 +265,10 @@ export async function getListPageData(scope?: string): Promise<{
       ),
       db.query(
         "select id,name from catalog_categories where not archived order by name,id",
+      ),
+      db.query(
+        "select id,name,(owner_email=$2) as is_owner from households where id=$1",
+        [household, email],
       ),
     ]);
     const currency = (n: number) =>
@@ -305,6 +312,12 @@ export async function getListPageData(scope?: string): Promise<{
       catalogRequestStatus: r.catalog_request_status,
     }));
     return {
+      household: {
+        id: householdRows.rows[0].id,
+        name: householdRows.rows[0].name,
+      },
+      canEditList: true,
+      canManageList: householdRows.rows[0].is_owner,
       list: grouped.reduce(
         (a, product) => {
           (a[product.id_category] ||= []).push(product);
