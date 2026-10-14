@@ -5,10 +5,12 @@ import {
   text,
   DataError,
   requireRow,
+  ensureHousehold,
 } from "../lib/database";
 import type { PoolClient } from "pg";
 import {
   compatibleUnits,
+  isUnitAllowedForCategory,
   isUnit,
   isValidAvailableUnits,
   type Unit,
@@ -32,9 +34,14 @@ export interface CatalogRequest {
   created_at: string;
   result_id: string | null;
 }
+export interface CatalogRequestSubmissionResult {
+  kind: CatalogRequestInput["kind"];
+  addedToList: boolean;
+}
 export async function submitCatalogRequest(
   input: CatalogRequestInput,
-): Promise<void> {
+  scope?: string,
+): Promise<CatalogRequestSubmissionResult> {
   if (!input || !["category", "product"].includes(input.kind))
     throw new DataError("Solicitud inválida");
   const name = text(input.name),
@@ -42,17 +49,22 @@ export async function submitCatalogRequest(
   if (note.length > 200) throw new DataError("Nota demasiado larga");
   if (input.kind === "product" && !isUnit(input.unit))
     throw new DataError("Unidad inválida");
-  await withCatalog(async (db, email) => {
+  return withCatalog(async (db, email) => {
     const category = input.kind === "product" ? text(input.categoryId) : null;
-    if (category)
-      requireRow(
-        (
-          await db.query(
-            "select 1 from catalog_categories where id=$1 and not archived",
-            [category],
-          )
-        ).rowCount,
+    if (category) {
+      const categoryResult = await db.query(
+        "select name from catalog_categories where id=$1 and not archived",
+        [category],
       );
+      requireRow(categoryResult.rowCount);
+      if (
+        input.unit &&
+        !isUnitAllowedForCategory(input.unit, categoryResult.rows[0].name)
+      )
+        throw new DataError(
+          "Los comprimidos solo están disponibles en Farmacia",
+        );
+    }
     const created = await db.query(
       "insert into catalog_requests(email,kind,name,category_id,unit,note) values($1,$2,$3,$4,$5,$6) returning id",
       [
@@ -66,13 +78,106 @@ export async function submitCatalogRequest(
     );
     if (input.kind === "product") {
       await db.query(
-        `update shopping_list set catalog_request_id=$1
-         where id_product is null and catalog_request_id is null
-           and provisional_category_id=$2
-           and lower(trim(provisional_name))=lower(trim($3))`,
-        [created.rows[0].id, category, name],
+        `update shopping_list l set catalog_request_id=$1
+         where l.id_product is null and l.catalog_request_id is null
+           and l.provisional_category_id=$2
+           and lower(trim(l.provisional_name))=lower(trim($3))
+           and exists (
+             select 1 from household_members m
+             where m.household_id=l.household_id and m.email=$4
+           )`,
+        [created.rows[0].id, category, name, email],
       );
+
+      let householdId: string;
+      if (scope !== undefined) {
+        householdId = text(scope).toLowerCase();
+        if (
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            householdId,
+          )
+        )
+          throw new DataError("Lista inválida");
+        requireRow(
+          (
+            await db.query(
+              "select 1 from household_members where household_id=$1 and email=$2",
+              [householdId, email],
+            )
+          ).rowCount,
+        );
+      } else {
+        try {
+          householdId = await ensureHousehold(db, email);
+        } catch (error) {
+          if (error instanceof DataError && error.status === 409)
+            return { kind: input.kind, addedToList: false };
+          throw error;
+        }
+      }
+      await db.query("select pg_advisory_xact_lock(hashtextextended($1,1))", [
+        householdId,
+      ]);
+
+      const catalogProduct = await db.query(
+        `select id,unit,available_units from catalog_products
+         where lower(trim(name))=lower(trim($1)) and id_category=$2 and not archived
+         order by id limit 1 for update`,
+        [name, category],
+      );
+      if (
+        catalogProduct.rowCount &&
+        catalogProduct.rows[0].available_units.includes(input.unit)
+      ) {
+        const productId = catalogProduct.rows[0].id as string;
+        await db.query(
+          "insert into list_selections(household_id,product_id,checked) values($1,$2,true) on conflict(household_id,product_id) do update set checked=true",
+          [householdId, productId],
+        );
+        await db.query(
+          `insert into shopping_list(household_id,id_product,cantidad,medida,precio,comprado,unit)
+           values($1,$2,1,1,0,false,$3) on conflict(household_id,id_product)
+           do update set comprado=false,precio=0`,
+          [householdId, productId, input.unit],
+        );
+        return { kind: input.kind, addedToList: true };
+      }
+
+      const provisional = await db.query(
+        `select id from shopping_list
+         where household_id=$1 and id_product is null
+           and provisional_category_id=$2
+           and lower(trim(provisional_name))=lower(trim($3)) for update`,
+        [householdId, category, name],
+      );
+      if (provisional.rowCount) {
+        await db.query(
+          `update shopping_list set catalog_request_id=coalesce(catalog_request_id,$3),
+             comprado=false,precio=0
+           where household_id=$1 and id=$2`,
+          [householdId, provisional.rows[0].id, created.rows[0].id],
+        );
+      } else {
+        await db.query(
+          `insert into shopping_list(
+             household_id,id_product,cantidad,medida,precio,comprado,unit,
+             provisional_name,provisional_category_id,provisional_created_by,
+             provisional_available_units,catalog_request_id
+           ) values($1,null,1,1,0,false,$2,$3,$4,$5,$6,$7)`,
+          [
+            householdId,
+            input.unit,
+            name,
+            category,
+            email,
+            compatibleUnits(input.unit!),
+            created.rows[0].id,
+          ],
+        );
+      }
+      return { kind: input.kind, addedToList: true };
     }
+    return { kind: input.kind, addedToList: false };
   });
 }
 export async function getCatalogRequests(): Promise<CatalogRequest[]> {
@@ -144,14 +249,18 @@ async function reviewCatalogRequestInTransaction(
           )
         ).rows[0].id;
     } else {
-      requireRow(
-        (
-          await db.query(
-            "select 1 from catalog_categories where id=$1 and not archived",
-            [request.category_id],
-          )
-        ).rowCount,
+      const requestCategory = await db.query(
+        "select name from catalog_categories where id=$1 and not archived",
+        [request.category_id],
       );
+      requireRow(requestCategory.rowCount);
+      if (
+        isUnit(request.unit) &&
+        !isUnitAllowedForCategory(request.unit, requestCategory.rows[0].name)
+      )
+        throw new DataError(
+          "Los comprimidos solo están disponibles en Farmacia",
+        );
       const existing = await db.query(
         "select id,unit,available_units from catalog_products where lower(trim(name))=lower(trim($1)) and id_category=$2 and not archived order by id limit 1 for update",
         [request.name, request.category_id],

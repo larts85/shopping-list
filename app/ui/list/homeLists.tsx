@@ -2,9 +2,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { clearActiveListId, getActiveListId } from "@/app/lib/listClient";
+import {
+  clearActiveListId,
+  getActiveListId,
+  setActiveListId,
+} from "@/app/lib/listClient";
 import type { getHomeLists } from "@/app/actions/households";
 import CreateListModal from "./createListModal";
+import ActionMenu from "@/shared/components/ui/ActionMenu";
+import { RiArrowRightLine, RiDeleteBin6Line } from "react-icons/ri";
 type Data = Awaited<ReturnType<typeof getHomeLists>>;
 export default function HomeLists({ defaultName }: { defaultName: string }) {
   const [data, setData] = useState<Data>();
@@ -91,6 +97,11 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
       setDeletingId("");
     }
   }
+  function openList(list: Data["lists"][number]) {
+    setActiveListId(list.id);
+    window.dispatchEvent(new Event("active-list-changed"));
+    router.push(`/lists/${list.slug}`);
+  }
   function cards(lists: Data["lists"]) {
     return (
       <div className="grid gap-4 sm:grid-cols-2">
@@ -100,11 +111,15 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
               <h3 className="min-w-0 break-words text-lg font-semibold">
                 {list.name}
               </h3>
-              <div className="flex shrink-0 gap-2">
+              <div className="hidden shrink-0 gap-2 md:flex">
                 <Link
                   href={`/lists/${list.slug}`}
                   className="btn-secondary"
                   aria-label={`Abrir ${list.name}`}
+                  onClick={() => {
+                    setActiveListId(list.id);
+                    window.dispatchEvent(new Event("active-list-changed"));
+                  }}
                 >
                   Abrir
                 </Link>
@@ -119,6 +134,27 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
                   </button>
                 )}
               </div>
+              <ActionMenu
+                label={`Acciones para la lista ${list.name}`}
+                items={[
+                  {
+                    label: "Abrir lista",
+                    icon: RiArrowRightLine,
+                    onSelect: () => openList(list),
+                  },
+                  ...(list.owner_email === data?.email
+                    ? [
+                        {
+                          label: "Eliminar lista",
+                          icon: RiDeleteBin6Line,
+                          destructive: true,
+                          disabled: !!deletingId,
+                          onSelect: () => void deleteList(list),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
             </div>
             <p className="text-sm text-zinc-500">
               {list.owner_email === data?.email

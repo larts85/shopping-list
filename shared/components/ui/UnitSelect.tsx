@@ -1,10 +1,10 @@
-import { units, unitLabels, type Unit } from "@/app/lib/units";
+import { unitLabels, unitsForCategory, type Unit } from "@/app/lib/units";
 import Autocomplete from "@/shared/components/ui/Autocomplete";
 
 export default function UnitSelect({
   value,
   onChange,
-  options = units,
+  options = unitsForCategory(),
   label = "Unidad de medida",
   disabled = false,
   compact = false,

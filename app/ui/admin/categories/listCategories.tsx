@@ -5,6 +5,7 @@ import { BiEditAlt } from "react-icons/bi";
 import { RiDeleteBin6Line } from "react-icons/ri";
 import EditCategoryModal from "./editCategoryModal";
 import DeleteCategoryModal from "./deleteCategoryModal";
+import ActionMenu from "@/shared/components/ui/ActionMenu";
 import {
   Card,
   CardHeader,
@@ -124,7 +125,7 @@ export default function ListCategories() {
                     </span>
                   </div>
 
-                  <div className="flex shrink-0 items-center space-x-2">
+                  <div className="hidden shrink-0 items-center space-x-2 md:flex">
                     <Button
                       variant={ButtonVariant.GHOST}
                       onClick={() => handleOpenEditModal(category)}
@@ -145,6 +146,22 @@ export default function ListCategories() {
                       <RiDeleteBin6Line size={16} />
                     </Button>
                   </div>
+                  <ActionMenu
+                    label={`Acciones para la categoría ${category.name}`}
+                    items={[
+                      {
+                        label: "Editar categoría",
+                        icon: BiEditAlt,
+                        onSelect: () => handleOpenEditModal(category),
+                      },
+                      {
+                        label: "Eliminar categoría",
+                        icon: RiDeleteBin6Line,
+                        destructive: true,
+                        onSelect: () => handleOpenDeleteModal(category),
+                      },
+                    ]}
+                  />
                 </div>
               ))}
             </div>
