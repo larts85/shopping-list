@@ -17,6 +17,7 @@ import {
   isUnit,
   isUnitAllowedForCategory,
   isValidAvailableUnits,
+  unitsForCategory,
   type Unit,
 } from "../lib/units";
 import type { IList } from "../lib/types";
@@ -33,12 +34,14 @@ export async function getList(scope?: string): Promise<IList[]> {
     const { rows } = await db.query(
       `select l.*,coalesce(p.name,l.provisional_name) name,
         coalesce(p.id_category,l.provisional_category_id) id_category,
+        c.name as category_name,
         p.unit as product_unit,
         coalesce(p.available_units,l.provisional_available_units) available_units,
         l.id_product is null is_provisional,l.provisional_created_by,
         cr.email catalog_request_email,cr.status catalog_request_status
        from shopping_list l
        left join catalog_products p on p.id=l.id_product
+       left join catalog_categories c on c.id=coalesce(p.id_category,l.provisional_category_id)
        left join catalog_requests cr on cr.id=l.catalog_request_id
        where l.household_id=$1 order by name,l.id`,
       [h],
@@ -71,7 +74,7 @@ export async function getList(scope?: string): Promise<IList[]> {
       comprado: r.comprado ? "1" : "",
       unit: r.unit ?? r.product_unit,
       productUnit: r.product_unit ?? r.unit ?? "un",
-      availableUnits: r.available_units,
+      availableUnits: unitsForCategory(r.category_name ?? ""),
       isProvisional: r.is_provisional,
       createdBy: r.provisional_created_by,
       catalogRequestEmail: r.catalog_request_email,
@@ -90,16 +93,27 @@ export async function setBought(
   const price = positive(precio, true);
   await withListEditor(async (db, h) => {
     const product = await db.query(
-      "select coalesce(p.available_units,l.provisional_available_units) available_units from shopping_list l left join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2",
+      `select c.name as category_name
+       from shopping_list l
+       left join catalog_products p on p.id=l.id_product
+       left join catalog_categories c on c.id=coalesce(p.id_category,l.provisional_category_id)
+       where l.household_id=$1 and l.id=$2`,
       [h, text(id)],
     );
     requireRow(product.rowCount);
-    if (values.unit)
-      requireAvailableUnit(values.unit, product.rows[0].available_units);
+    if (
+      values.unit &&
+      !isUnitAllowedForCategory(values.unit, product.rows[0].category_name ?? "")
+    )
+      throw new DataError("La unidad no está disponible para esta categoría");
     requireRow(
       (
         await db.query(
-          "update shopping_list set cantidad=$3,medida=$4,precio=$5,comprado=true,unit=coalesce($6,unit) where household_id=$1 and id=$2",
+          `update shopping_list set cantidad=$3,medida=$4,precio=$5,comprado=true,
+             unit=coalesce($6,unit),
+             provisional_available_units=case when id_product is null and $6::text is not null
+               then array[$6::text] else provisional_available_units end
+           where household_id=$1 and id=$2`,
           [
             h,
             text(id),
@@ -153,7 +167,11 @@ export async function updateMultipleProducts(
   await withListItemEditor(async (db, h) => {
     for (const p of validated) {
       const product = await db.query(
-        "select l.comprado,coalesce(p.available_units,l.provisional_available_units) available_units from shopping_list l left join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2",
+        `select l.comprado,c.name as category_name
+         from shopping_list l
+         left join catalog_products p on p.id=l.id_product
+         left join catalog_categories c on c.id=coalesce(p.id_category,l.provisional_category_id)
+         where l.household_id=$1 and l.id=$2`,
         [h, p.id],
       );
       requireRow(product.rowCount);
@@ -161,11 +179,18 @@ export async function updateMultipleProducts(
         throw new DataError(
           "Registra nuevamente la compra para cambiar sus cantidades",
         );
-      if (p.unit) requireAvailableUnit(p.unit, product.rows[0].available_units);
+      if (
+        p.unit &&
+        !isUnitAllowedForCategory(p.unit, product.rows[0].category_name ?? "")
+      )
+        throw new DataError("La unidad no está disponible para esta categoría");
       requireRow(
         (
           await db.query(
-            "update shopping_list set cantidad=$3,medida=$4,unit=coalesce($5,unit) where household_id=$1 and id=$2",
+            `update shopping_list set cantidad=$3,medida=$4,unit=coalesce($5,unit),
+               provisional_available_units=case when id_product is null and $5::text is not null
+                 then array[$5::text] else provisional_available_units end
+             where household_id=$1 and id=$2`,
             [h, p.id, p.cantidad, p.medida, p.unit ?? null],
           )
         ).rowCount,
