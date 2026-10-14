@@ -6,6 +6,7 @@ import {
   getCatalogRequests,
   submitCatalogRequest,
   reviewCatalogRequest,
+  reviewCatalogRequests,
   type CatalogRequest,
 } from "@/app/actions/catalogRequests";
 import type { Category } from "@/app/lib/types";
@@ -24,6 +25,7 @@ export default function CatalogRequests() {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
+  const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   async function load() {
     const [user, cats, items] = await Promise.all([
       getCurrentUser(),
@@ -33,26 +35,40 @@ export default function CatalogRequests() {
     setRole(user.role);
     setCategories(cats);
     setRequests(items);
+    setSelectedRequestIds((current) =>
+      current.filter((id) =>
+        items.some((item) => item.id === id && item.status === "pending"),
+      ),
+    );
   }
   useEffect(() => {
     void load().catch(() =>
       setError("No pudimos cargar el catálogo y sus solicitudes."),
     );
   }, []);
-  async function run(action: () => Promise<void>) {
+  async function run(
+    action: () => Promise<void>,
+    successMessage = "Solicitud guardada.",
+  ) {
     setBusy(true);
     setError("");
     setMessage("");
     try {
       await action();
       await load();
-      setMessage("Solicitud guardada.");
+      setMessage(successMessage);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar.");
     } finally {
       setBusy(false);
     }
   }
+  const pendingRequests = requests.filter(
+    (request) => request.status === "pending",
+  );
+  const allPendingSelected =
+    pendingRequests.length > 0 &&
+    pendingRequests.every((request) => selectedRequestIds.includes(request.id));
   return (
     <section className="panel space-y-5" aria-label="Solicitudes del catálogo">
       <h2 className="text-xl font-semibold">
@@ -123,8 +139,13 @@ export default function CatalogRequests() {
                   label="Categoría"
                   value=""
                   selectedValue={categoryId}
-                  selectedLabel={categories.find((c) => c.id === categoryId)?.name ?? ""}
-                  options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                  selectedLabel={
+                    categories.find((c) => c.id === categoryId)?.name ?? ""
+                  }
+                  options={categories.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                  }))}
                   onChange={setCategoryId}
                   onSelect={(option) => setCategoryId(option.value)}
                   placeholder="Selecciona una categoría"
@@ -150,10 +171,84 @@ export default function CatalogRequests() {
         </form>
       )}
       <h3 className="text-lg font-semibold">Historial de solicitudes</h3>
+      {role === "admin" && pendingRequests.length > 0 && (
+        <div className="space-y-3 rounded-xl border border-zinc-200 p-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={allPendingSelected}
+              disabled={busy}
+              onChange={(event) =>
+                setSelectedRequestIds(
+                  event.target.checked
+                    ? pendingRequests.map((request) => request.id)
+                    : [],
+                )
+              }
+            />
+            Seleccionar solicitudes pendientes visibles (
+            {pendingRequests.length})
+          </label>
+          {selectedRequestIds.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="mr-auto text-sm font-medium">
+                {selectedRequestIds.length} solicitudes seleccionadas
+              </p>
+              <button
+                className="btn-primary"
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    () => reviewCatalogRequests(selectedRequestIds, "approve"),
+                    `${selectedRequestIds.length} solicitudes aprobadas.`,
+                  )
+                }
+              >
+                {busy ? "Guardando…" : "Aprobar seleccionadas"}
+              </button>
+              <button
+                className="btn-secondary"
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    () => reviewCatalogRequests(selectedRequestIds, "reject"),
+                    `${selectedRequestIds.length} solicitudes rechazadas.`,
+                  )
+                }
+              >
+                {busy ? "Guardando…" : "Rechazar seleccionadas"}
+              </button>
+              <button
+                className="btn-secondary"
+                disabled={busy}
+                onClick={() => setSelectedRequestIds([])}
+              >
+                Limpiar selección
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       <ul className="divide-y divide-zinc-200">
         {requests.map((r) => (
           <li key={r.id} className="py-4 space-y-2">
             <p>
+              {role === "admin" && r.status === "pending" && (
+                <input
+                  type="checkbox"
+                  aria-label={`Seleccionar solicitud de ${r.name}`}
+                  className="mr-2"
+                  checked={selectedRequestIds.includes(r.id)}
+                  disabled={busy}
+                  onChange={(event) =>
+                    setSelectedRequestIds((current) =>
+                      event.target.checked
+                        ? [...new Set([...current, r.id])]
+                        : current.filter((id) => id !== r.id),
+                    )
+                  }
+                />
+              )}
               <strong>
                 {r.kind === "category" ? "Categoría" : "Producto"}: {r.name}
               </strong>{" "}
@@ -183,7 +278,10 @@ export default function CatalogRequests() {
                   className="btn-primary"
                   disabled={busy}
                   onClick={() =>
-                    void run(() => reviewCatalogRequest(r.id, "approve"))
+                    void run(
+                      () => reviewCatalogRequest(r.id, "approve"),
+                      "Solicitud aprobada.",
+                    )
                   }
                 >
                   Aprobar
@@ -192,7 +290,10 @@ export default function CatalogRequests() {
                   className="btn-secondary"
                   disabled={busy}
                   onClick={() =>
-                    void run(() => reviewCatalogRequest(r.id, "reject"))
+                    void run(
+                      () => reviewCatalogRequest(r.id, "reject"),
+                      "Solicitud rechazada.",
+                    )
                   }
                 >
                   Rechazar
