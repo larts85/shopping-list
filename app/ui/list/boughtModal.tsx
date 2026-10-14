@@ -243,3 +243,5 @@ const BoughtListModal: React.FC<ListModalProps> = ({
 };
 
 export default BoughtListModal;
+
+BoughtListModal.displayName = 'BoughtListModal';

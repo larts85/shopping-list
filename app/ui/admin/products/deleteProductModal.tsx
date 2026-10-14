@@ -74,3 +74,5 @@ const DeleteProductModal: React.FC<DeleteProductModalProps> = ({
   );
 };
 export default DeleteProductModal;
+
+DeleteProductModal.displayName = 'DeleteProductModal';

@@ -24,3 +24,5 @@ export default function RedirectToActiveList() {
 
   return <p role="status">Abriendo tu lista activa…</p>;
 }
+
+RedirectToActiveList.displayName = 'RedirectToActiveList';

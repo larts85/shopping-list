@@ -32,3 +32,5 @@ export default function AdminGuard({
   }, [router]);
   return allowed ? children : <p role="status">Comprobando permisos…</p>;
 }
+
+AdminGuard.displayName = 'AdminGuard';

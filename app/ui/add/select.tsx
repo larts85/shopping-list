@@ -542,3 +542,5 @@ export default function Select({ listName, onAdded }: SelectProps) {
     </div>
   );
 }
+
+Select.displayName = 'Select';

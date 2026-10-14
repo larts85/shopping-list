@@ -1077,22 +1077,6 @@ export default function List() {
                         </button>
                         <button
                           type="button"
-                          className="flex size-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={
-                            !canEditList ||
-                            isLoading ||
-                            purchaseBusy ||
-                            !!purchaseConfirmation ||
-                            pendingSaveCount > 0
-                          }
-                          aria-label={`Ver o editar detalles de ${product.name}`}
-                          onClick={() => openDetailsModal(product)}
-                          title={`Ver o editar detalles de ${product.name}`}
-                        >
-                          <RiMore2Fill aria-hidden="true" size={20} />
-                        </button>
-                        <button
-                          type="button"
                           className="flex size-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={
                             !canEditList ||
@@ -1108,6 +1092,22 @@ export default function List() {
                           title={`Eliminar ${product.name} de este carrito`}
                         >
                           <RiDeleteBin6Line aria-hidden="true" size={20} />
+                        </button>
+                        <button
+                          type="button"
+                          className="flex size-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={
+                            !canEditList ||
+                            isLoading ||
+                            purchaseBusy ||
+                            !!purchaseConfirmation ||
+                            pendingSaveCount > 0
+                          }
+                          aria-label={`Ver o editar detalles de ${product.name}`}
+                          onClick={() => openDetailsModal(product)}
+                          title={`Ver o editar detalles de ${product.name}`}
+                        >
+                          <RiMore2Fill aria-hidden="true" size={20} />
                         </button>
                       </div>
                       <ActionMenu
@@ -1130,17 +1130,6 @@ export default function List() {
                               ),
                           },
                           {
-                            label: "Ver o editar detalles",
-                            icon: RiMore2Fill,
-                            disabled:
-                              !canEditList ||
-                              isLoading ||
-                              purchaseBusy ||
-                              !!purchaseConfirmation ||
-                              pendingSaveCount > 0,
-                            onSelect: () => openDetailsModal(product),
-                          },
-                          {
                             label: "Eliminar del carrito",
                             icon: RiDeleteBin6Line,
                             destructive: true,
@@ -1155,6 +1144,17 @@ export default function List() {
                                 { productId: product.id },
                                 product.name,
                               ),
+                          },
+                          {
+                            label: "Ver o editar detalles",
+                            icon: RiMore2Fill,
+                            disabled:
+                              !canEditList ||
+                              isLoading ||
+                              purchaseBusy ||
+                              !!purchaseConfirmation ||
+                              pendingSaveCount > 0,
+                            onSelect: () => openDetailsModal(product),
                           },
                         ]}
                       />
@@ -1365,3 +1365,5 @@ export default function List() {
     </div>
   );
 }
+
+List.displayName = 'List';

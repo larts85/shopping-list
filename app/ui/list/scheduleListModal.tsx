@@ -122,3 +122,5 @@ export default function ScheduleListModal({
     </Modal>
   );
 }
+
+ScheduleListModal.displayName = 'ScheduleListModal';

@@ -167,3 +167,5 @@ export default function Autocomplete({
     </div>
   );
 }
+
+Autocomplete.displayName = 'Autocomplete';

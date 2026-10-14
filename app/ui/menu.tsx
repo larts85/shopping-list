@@ -57,3 +57,5 @@ export default async function Menu() {
     </header>
   );
 }
+
+Menu.displayName = 'Menu';

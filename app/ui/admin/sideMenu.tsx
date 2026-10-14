@@ -9,3 +9,5 @@ export default function SideMenu() {
     </aside>
   );
 }
+
+SideMenu.displayName = 'SideMenu';
