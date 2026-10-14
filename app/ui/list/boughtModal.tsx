@@ -191,17 +191,12 @@ const BoughtListModal: React.FC<ListModalProps> = ({
               }}
             />
           </label>
-          <label className="min-w-0 text-sm font-medium">
-            Unidad de medida
-            <UnitSelect
-              label="Unidad de medida"
-              value={unit}
-              onChange={setUnit}
-              options={options}
-              disabled={isLoading}
-              hideLabel
-            />
-          </label>
+          <UnitSelect
+            value={unit}
+            onChange={setUnit}
+            options={options}
+            disabled={isLoading}
+          />
           <label className="col-span-2 text-sm font-medium">
             Precio por unidad de medida (opcional)
             <input
