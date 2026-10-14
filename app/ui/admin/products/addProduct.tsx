@@ -20,6 +20,7 @@ import EditProductModal from "./editProductModal";
 import AvailableUnitsField from "./availableUnitsField";
 import Autocomplete from "@/shared/components/ui/Autocomplete";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
+import ConfirmModal from "@/shared/components/ui/ConfirmModal";
 interface Category {
   id: string;
   name: string;
@@ -64,6 +65,7 @@ export default function AddProduct() {
   const [bulkUnits, setBulkUnits] = useState<Unit[]>(["un"]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState("");
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
   const handleCategorySearchChange = (categoryId: string) => {
     setSelectedCategoy(categoryId);
@@ -432,14 +434,7 @@ export default function AddProduct() {
                   type="button"
                   className="btn-secondary text-red-700 hover:bg-red-50"
                   disabled={bulkBusy}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `¿Eliminar ${selectedProductIds.length} productos del catálogo? No se borrarán las compras anteriores.`,
-                      )
-                    )
-                      void runBulkEdit({ action: "delete" });
-                  }}
+                  onClick={() => setConfirmBulkDelete(true)}
                 >
                   {bulkBusy ? "Actualizando…" : "Eliminar seleccionados"}
                 </button>
@@ -552,6 +547,21 @@ export default function AddProduct() {
           nameProduct={deleteModalProduct.name}
         />
       )}
+      <ConfirmModal
+        isOpen={confirmBulkDelete}
+        title="Eliminar productos seleccionados"
+        message={`¿Eliminar ${selectedProductIds.length} productos del catálogo? No se borrarán las compras anteriores.`}
+        confirmLabel="Eliminar productos"
+        destructive
+        busy={bulkBusy}
+        onClose={() => {
+          if (!bulkBusy) setConfirmBulkDelete(false);
+        }}
+        onConfirm={() => {
+          setConfirmBulkDelete(false);
+          void runBulkEdit({ action: "delete" });
+        }}
+      />
       {isLoading && (
         <div role="status" className="loading-state">
           <ClipLoader size={24} color="#3f3f46" loading={isLoading} />
