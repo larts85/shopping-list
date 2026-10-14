@@ -1017,6 +1017,16 @@ try {
     kind: "member",
     id: second,
   });
+  const duplicateShare = await req(
+    "/api/households",
+    "POST",
+    { action: "share", email: outsider },
+    user,
+    400,
+    second,
+  );
+  assert.equal(duplicateShare.error, "La persona ya pertenece a la lista");
+  checks++;
   const selectedShared = await req(
     "/api/households",
     "GET",

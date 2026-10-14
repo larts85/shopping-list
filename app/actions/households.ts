@@ -234,11 +234,15 @@ export async function renameHousehold(
 export async function shareHousehold(
   recipient: string,
   scope?: string,
-): Promise<{
-  delivery: "not_configured" | "sent" | "failed";
-  email: string;
-  slug: string;
-}> {
+): Promise<
+  | { status: "error"; error: string }
+  | {
+      status: "ok";
+      delivery: "not_configured" | "sent" | "failed";
+      email: string;
+      slug: string;
+    }
+> {
   const email = text(recipient).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new DataError("Email inválido");
@@ -259,25 +263,30 @@ export async function shareHousehold(
         )
       ).rowCount
     )
-      throw new DataError("La persona ya pertenece a la lista");
+      return { status: "already_member" as const };
     await db.query(
       "insert into household_invitations(household_id,email) values($1,$2) on conflict do nothing",
       [h, email],
     );
-    return (await db.query("select name,slug from households where id=$1", [h]))
-      .rows[0] as { name: string; slug: string };
+    return {
+      status: "invite" as const,
+      list: (await db.query("select name,slug from households where id=$1", [h]))
+        .rows[0] as { name: string; slug: string },
+    };
   }, scope);
+  if (list.status === "already_member")
+    return { status: "error", error: "La persona ya pertenece a la lista" };
   const delivery = await deliverInvitation({
     email,
-    name: list.name,
-    url: listShareUrl(list.slug),
+    name: list.list.name,
+    url: listShareUrl(list.list.slug),
     apiKey: process.env.RESEND_API_KEY,
     from: process.env.INVITATION_FROM,
     gmailUser: process.env.GMAIL_USER_EMAIL,
     gmailPassword: process.env.GMAIL_APP_PASSWORD,
   });
   console.info(`list_invitation delivery=${delivery}`);
-  return { delivery, email, slug: list.slug };
+  return { status: "ok", delivery, email, slug: list.list.slug };
 }
 export async function acceptInvitation(
   id: string,
