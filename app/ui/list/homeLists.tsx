@@ -16,7 +16,12 @@ import type { getHomeLists } from "@/app/actions/households";
 import CreateListModal from "./createListModal";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
 import ConfirmModal from "@/shared/components/ui/ConfirmModal";
-import { RiArrowRightLine, RiDeleteBin6Line } from "react-icons/ri";
+import {
+  RiArrowRightLine,
+  RiCalendarEventLine,
+  RiDeleteBin6Line,
+} from "react-icons/ri";
+import ScheduleListModal from "./scheduleListModal";
 type Data = Awaited<ReturnType<typeof getHomeLists>>;
 export default function HomeLists({ defaultName }: { defaultName: string }) {
   const [data, setData] = useState<Data>();
@@ -26,6 +31,10 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
   const [deletingId, setDeletingId] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [listToDelete, setListToDelete] = useState<Data["lists"][number] | null>(null);
+  const [scheduleList, setScheduleList] = useState<{
+    name: string;
+    url: string;
+  }>();
   const [respondingId, setRespondingId] = useState("");
   const [notificationError, setNotificationError] = useState("");
   const router = useRouter();
@@ -192,61 +201,84 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
     return (
       <div className="grid gap-4 sm:grid-cols-2">
         {lists.map((list) => (
-          <article key={list.id} className="panel space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="min-w-0 break-words text-lg font-semibold">
+          <article
+            key={list.id}
+            className="panel relative space-y-1.5 p-3.5 sm:p-4"
+          >
+            <Link
+              href={`/lists/${list.slug}`}
+              className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-700"
+              aria-label={`Abrir ${list.name}`}
+              onClick={() => {
+                setActiveListId(list.id);
+                window.dispatchEvent(new Event("active-list-changed"));
+              }}
+            />
+            <div className="pointer-events-none relative z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1">
+              <h3 className="min-w-0 break-words text-base font-semibold leading-6">
                 {list.name}
               </h3>
-              <div className="hidden shrink-0 gap-2 md:flex">
-                <Link
-                  href={`/lists/${list.slug}`}
-                  className="btn-secondary"
-                  aria-label={`Abrir ${list.name}`}
-                  onClick={() => {
-                    setActiveListId(list.id);
-                    window.dispatchEvent(new Event("active-list-changed"));
-                  }}
-                >
-                  Abrir
-                </Link>
-                {list.owner_email === data?.email && (
-                  <button
-                    type="button"
-                    className="btn-secondary text-red-700 hover:bg-red-50"
-                    disabled={!!deletingId}
-                    onClick={() => setListToDelete(list)}
-                  >
-                    {deletingId === list.id ? "Eliminando…" : "Eliminar"}
-                  </button>
-                )}
+              <div className="pointer-events-auto col-start-2 row-span-2 flex shrink-0 items-center gap-1">
+                <div className="hidden gap-1 md:flex">
+                  {list.owner_email === data?.email && (
+                    <button
+                      type="button"
+                      className="icon-button size-10 text-red-700 hover:bg-red-50 hover:text-red-800"
+                      disabled={!!deletingId}
+                      aria-label={
+                        deletingId === list.id
+                          ? `Eliminando ${list.name}`
+                          : `Eliminar ${list.name}`
+                      }
+                      title={
+                        deletingId === list.id
+                          ? "Eliminando…"
+                          : "Eliminar lista"
+                      }
+                      onClick={() => setListToDelete(list)}
+                    >
+                      <RiDeleteBin6Line aria-hidden="true" size={20} />
+                    </button>
+                  )}
+                </div>
+                <ActionMenu
+                  alwaysVisible
+                  label={`Acciones para la lista ${list.name}`}
+                  items={[
+                    {
+                      label: "Abrir lista",
+                      icon: RiArrowRightLine,
+                      onSelect: () => openList(list),
+                    },
+                    {
+                      label: "Agendar en Google Calendar",
+                      icon: RiCalendarEventLine,
+                      onSelect: () =>
+                        setScheduleList({
+                          name: list.name,
+                          url: `${window.location.origin}/lists/${list.slug}`,
+                        }),
+                    },
+                    ...(list.owner_email === data?.email
+                      ? [
+                          {
+                            label: "Eliminar lista",
+                            icon: RiDeleteBin6Line,
+                            destructive: true,
+                            disabled: !!deletingId,
+                            onSelect: () => setListToDelete(list),
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
               </div>
-              <ActionMenu
-                label={`Acciones para la lista ${list.name}`}
-                items={[
-                  {
-                    label: "Abrir lista",
-                    icon: RiArrowRightLine,
-                    onSelect: () => openList(list),
-                  },
-                  ...(list.owner_email === data?.email
-                    ? [
-                        {
-                          label: "Eliminar lista",
-                          icon: RiDeleteBin6Line,
-                          destructive: true,
-                          disabled: !!deletingId,
-                          onSelect: () => setListToDelete(list),
-                        },
-                      ]
-                    : []),
-                ]}
-              />
+              <p className="pointer-events-none col-start-1 row-start-2 text-sm leading-5 text-zinc-500">
+                {list.owner_email === data?.email
+                  ? "Tu lista en curso"
+                  : `Compartida por ${list.owner_email}`}
+              </p>
             </div>
-            <p className="text-sm text-zinc-500">
-              {list.owner_email === data?.email
-                ? "Tu lista en curso"
-                : `Compartida por ${list.owner_email}`}
-            </p>
           </article>
         ))}
       </div>
@@ -437,6 +469,13 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
         <CreateListModal
           defaultName={defaultName}
           onClose={() => setOpen(false)}
+        />
+      )}
+      {scheduleList && (
+        <ScheduleListModal
+          listName={scheduleList.name}
+          listUrl={scheduleList.url}
+          onClose={() => setScheduleList(undefined)}
         />
       )}
       <ConfirmModal

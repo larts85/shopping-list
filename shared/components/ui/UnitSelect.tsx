@@ -8,6 +8,7 @@ export default function UnitSelect({
   label = "Unidad de medida",
   disabled = false,
   compact = false,
+  hideLabel = false,
 }: {
   value: Unit;
   onChange: (unit: Unit) => void;
@@ -15,8 +16,13 @@ export default function UnitSelect({
   label?: string;
   disabled?: boolean;
   compact?: boolean;
+  hideLabel?: boolean;
 }) {
-  if (options.length <= 2) {
+  // Compact selectors sit beside a column heading. A caller can also hide the
+  // internal label when it provides its own visible label around the control.
+  // Native selects keep both cases to one aligned control without an extra
+  // visible Autocomplete label.
+  if (compact || hideLabel || options.length <= 2) {
     return (
       <select
         aria-label={label}
