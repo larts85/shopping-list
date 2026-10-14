@@ -19,7 +19,9 @@ const adminLinks = [
 ];
 export default function NavLinks({ admin = false }: { admin?: boolean }) {
   const pathname = usePathname();
-  const [pendingByHref, setPendingByHref] = useState<Record<string, number>>({});
+  const [pendingByHref, setPendingByHref] = useState<Record<string, number>>(
+    {},
+  );
   const [isAdmin, setIsAdmin] = useState(false);
   const [listHref, setListHref] = useState("");
   useEffect(() => {
@@ -35,9 +37,10 @@ export default function NavLinks({ admin = false }: { admin?: boolean }) {
           const data: Awaited<ReturnType<typeof getHomeLists>> =
             await response.json();
           const activeListId = getActiveListId();
-          const activeListSuggestions = data.pendingListSuggestions.find(
-            (item) => item.household_id === activeListId,
-          )?.count ?? 0;
+          const activeListSuggestions =
+            data.pendingListSuggestions.find(
+              (item) => item.household_id === activeListId,
+            )?.count ?? 0;
           const activeNameSuggestions = data.pendingNameSuggestions.filter(
             (item) => item.household_id === activeListId,
           ).length;
@@ -68,7 +71,11 @@ export default function NavLinks({ admin = false }: { admin?: boolean }) {
   return (
     <nav
       aria-label={admin ? "Administración" : "Navegación principal"}
-      className={admin ? "flex gap-2 sm:flex-col" : "flex flex-wrap gap-1"}
+      className={
+        admin
+          ? "flex flex-wrap gap-2 sm:flex-col"
+          : "flex w-full flex-nowrap gap-1 overflow-x-auto overflow-y-hidden pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0"
+      }
     >
       {(admin
         ? adminLinks
@@ -91,7 +98,7 @@ export default function NavLinks({ admin = false }: { admin?: boolean }) {
                 ? `${label}, ${pendingByHref[href]} notificaciones pendientes`
                 : undefined
             }
-            className={`group flex min-h-11 items-center justify-center rounded-xl px-2 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${admin ? "flex-1 sm:justify-start" : ""} ${active ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"}`}
+            className={`group flex min-h-11 shrink-0 items-center justify-center rounded-xl px-2 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${admin ? "flex-1 sm:justify-start" : ""} ${active ? "bg-zinc-900 text-white" : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"}`}
           >
             {label}
             {(pendingByHref[href] ?? 0) > 0 && (

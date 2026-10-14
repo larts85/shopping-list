@@ -2,15 +2,20 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { clearActiveListId, getActiveListId } from "@/app/lib/listClient";
+import {
+  clearActiveListId,
+  getActiveListId,
+  setActiveListId,
+} from "@/app/lib/listClient";
 import {
   acceptInvitation,
   declineInvitation,
   reviewHouseholdName,
-  type getHomeLists,
 } from "@/app/actions/households";
-import { setActiveListId } from "@/app/lib/listClient";
+import type { getHomeLists } from "@/app/actions/households";
 import CreateListModal from "./createListModal";
+import ActionMenu from "@/shared/components/ui/ActionMenu";
+import { RiArrowRightLine, RiDeleteBin6Line } from "react-icons/ri";
 type Data = Awaited<ReturnType<typeof getHomeLists>>;
 export default function HomeLists({ defaultName }: { defaultName: string }) {
   const [data, setData] = useState<Data>();
@@ -93,11 +98,18 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
       }
     } catch (error) {
       setDeleteError(
-        error instanceof Error ? error.message : "No pudimos eliminar la lista.",
+        error instanceof Error
+          ? error.message
+          : "No pudimos eliminar la lista.",
       );
     } finally {
       setDeletingId("");
     }
+  }
+  function openList(list: Data["lists"][number]) {
+    setActiveListId(list.id);
+    window.dispatchEvent(new Event("active-list-changed"));
+    router.push(`/lists/${list.slug}`);
   }
   async function respondToInvitation(
     invitation: Data["invitations"][number],
@@ -187,11 +199,15 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
               <h3 className="min-w-0 break-words text-lg font-semibold">
                 {list.name}
               </h3>
-              <div className="flex shrink-0 gap-2">
+              <div className="hidden shrink-0 gap-2 md:flex">
                 <Link
                   href={`/lists/${list.slug}`}
                   className="btn-secondary"
                   aria-label={`Abrir ${list.name}`}
+                  onClick={() => {
+                    setActiveListId(list.id);
+                    window.dispatchEvent(new Event("active-list-changed"));
+                  }}
                 >
                   Abrir
                 </Link>
@@ -206,6 +222,27 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
                   </button>
                 )}
               </div>
+              <ActionMenu
+                label={`Acciones para la lista ${list.name}`}
+                items={[
+                  {
+                    label: "Abrir lista",
+                    icon: RiArrowRightLine,
+                    onSelect: () => openList(list),
+                  },
+                  ...(list.owner_email === data?.email
+                    ? [
+                        {
+                          label: "Eliminar lista",
+                          icon: RiDeleteBin6Line,
+                          destructive: true,
+                          disabled: !!deletingId,
+                          onSelect: () => void deleteList(list),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
             </div>
             <p className="text-sm text-zinc-500">
               {list.owner_email === data?.email
@@ -255,8 +292,7 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
               cards(own)
             ) : (
               <p className="panel text-zinc-500">
-                Todavía no tienes una lista propia. Usa Crear para
-                comenzar.
+                Todavía no tienes una lista propia. Usa Crear para comenzar.
               </p>
             )}
           </section>
@@ -273,9 +309,15 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
             )}
           </section>
           {data.pendingNameSuggestions.length > 0 && (
-            <section className="space-y-4" aria-labelledby="pending-name-suggestions">
+            <section
+              className="space-y-4"
+              aria-labelledby="pending-name-suggestions"
+            >
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 id="pending-name-suggestions" className="text-xl font-semibold">
+                <h2
+                  id="pending-name-suggestions"
+                  className="text-xl font-semibold"
+                >
                   Cambios de nombre pendientes
                   <span className="ml-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-100 px-2 text-xs font-bold text-amber-950 ring-1 ring-inset ring-amber-300">
                     {data.pendingNameSuggestions.length}
@@ -297,7 +339,9 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
                         className="btn-secondary"
                         onClick={() => {
                           setActiveListId(suggestion.household_id);
-                          window.dispatchEvent(new Event("active-list-changed"));
+                          window.dispatchEvent(
+                            new Event("active-list-changed"),
+                          );
                         }}
                       >
                         Ver en Accesos
@@ -310,7 +354,9 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
                           void reviewNameSuggestion(suggestion, "approve")
                         }
                       >
-                        {respondingId === suggestion.id ? "Guardando…" : "Aceptar nombre"}
+                        {respondingId === suggestion.id
+                          ? "Guardando…"
+                          : "Aceptar nombre"}
                       </button>
                       <button
                         type="button"
@@ -352,7 +398,9 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
                         disabled={!!respondingId}
                         onClick={() => void respondToInvitation(invite, true)}
                       >
-                        {respondingId === invite.id ? "Abriendo…" : "Aceptar y abrir"}
+                        {respondingId === invite.id
+                          ? "Abriendo…"
+                          : "Aceptar y abrir"}
                       </button>
                       <button
                         type="button"

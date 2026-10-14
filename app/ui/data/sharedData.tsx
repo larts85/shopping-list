@@ -11,6 +11,8 @@ import {
   suggestHouseholdName,
   reviewHouseholdName,
 } from "../../actions/households";
+import ActionMenu from "@/shared/components/ui/ActionMenu";
+import { RiCheckLine, RiCloseLine, RiDeleteBin6Line } from "react-icons/ri";
 type Data = Awaited<ReturnType<typeof getHouseholdData>>;
 export default function SharedData() {
   const [data, setData] = useState<Data>();
@@ -143,37 +145,71 @@ export default function SharedData() {
                       : "Rechazada"}
                 </p>
                 {owner && suggestion.status === "pending" && (
-                  <div className="flex gap-3">
-                    <button
-                      className="btn-primary"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(() =>
-                          reviewHouseholdName(
-                            suggestion.id,
-                            "approve",
-                            getActiveListId(),
-                          ),
-                        )
-                      }
-                    >
-                      Aprobar nombre
-                    </button>
-                    <button
-                      className="btn-secondary"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(() =>
-                          reviewHouseholdName(
-                            suggestion.id,
-                            "reject",
-                            getActiveListId(),
-                          ),
-                        )
-                      }
-                    >
-                      Rechazar nombre
-                    </button>
+                  <div className="flex items-center gap-3">
+                    <div className="hidden items-center gap-3 md:flex">
+                      <button
+                        className="btn-primary"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(() =>
+                            reviewHouseholdName(
+                              suggestion.id,
+                              "approve",
+                              getActiveListId(),
+                            ),
+                          )
+                        }
+                      >
+                        Aprobar nombre
+                      </button>
+                      <button
+                        className="btn-secondary"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(() =>
+                            reviewHouseholdName(
+                              suggestion.id,
+                              "reject",
+                              getActiveListId(),
+                            ),
+                          )
+                        }
+                      >
+                        Rechazar nombre
+                      </button>
+                    </div>
+                    <ActionMenu
+                      label={`Acciones para la sugerencia de ${suggestion.name}`}
+                      items={[
+                        {
+                          label: "Aprobar nombre",
+                          icon: RiCheckLine,
+                          disabled: busy,
+                          onSelect: () =>
+                            void run(() =>
+                              reviewHouseholdName(
+                                suggestion.id,
+                                "approve",
+                                getActiveListId(),
+                              ),
+                            ),
+                        },
+                        {
+                          label: "Rechazar nombre",
+                          icon: RiCloseLine,
+                          disabled: busy,
+                          destructive: true,
+                          onSelect: () =>
+                            void run(() =>
+                              reviewHouseholdName(
+                                suggestion.id,
+                                "reject",
+                                getActiveListId(),
+                              ),
+                            ),
+                        },
+                      ]}
+                    />
                   </div>
                 )}
               </div>
@@ -198,22 +234,45 @@ export default function SharedData() {
                     : "Colaborador"}
                 </span>
                 {owner && m.email !== data.household.owner_email && (
-                  <button
-                    className="btn-secondary"
-                    disabled={busy}
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `¿Quitar el acceso de ${m.email} a esta lista?`,
+                  <>
+                    <button
+                      className="btn-secondary hidden md:inline-flex"
+                      disabled={busy}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `¿Quitar el acceso de ${m.email} a esta lista?`,
+                          )
                         )
-                      )
-                        void run(() =>
-                          revokeAccess(m.email, getActiveListId()),
-                        );
-                    }}
-                  >
-                    Quitar acceso
-                  </button>
+                          void run(() =>
+                            revokeAccess(m.email, getActiveListId()),
+                          );
+                      }}
+                    >
+                      Quitar acceso
+                    </button>
+                    <ActionMenu
+                      label={`Acciones para ${m.email}`}
+                      items={[
+                        {
+                          label: "Quitar acceso",
+                          icon: RiDeleteBin6Line,
+                          destructive: true,
+                          disabled: busy,
+                          onSelect: () => {
+                            if (
+                              window.confirm(
+                                `¿Quitar el acceso de ${m.email} a esta lista?`,
+                              )
+                            )
+                              void run(() =>
+                                revokeAccess(m.email, getActiveListId()),
+                              );
+                          },
+                        },
+                      ]}
+                    />
+                  </>
                 )}
               </li>
             ))}
@@ -229,18 +288,31 @@ export default function SharedData() {
           )}
           {owner &&
             data.pending.map((i) => (
-              <p key={i.id} className="flex flex-wrap gap-3 items-center">
+              <div key={i.id} className="flex flex-wrap items-center gap-3">
                 Invitación pendiente: {i.email}
                 <button
                   disabled={busy}
-                  className="btn-secondary"
+                  className="btn-secondary hidden md:inline-flex"
                   onClick={() =>
                     void run(() => revokeAccess(i.email, getActiveListId()))
                   }
                 >
                   Cancelar invitación
                 </button>
-              </p>
+                <ActionMenu
+                  label={`Acciones para la invitación a ${i.email}`}
+                  items={[
+                    {
+                      label: "Cancelar invitación",
+                      icon: RiCloseLine,
+                      destructive: true,
+                      disabled: busy,
+                      onSelect: () =>
+                        void run(() => revokeAccess(i.email, getActiveListId())),
+                    },
+                  ]}
+                />
+              </div>
             ))}
         </>
       )}

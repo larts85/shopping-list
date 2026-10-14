@@ -7,11 +7,19 @@ import { RiDeleteBin6Line } from "react-icons/ri";
 import DeleteProductModal from "./deleteProductModal";
 import { BiEditAlt } from "react-icons/bi";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
-import { compatibleUnits, unitLabels, type Unit } from "@/app/lib/units";
+import {
+  compatibleUnits,
+  isUnitAllowedForCategory,
+  unitsForCategory,
+  unitAbbreviations,
+  unitLabels,
+  type Unit,
+} from "@/app/lib/units";
 import { suggestProductUnit } from "@/app/lib/productUnits";
 import EditProductModal from "./editProductModal";
 import AvailableUnitsField from "./availableUnitsField";
 import Autocomplete from "@/shared/components/ui/Autocomplete";
+import ActionMenu from "@/shared/components/ui/ActionMenu";
 interface Category {
   id: string;
   name: string;
@@ -59,6 +67,14 @@ export default function AddProduct() {
 
   const handleCategorySearchChange = (categoryId: string) => {
     setSelectedCategoy(categoryId);
+    const categoryName = categories.find((category) => category.id === categoryId)?.name ?? "";
+    const allowedUnits = unitsForCategory(categoryName);
+    setAvailableUnits((current) => current.filter((availableUnit) => allowedUnits.includes(availableUnit)));
+    if (!isUnitAllowedForCategory(unit, categoryName)) {
+      setUnit("un");
+      setAvailableUnits(["un"]);
+      setUnitChosen(false);
+    }
     if (!categoryId) {
       setProducts([]);
       setSelectedProductIds([]);
@@ -287,6 +303,9 @@ export default function AddProduct() {
           Unidad de medida
           <UnitSelect
             value={unit}
+            options={unitsForCategory(
+              categories.find((category) => category.id === selectedCategory)?.name ?? "",
+            )}
             onChange={(value) => {
               setUnit(value);
               setAvailableUnits((current) =>
@@ -302,6 +321,7 @@ export default function AddProduct() {
             selected={availableUnits}
             onChange={setAvailableUnits}
             requiredUnit={unit}
+            categoryName={categories.find((category) => category.id === selectedCategory)?.name ?? ""}
             disabled={isSubmitting}
           />
         </div>
@@ -394,6 +414,7 @@ export default function AddProduct() {
               <AvailableUnitsField
                 selected={bulkUnits}
                 onChange={setBulkUnits}
+                categoryName={categories.find((category) => category.id === bulkCategoryId)?.name ?? categories.find((category) => category.id === selectedCategory)?.name ?? ""}
                 disabled={bulkBusy}
               />
               <div className="flex flex-wrap gap-3">
@@ -450,13 +471,25 @@ export default function AddProduct() {
                 />
                 <span className="min-w-0 break-words text-sm font-medium">
                   {product.name}
-                  <span className="ml-2 text-xs font-normal text-zinc-500">
-                    {(product.availableUnits ?? [product.unit ?? "un"])
-                      .map((unit) => unitLabels[unit])
-                      .join(" / ")}
-                  </span>
+                  {(() => {
+                    const available =
+                      product.availableUnits ?? [product.unit ?? "un"];
+                    return (
+                      <span
+                        className="ml-2 text-xs font-normal text-zinc-500"
+                        title={available.map((unit) => unitLabels[unit]).join(" / ")}
+                        aria-label={`Unidades disponibles: ${available
+                          .map((unit) => unitLabels[unit])
+                          .join(" / ")}`}
+                      >
+                        {available
+                          .map((unit) => unitAbbreviations[unit])
+                          .join(" / ")}
+                      </span>
+                    );
+                  })()}
                 </span>
-                <div className="ml-auto flex shrink-0 gap-1">
+                <div className="ml-auto hidden shrink-0 gap-1 md:flex">
                   <button
                     type="button"
                     className="icon-button"
@@ -474,6 +507,24 @@ export default function AddProduct() {
                     <RiDeleteBin6Line size={18} />
                   </button>
                 </div>
+                <ActionMenu
+                  label={`Acciones para ${product.name}`}
+                  items={[
+                    {
+                      label: "Editar producto",
+                      icon: BiEditAlt,
+                      disabled: bulkBusy,
+                      onSelect: () => handleOpenEditModal(product),
+                    },
+                    {
+                      label: "Eliminar producto",
+                      icon: RiDeleteBin6Line,
+                      disabled: bulkBusy,
+                      destructive: true,
+                      onSelect: () => handleOpenDeleteModal(product),
+                    },
+                  ]}
+                />
               </li>
             ))}
           </ul>

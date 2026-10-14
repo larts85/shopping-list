@@ -8,7 +8,12 @@ import {
   requireRow,
   DataError,
 } from "../lib/database";
-import { compatibleUnits, isUnit, isValidAvailableUnits } from "../lib/units";
+import {
+  compatibleUnits,
+  isUnit,
+  isUnitAllowedForCategory,
+  isValidAvailableUnits,
+} from "../lib/units";
 import { suggestProductUnit } from "../lib/productUnits";
 import type { Unit } from "../lib/units";
 import type { Product, ProductChecked, AddProduct } from "../lib/types";
@@ -48,6 +53,13 @@ export async function addProduct(p: AddProduct): Promise<void> {
     const availableUnits = p.availableUnits ?? compatibleUnits(unit);
     if (!isValidAvailableUnits(availableUnits, unit))
       throw new DataError("Unidades disponibles inválidas");
+    if (
+      availableUnits.some(
+        (availableUnit) =>
+          !isUnitAllowedForCategory(availableUnit, category.rows[0].name),
+      )
+    )
+      throw new DataError("Los comprimidos solo están disponibles en Farmacia");
     await db.query(
       "insert into catalog_products(name,id_category,unit,available_units) values($1,$2,$3,$4)",
       [
@@ -91,22 +103,33 @@ export async function editNameProduct(p: EditProductParams): Promise<void> {
     )
       throw new DataError("Unidades disponibles inválidas");
     const previous = await db.query(
-      "select unit,available_units from catalog_products where id=$1 and not archived for update",
+      `select p.unit,p.available_units,c.name as category_name
+       from catalog_products p join catalog_categories c on c.id=p.id_category
+       where p.id=$1 and not p.archived for update of p`,
       [text(p.idProduct)],
     );
     requireRow(previous.rowCount);
+    let targetCategoryName = previous.rows[0].category_name as string;
     if (p.idCategory !== undefined) {
       const category = await db.query(
-        "select 1 from catalog_categories where id=$1 and not archived",
+        "select name from catalog_categories where id=$1 and not archived",
         [text(p.idCategory)],
       );
       requireRow(category.rowCount);
+      targetCategoryName = category.rows[0].name;
     }
     const availableUnits =
       nextAvailableUnits ?? previous.rows[0].available_units;
     const unit = nextUnit ?? previous.rows[0].unit;
     if (!isValidAvailableUnits(availableUnits, unit))
       throw new DataError("La unidad principal debe estar disponible");
+    if (
+      availableUnits.some(
+        (availableUnit) =>
+          !isUnitAllowedForCategory(availableUnit, targetCategoryName),
+      )
+    )
+      throw new DataError("Los comprimidos solo están disponibles en Farmacia");
     if (nextAvailableUnits !== undefined || nextUnit !== undefined) {
       const incompatible = await db.query(
         "select 1 from shopping_list where id_product=$1 and unit is not null and not (unit=any($2::text[])) limit 1",
@@ -171,17 +194,21 @@ export async function bulkEditProducts(input: BulkEditProductsInput): Promise<vo
     throw new DataError("Indica una categoría o las unidades para aplicar");
   await withCatalog(async (db) => {
     const products = await db.query(
-      "select id,unit,available_units from catalog_products where id=any($1::text[]) and not archived for update",
+      `select p.id,p.unit,p.available_units,c.name as category_name
+       from catalog_products p join catalog_categories c on c.id=p.id_category
+       where p.id=any($1::text[]) and not p.archived for update of p`,
       [ids],
     );
     if (products.rowCount !== ids.length)
       throw new DataError("Uno o más productos ya no existen", 404);
+    let targetCategoryName: string | undefined;
     if (input.idCategory) {
       const category = await db.query(
-        "select 1 from catalog_categories where id=$1 and not archived",
+        "select name from catalog_categories where id=$1 and not archived",
         [text(input.idCategory)],
       );
       requireRow(category.rowCount);
+      targetCategoryName = category.rows[0].name;
     }
     for (const product of products.rows) {
       const availableUnits = input.availableUnits ?? product.available_units;
@@ -189,6 +216,14 @@ export async function bulkEditProducts(input: BulkEditProductsInput): Promise<vo
         (availableUnits.includes(product.unit) ? product.unit : availableUnits[0]);
       if (!isValidAvailableUnits(availableUnits, unit))
         throw new DataError("La unidad principal debe estar disponible");
+      const categoryName = targetCategoryName ?? product.category_name;
+      if (
+        availableUnits.some(
+          (availableUnit) =>
+            !isUnitAllowedForCategory(availableUnit, categoryName),
+        )
+      )
+        throw new DataError("Los comprimidos solo están disponibles en Farmacia");
       if (input.availableUnits !== undefined) {
         const incompatible = await db.query(
           "select 1 from shopping_list where id_product=$1 and unit is not null and not (unit=any($2::text[])) limit 1",

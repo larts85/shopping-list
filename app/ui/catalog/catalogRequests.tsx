@@ -6,12 +6,21 @@ import {
   getCatalogRequests,
   submitCatalogRequest,
   reviewCatalogRequest,
+  reviewCatalogRequests,
   type CatalogRequest,
+  type CatalogRequestSubmissionResult,
 } from "@/app/actions/catalogRequests";
 import type { Category } from "@/app/lib/types";
-import { type Unit } from "@/app/lib/units";
+import {
+  isUnitAllowedForCategory,
+  unitsForCategory,
+  type Unit,
+} from "@/app/lib/units";
 import Autocomplete from "@/shared/components/ui/Autocomplete";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
+import ActionMenu from "@/shared/components/ui/ActionMenu";
+import { RiCheckLine, RiCloseLine } from "react-icons/ri";
+import { getActiveListId } from "@/app/lib/listClient";
 export default function CatalogRequests() {
   const [role, setRole] = useState<"admin" | "user">();
   const [categories, setCategories] = useState<Category[]>([]),
@@ -24,6 +33,15 @@ export default function CatalogRequests() {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
+  const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
+  const selectedCategoryName =
+    categories.find((category) => category.id === categoryId)?.name ?? "";
+  const handleCategoryChange = (nextCategoryId: string) => {
+    setCategoryId(nextCategoryId);
+    const nextCategoryName =
+      categories.find((category) => category.id === nextCategoryId)?.name ?? "";
+    if (!isUnitAllowedForCategory(unit, nextCategoryName)) setUnit("un");
+  };
   async function load() {
     const [user, cats, items] = await Promise.all([
       getCurrentUser(),
@@ -33,26 +51,47 @@ export default function CatalogRequests() {
     setRole(user.role);
     setCategories(cats);
     setRequests(items);
+    setSelectedRequestIds((current) =>
+      current.filter((id) =>
+        items.some((item) => item.id === id && item.status === "pending"),
+      ),
+    );
   }
   useEffect(() => {
     void load().catch(() =>
       setError("No pudimos cargar el catálogo y sus solicitudes."),
     );
   }, []);
-  async function run(action: () => Promise<void>) {
+  async function run(
+    action: () => Promise<void | CatalogRequestSubmissionResult>,
+    successMessage?: string,
+  ) {
     setBusy(true);
     setError("");
     setMessage("");
     try {
-      await action();
+      const result = await action();
       await load();
-      setMessage("Solicitud guardada.");
+      setMessage(
+        successMessage ??
+          (result && result.kind === "product"
+            ? result.addedToList
+              ? "Solicitud enviada y producto agregado a tus compras."
+              : "Solicitud guardada. Selecciona o crea una lista para agregar el producto a tus compras."
+            : "Solicitud guardada."),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar.");
     } finally {
       setBusy(false);
     }
   }
+  const pendingRequests = requests.filter(
+    (request) => request.status === "pending",
+  );
+  const allPendingSelected =
+    pendingRequests.length > 0 &&
+    pendingRequests.every((request) => selectedRequestIds.includes(request.id));
   return (
     <section className="panel space-y-5" aria-label="Solicitudes del catálogo">
       <h2 className="text-xl font-semibold">
@@ -81,15 +120,19 @@ export default function CatalogRequests() {
               return;
             }
             void run(async () => {
-              await submitCatalogRequest({
-                kind,
-                name,
-                categoryId: kind === "product" ? categoryId : undefined,
-                unit: kind === "product" ? unit : undefined,
-                note,
-              });
+              const result = await submitCatalogRequest(
+                {
+                  kind,
+                  name,
+                  categoryId: kind === "product" ? categoryId : undefined,
+                  unit: kind === "product" ? unit : undefined,
+                  note,
+                },
+                getActiveListId(),
+              );
               setName("");
               setNote("");
+              return result;
             });
           }}
         >
@@ -123,15 +166,24 @@ export default function CatalogRequests() {
                   label="Categoría"
                   value=""
                   selectedValue={categoryId}
-                  selectedLabel={categories.find((c) => c.id === categoryId)?.name ?? ""}
-                  options={categories.map((c) => ({ value: c.id, label: c.name }))}
-                  onChange={setCategoryId}
-                  onSelect={(option) => setCategoryId(option.value)}
+                  selectedLabel={
+                    categories.find((c) => c.id === categoryId)?.name ?? ""
+                  }
+                  options={categories.map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                  }))}
+                  onChange={handleCategoryChange}
+                  onSelect={(option) => handleCategoryChange(option.value)}
                   placeholder="Selecciona una categoría"
                   disabled={categories.length === 0}
                   required
                 />
-                <UnitSelect value={unit} onChange={setUnit} />
+                <UnitSelect
+                  value={unit}
+                  options={unitsForCategory(selectedCategoryName)}
+                  onChange={setUnit}
+                />
               </>
             )}
           </div>
@@ -150,10 +202,84 @@ export default function CatalogRequests() {
         </form>
       )}
       <h3 className="text-lg font-semibold">Historial de solicitudes</h3>
+      {role === "admin" && pendingRequests.length > 0 && (
+        <div className="space-y-3 rounded-xl border border-zinc-200 p-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={allPendingSelected}
+              disabled={busy}
+              onChange={(event) =>
+                setSelectedRequestIds(
+                  event.target.checked
+                    ? pendingRequests.map((request) => request.id)
+                    : [],
+                )
+              }
+            />
+            Seleccionar solicitudes pendientes visibles (
+            {pendingRequests.length})
+          </label>
+          {selectedRequestIds.length > 0 && (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="mr-auto text-sm font-medium">
+                {selectedRequestIds.length} solicitudes seleccionadas
+              </p>
+              <button
+                className="btn-primary"
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    () => reviewCatalogRequests(selectedRequestIds, "approve"),
+                    `${selectedRequestIds.length} solicitudes aprobadas.`,
+                  )
+                }
+              >
+                {busy ? "Guardando…" : "Aprobar seleccionadas"}
+              </button>
+              <button
+                className="btn-secondary"
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    () => reviewCatalogRequests(selectedRequestIds, "reject"),
+                    `${selectedRequestIds.length} solicitudes rechazadas.`,
+                  )
+                }
+              >
+                {busy ? "Guardando…" : "Rechazar seleccionadas"}
+              </button>
+              <button
+                className="btn-secondary"
+                disabled={busy}
+                onClick={() => setSelectedRequestIds([])}
+              >
+                Limpiar selección
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       <ul className="divide-y divide-zinc-200">
         {requests.map((r) => (
           <li key={r.id} className="py-4 space-y-2">
             <p>
+              {role === "admin" && r.status === "pending" && (
+                <input
+                  type="checkbox"
+                  aria-label={`Seleccionar solicitud de ${r.name}`}
+                  className="mr-2"
+                  checked={selectedRequestIds.includes(r.id)}
+                  disabled={busy}
+                  onChange={(event) =>
+                    setSelectedRequestIds((current) =>
+                      event.target.checked
+                        ? [...new Set([...current, r.id])]
+                        : current.filter((id) => id !== r.id),
+                    )
+                  }
+                />
+              )}
               <strong>
                 {r.kind === "category" ? "Categoría" : "Producto"}: {r.name}
               </strong>{" "}
@@ -178,25 +304,59 @@ export default function CatalogRequests() {
               {r.note ? ` · ${r.note}` : ""}
             </p>
             {role === "admin" && r.status === "pending" && (
-              <div className="flex gap-3">
-                <button
-                  className="btn-primary"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(() => reviewCatalogRequest(r.id, "approve"))
-                  }
-                >
-                  Aprobar
-                </button>
-                <button
-                  className="btn-secondary"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(() => reviewCatalogRequest(r.id, "reject"))
-                  }
-                >
-                  Rechazar
-                </button>
+              <div className="flex items-center gap-3">
+                <div className="hidden items-center gap-3 md:flex">
+                  <button
+                    className="btn-primary"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(
+                        () => reviewCatalogRequest(r.id, "approve"),
+                        "Solicitud aprobada.",
+                      )
+                    }
+                  >
+                    Aprobar
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(
+                        () => reviewCatalogRequest(r.id, "reject"),
+                        "Solicitud rechazada.",
+                      )
+                    }
+                  >
+                    Rechazar
+                  </button>
+                </div>
+                <ActionMenu
+                  label={`Acciones para la solicitud de ${r.name}`}
+                  items={[
+                    {
+                      label: "Aprobar solicitud",
+                      icon: RiCheckLine,
+                      disabled: busy,
+                      onSelect: () =>
+                        void run(
+                          () => reviewCatalogRequest(r.id, "approve"),
+                          "Solicitud aprobada.",
+                        ),
+                    },
+                    {
+                      label: "Rechazar solicitud",
+                      icon: RiCloseLine,
+                      destructive: true,
+                      disabled: busy,
+                      onSelect: () =>
+                        void run(
+                          () => reviewCatalogRequest(r.id, "reject"),
+                          "Solicitud rechazada.",
+                        ),
+                    },
+                  ]}
+                />
               </div>
             )}
           </li>
