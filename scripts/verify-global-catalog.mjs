@@ -133,6 +133,21 @@ try {
       "preview_lists.",
     ),
   );
+  for (const migrationName of [
+    "20261013190000_add_milligram_unit.sql",
+    "20261014021329_comprimidos_unit_for_pharmacy.sql",
+  ]) {
+    assert.ok(
+      migrationNames.includes(migrationName),
+      `${migrationName} must exist`,
+    );
+    await db.exec(
+      readFileSync("supabase/migrations/" + migrationName, "utf8").replaceAll(
+        "public.",
+        "preview_lists.",
+      ),
+    );
+  }
   const purchaseDetailsMigration = migrationNames.find((n) =>
     n.includes("purchase_details_and_optional_price"),
   );
@@ -245,6 +260,94 @@ try {
     "insert into preview_lists.app_users(email,role) values($1,'admin') on conflict(email) do nothing",
     [admin],
   );
+  // Reproduce the user's bulk-add payload against the complete disposable schema.
+  const bulkCategoryIds = [
+    "60aa47c7-129d-4df4-b197-0709e4c4ebb2",
+    "29fb56be-9854-4d68-898d-558b0532dbd6",
+  ];
+  await db.query(
+    "insert into preview_lists.catalog_categories(id,name) values($1,'Almacén fixture'),($2,'Limpieza fixture')",
+    bulkCategoryIds,
+  );
+  const bulkPayload = [
+    {
+      name: "Aceitunas",
+      idCategory: bulkCategoryIds[0],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+    {
+      name: "Ajo en polvo",
+      idCategory: bulkCategoryIds[0],
+      cantidad: 1,
+      unit: "kg",
+      availableUnits: ["kg", "g", "mg"],
+    },
+    {
+      name: "Condimento para arroz",
+      idCategory: bulkCategoryIds[0],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+    {
+      name: "Orégano",
+      idCategory: bulkCategoryIds[0],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+    {
+      name: "Pimentón ahumado",
+      idCategory: bulkCategoryIds[0],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+    {
+      name: "Pochoclos",
+      idCategory: bulkCategoryIds[0],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+    {
+      name: "Detergente magistral",
+      idCategory: bulkCategoryIds[1],
+      cantidad: 1,
+      unit: "lt",
+      availableUnits: ["lt", "ml"],
+    },
+    {
+      name: "Esponja",
+      idCategory: bulkCategoryIds[1],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+    {
+      name: "Virulana",
+      idCategory: bulkCategoryIds[1],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+  ];
+  assert.deepEqual(
+    await req("/api/list/bulk-add", "POST", bulkPayload, admin, 200, homeA),
+    { added: 9, catalogRequests: 9 },
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and provisional_name = any($2::text[])",
+        [homeA, bulkPayload.map((item) => item.name)],
+      )
+    ).rows[0].n,
+    9,
+  );
+  checks += 2;
   const unitPriceItemId = randomUUID();
   const totalPriceItemId = randomUUID();
   await db.query(
