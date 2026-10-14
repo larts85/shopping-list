@@ -52,3 +52,5 @@ export default function ConfirmModal({
     </Modal>
   );
 }
+
+ConfirmModal.displayName = 'ConfirmModal';

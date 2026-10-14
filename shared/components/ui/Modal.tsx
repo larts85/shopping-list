@@ -40,3 +40,5 @@ export default function Modal({
     </dialog>
   );
 }
+
+Modal.displayName = 'Modal';

@@ -141,3 +141,5 @@ export default function ActionMenu({
     </div>
   );
 }
+
+ActionMenu.displayName = 'ActionMenu';

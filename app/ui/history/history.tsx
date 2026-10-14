@@ -199,3 +199,5 @@ export default function History() {
     </div>
   );
 }
+
+History.displayName = 'History';

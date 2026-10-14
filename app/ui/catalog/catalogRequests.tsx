@@ -366,3 +366,5 @@ export default function CatalogRequests() {
     </section>
   );
 }
+
+CatalogRequests.displayName = 'CatalogRequests';

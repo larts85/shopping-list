@@ -92,3 +92,5 @@ export default function AddCategory() {
     </div>
   );
 }
+
+AddCategory.displayName = 'AddCategory';

@@ -502,3 +502,5 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
     </div>
   );
 }
+
+HomeLists.displayName = 'HomeLists';

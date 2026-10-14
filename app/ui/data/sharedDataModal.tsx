@@ -129,3 +129,5 @@ export default function SharedDataModal({
     </div>
   );
 }
+
+SharedDataModal.displayName = 'SharedDataModal';

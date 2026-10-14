@@ -45,3 +45,5 @@ export default function Admin() {
     </main>
   );
 }
+
+Admin.displayName = 'Admin';
