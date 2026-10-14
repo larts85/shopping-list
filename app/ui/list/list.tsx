@@ -961,10 +961,9 @@ export default function List() {
                         compact
                         label="Unidad"
                         value={product.unit ?? "un"}
-                        options={product.availableUnits ??
-                          (product.comprado === "1"
-                            ? [product.unit ?? "un"]
-                            : compatibleUnits(product.productUnit ?? "un"))}
+                        options={product.availableUnits?.length
+                          ? product.availableUnits
+                          : compatibleUnits(product.productUnit ?? "un")}
                         disabled={
                           !canEditList ||
                           isLoading ||
