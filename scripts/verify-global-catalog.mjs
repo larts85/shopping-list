@@ -158,15 +158,12 @@ try {
       "preview_lists.",
     ),
   );
-  const exactPurchaseTotalMigration = migrationNames.find((n) =>
-    n.includes("preserve_exact_purchase_total"),
+  const previewPurchaseTotalMigration = migrationNames.find((n) =>
+    n.includes("sync_preview_purchase_total"),
   );
-  assert.ok(exactPurchaseTotalMigration);
+  assert.ok(previewPurchaseTotalMigration);
   await db.exec(
-    readFileSync("supabase/migrations/" + exactPurchaseTotalMigration, "utf8").replaceAll(
-      "public.",
-      "preview_lists.",
-    ),
+    readFileSync("supabase/migrations/" + previewPurchaseTotalMigration, "utf8"),
   );
   const unitCodeDomainMigration = migrationNames.find((n) =>
     n.includes("unit_code_domain"),
@@ -204,6 +201,26 @@ try {
   );
   checks += 3;
   checks++;
+  const previewPurchaseTotalProtection = (
+    await db.query(
+      "select c.relrowsecurity as rls, has_table_privilege('anon','preview_lists.shopping_list','select') as anon_read, has_table_privilege('authenticated','preview_lists.shopping_list','insert') as authenticated_write, exists(select 1 from information_schema.columns where table_schema='preview_lists' and table_name='shopping_list' and column_name='precio_total') as has_precio_total from pg_class c where c.oid='preview_lists.shopping_list'::regclass",
+    )
+  ).rows[0];
+  assert.deepEqual(previewPurchaseTotalProtection, {
+    rls: true,
+    anon_read: false,
+    authenticated_write: false,
+    has_precio_total: true,
+  });
+  assert.deepEqual(
+    (
+      await db.query(
+        "select id,precio_total from preview_lists.shopping_list order by id",
+      )
+    ).rows,
+    [{ id: "old-purchase", precio_total: null }],
+  );
+  checks += 2;
   const protection = (
     await db.query(
       "select relrowsecurity as rls, has_table_privilege('anon','preview_lists.list_name_suggestions','select') as anon_read, has_table_privilege('authenticated','preview_lists.list_name_suggestions','insert') as authenticated_write from pg_class where oid='preview_lists.list_name_suggestions'::regclass",
