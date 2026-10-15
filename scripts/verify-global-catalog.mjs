@@ -165,6 +165,27 @@ try {
   await db.exec(
     readFileSync("supabase/migrations/" + previewPurchaseTotalMigration, "utf8"),
   );
+  // Recreate the stale preview-only constraint that still required a price,
+  // then apply the sync migration that must remove it.
+  await db.exec(`alter table preview_lists.shopping_list
+    drop constraint if exists shopping_list_purchased_values_check,
+    add constraint shopping_list_check
+      check (not comprado or (cantidad is not null and medida is not null and precio is not null));`);
+  const previewOptionalPriceMigration = migrationNames.find((n) =>
+    n.includes("sync_preview_optional_price"),
+  );
+  assert.ok(previewOptionalPriceMigration);
+  await db.exec(
+    readFileSync("supabase/migrations/" + previewOptionalPriceMigration, "utf8"),
+  );
+  const previewPurchaseConstraints = (
+    await db.query(
+      "select conname from pg_constraint where conrelid='preview_lists.shopping_list'::regclass and contype='c' order by conname",
+    )
+  ).rows.map((row) => row.conname);
+  assert.ok(previewPurchaseConstraints.includes("shopping_list_purchased_values_check"));
+  assert.ok(!previewPurchaseConstraints.includes("shopping_list_check"));
+  checks += 2;
   const unitCodeDomainMigration = migrationNames.find((n) =>
     n.includes("unit_code_domain"),
   );
@@ -522,6 +543,54 @@ try {
     "delete from preview_lists.historical where purchase->>'purchase_id'=$1",
     [pricePurchase.purchaseId],
   );
+  const noPriceItemId = randomUUID();
+  await db.query(
+    `insert into preview_lists.shopping_list(
+       id,household_id,cantidad,medida,precio,comprado,unit,
+       provisional_name,provisional_category_id,provisional_created_by,
+       provisional_available_units
+     ) values($1,$2,1,1,0,false,'un','Compra sin precio','old-category',$3,array['un'])`,
+    [noPriceItemId, homeA, admin],
+  );
+  await req(
+    "/api/list/set-bought",
+    "PUT",
+    { idList: noPriceItemId, cantidad: 2, medida: 1, unit: "un" },
+    admin,
+    200,
+    homeA,
+  );
+  const noPricePurchase = await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [noPriceItemId] },
+    admin,
+    200,
+    homeA,
+  );
+  const noPriceHistory = await req(
+    "/api/historical/get-historical",
+    "GET",
+    undefined,
+    admin,
+    200,
+    homeA,
+  );
+  const noPriceSnapshot = noPriceHistory.items.find(
+    (item) => item.purchase.purchase_id === noPricePurchase.purchaseId,
+  );
+  assert.equal(noPriceSnapshot.purchase.precio, null);
+  assert.equal(noPriceSnapshot.purchase.precio_total, null);
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id=$2",
+        [homeA, noPriceItemId],
+      )
+    ).rows[0].n,
+    0,
+  );
+  checks += 3;
   // Cart mutations must stay scoped and leave the global catalog untouched.
   const original = (
     await db.query(
