@@ -1338,6 +1338,26 @@ try {
     200,
     second,
   );
+  await req("/api/list/add-list", "POST", undefined, outsider, 200, second);
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id_product=$2",
+        [second, newProduct.id],
+      )
+    ).rows[0].n,
+    1,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id_product=$2",
+        [homeB, newProduct.id],
+      )
+    ).rows[0].n,
+    0,
+  );
+  checks += 2;
   await req(
     "/api/products/edit-checked-product",
     "PUT",

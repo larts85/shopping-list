@@ -722,8 +722,8 @@ export default function List() {
       )}
       {canEditList && (
         <>
-          <div className="panel flex flex-wrap items-center justify-between gap-4">
-            <div>
+          <div className="panel flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <h2 className="font-semibold">¿Falta algún producto?</h2>
               <p className="mt-1 text-sm text-zinc-500">
                 Se agregará a{" "}
@@ -732,7 +732,7 @@ export default function List() {
             </div>
             <button
               type="button"
-              className="btn-primary"
+              className="btn-primary w-full sm:w-auto"
               aria-expanded={isAddItemsOpen}
               aria-controls="add-products-panel"
               disabled={isLoading || pendingSaveCount > 0 || isSavingEdits}
