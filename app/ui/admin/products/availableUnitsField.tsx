@@ -45,3 +45,5 @@ export default function AvailableUnitsField({
     </fieldset>
   );
 }
+
+AvailableUnitsField.displayName = 'AvailableUnitsField';

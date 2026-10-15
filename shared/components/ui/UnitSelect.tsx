@@ -66,3 +66,5 @@ export default function UnitSelect({
     />
   );
 }
+
+UnitSelect.displayName = 'UnitSelect';

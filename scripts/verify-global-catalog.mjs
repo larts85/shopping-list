@@ -133,6 +133,21 @@ try {
       "preview_lists.",
     ),
   );
+  for (const migrationName of [
+    "20261013190000_add_milligram_unit.sql",
+    "20261014021329_comprimidos_unit_for_pharmacy.sql",
+  ]) {
+    assert.ok(
+      migrationNames.includes(migrationName),
+      `${migrationName} must exist`,
+    );
+    await db.exec(
+      readFileSync("supabase/migrations/" + migrationName, "utf8").replaceAll(
+        "public.",
+        "preview_lists.",
+      ),
+    );
+  }
   const purchaseDetailsMigration = migrationNames.find((n) =>
     n.includes("purchase_details_and_optional_price"),
   );
@@ -143,17 +158,69 @@ try {
       "preview_lists.",
     ),
   );
-  const exactPurchaseTotalMigration = migrationNames.find((n) =>
-    n.includes("preserve_exact_purchase_total"),
+  const previewPurchaseTotalMigration = migrationNames.find((n) =>
+    n.includes("sync_preview_purchase_total"),
   );
-  assert.ok(exactPurchaseTotalMigration);
+  assert.ok(previewPurchaseTotalMigration);
   await db.exec(
-    readFileSync("supabase/migrations/" + exactPurchaseTotalMigration, "utf8").replaceAll(
+    readFileSync("supabase/migrations/" + previewPurchaseTotalMigration, "utf8"),
+  );
+  const unitCodeDomainMigration = migrationNames.find((n) =>
+    n.includes("unit_code_domain"),
+  );
+  assert.ok(unitCodeDomainMigration);
+  await db.exec(
+    readFileSync("supabase/migrations/" + unitCodeDomainMigration, "utf8").replaceAll(
       "public.",
       "preview_lists.",
     ),
   );
+  const unitColumns = await db.query(
+    "select table_name,domain_name from information_schema.columns where table_schema='preview_lists' and column_name='unit' order by table_name",
+  );
+  assert.deepEqual(
+    unitColumns.rows.map((row) => row.table_name),
+    [
+      "catalog_products",
+      "catalog_requests",
+      "list_suggestions",
+      "products",
+      "shopping_list",
+    ],
+  );
+  assert.ok(unitColumns.rows.every((row) => row.domain_name === "unit_code"));
+  const unitArrayColumns = await db.query(
+    "select table_name,udt_name from information_schema.columns where table_schema='preview_lists' and column_name in ('available_units','provisional_available_units') order by table_name",
+  );
+  assert.deepEqual(
+    unitArrayColumns.rows,
+    [
+      { table_name: "catalog_products", udt_name: "_text" },
+      { table_name: "shopping_list", udt_name: "_text" },
+    ],
+  );
+  checks += 3;
   checks++;
+  const previewPurchaseTotalProtection = (
+    await db.query(
+      "select c.relrowsecurity as rls, has_table_privilege('anon','preview_lists.shopping_list','select') as anon_read, has_table_privilege('authenticated','preview_lists.shopping_list','insert') as authenticated_write, exists(select 1 from information_schema.columns where table_schema='preview_lists' and table_name='shopping_list' and column_name='precio_total') as has_precio_total from pg_class c where c.oid='preview_lists.shopping_list'::regclass",
+    )
+  ).rows[0];
+  assert.deepEqual(previewPurchaseTotalProtection, {
+    rls: true,
+    anon_read: false,
+    authenticated_write: false,
+    has_precio_total: true,
+  });
+  assert.deepEqual(
+    (
+      await db.query(
+        "select id,precio_total from preview_lists.shopping_list order by id",
+      )
+    ).rows,
+    [{ id: "old-purchase", precio_total: null }],
+  );
+  checks += 2;
   const protection = (
     await db.query(
       "select relrowsecurity as rls, has_table_privilege('anon','preview_lists.list_name_suggestions','select') as anon_read, has_table_privilege('authenticated','preview_lists.list_name_suggestions','insert') as authenticated_write from pg_class where oid='preview_lists.list_name_suggestions'::regclass",
@@ -245,6 +312,94 @@ try {
     "insert into preview_lists.app_users(email,role) values($1,'admin') on conflict(email) do nothing",
     [admin],
   );
+  // Reproduce the user's bulk-add payload against the complete disposable schema.
+  const bulkCategoryIds = [
+    "60aa47c7-129d-4df4-b197-0709e4c4ebb2",
+    "29fb56be-9854-4d68-898d-558b0532dbd6",
+  ];
+  await db.query(
+    "insert into preview_lists.catalog_categories(id,name) values($1,'Almacén fixture'),($2,'Limpieza fixture')",
+    bulkCategoryIds,
+  );
+  const bulkPayload = [
+    {
+      name: "Aceitunas",
+      idCategory: bulkCategoryIds[0],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+    {
+      name: "Ajo en polvo",
+      idCategory: bulkCategoryIds[0],
+      cantidad: 1,
+      unit: "kg",
+      availableUnits: ["kg", "g", "mg"],
+    },
+    {
+      name: "Condimento para arroz",
+      idCategory: bulkCategoryIds[0],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+    {
+      name: "Orégano",
+      idCategory: bulkCategoryIds[0],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+    {
+      name: "Pimentón ahumado",
+      idCategory: bulkCategoryIds[0],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+    {
+      name: "Pochoclos",
+      idCategory: bulkCategoryIds[0],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+    {
+      name: "Detergente magistral",
+      idCategory: bulkCategoryIds[1],
+      cantidad: 1,
+      unit: "lt",
+      availableUnits: ["lt", "ml"],
+    },
+    {
+      name: "Esponja",
+      idCategory: bulkCategoryIds[1],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+    {
+      name: "Virulana",
+      idCategory: bulkCategoryIds[1],
+      cantidad: 1,
+      unit: "un",
+      availableUnits: ["un"],
+    },
+  ];
+  assert.deepEqual(
+    await req("/api/list/bulk-add", "POST", bulkPayload, admin, 200, homeA),
+    { added: 9, catalogRequests: 9 },
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and provisional_name = any($2::text[])",
+        [homeA, bulkPayload.map((item) => item.name)],
+      )
+    ).rows[0].n,
+    9,
+  );
+  checks += 2;
   const unitPriceItemId = randomUUID();
   const totalPriceItemId = randomUUID();
   await db.query(
@@ -1017,6 +1172,16 @@ try {
     kind: "member",
     id: second,
   });
+  const duplicateShare = await req(
+    "/api/households",
+    "POST",
+    { action: "share", email: outsider },
+    user,
+    400,
+    second,
+  );
+  assert.equal(duplicateShare.error, "La persona ya pertenece a la lista");
+  checks++;
   const selectedShared = await req(
     "/api/households",
     "GET",

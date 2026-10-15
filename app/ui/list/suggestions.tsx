@@ -45,10 +45,21 @@ export default function Suggestions({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
   async function load() {
     const active = getActiveListId();
     setHasList(Boolean(active));
-    if (!active) return;
+    setError("");
+    if (!active) {
+      setItems([]);
+      setProducts([]);
+      setListed([]);
+      setLoadState("ready");
+      return;
+    }
+    setLoadState("loading");
     try {
       const [data, suggestions, catalog, list] = await Promise.all([
         getHouseholdData(getActiveListId()),
@@ -64,8 +75,10 @@ export default function Suggestions({
           .filter((p) => p.comprado !== "1" && p.id_product !== null)
           .map((p) => p.id_product!),
       );
+      setLoadState("ready");
     } catch {
       setError("No pudimos cargar las sugerencias.");
+      setLoadState("error");
     }
   }
   useEffect(() => {
@@ -101,6 +114,27 @@ export default function Suggestions({
     if (productId && !choices.some((product) => product.id === productId))
       setProductId("");
   }, [productId, choices]);
+  if (loadState === "loading")
+    return (
+      <section className="panel space-y-4" aria-label="Sugerencias de la lista">
+        <h2 className="text-xl font-semibold">Sugerencias de la lista</h2>
+        <p role="status" className="loading-state">
+          Cargando sugerencias…
+        </p>
+      </section>
+    );
+  if (loadState === "error")
+    return (
+      <section className="panel space-y-4" aria-label="Sugerencias de la lista">
+        <h2 className="text-xl font-semibold">Sugerencias de la lista</h2>
+        <p role="alert" className="error-notice">
+          {error}
+        </p>
+        <button className="btn-secondary" onClick={() => void load()}>
+          Reintentar
+        </button>
+      </section>
+    );
   if (!hasList)
     return (
       <p className="text-sm text-zinc-500">
@@ -294,9 +328,11 @@ export default function Suggestions({
           </li>
         ))}
       </ul>
-      {!items.length && (
+      {!error && !items.length && (
         <p className="text-sm text-zinc-500">No hay sugerencias.</p>
       )}
     </section>
   );
 }
+
+Suggestions.displayName = 'Suggestions';

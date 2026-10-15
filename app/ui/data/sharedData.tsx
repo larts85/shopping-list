@@ -329,3 +329,5 @@ export default function SharedData() {
     </div>
   );
 }
+
+SharedData.displayName = 'SharedData';

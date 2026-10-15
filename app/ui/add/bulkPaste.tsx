@@ -522,3 +522,5 @@ export default function BulkPaste({
     </div>
   );
 }
+
+BulkPaste.displayName = 'BulkPaste';

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/app/lib/apiError";
+import { DataError } from "@/app/lib/database";
 import {
   getHouseholdData,
   getHomeLists,
@@ -42,9 +43,16 @@ export async function POST(request: Request) {
       case "delete":
         await deleteHousehold(b.id);
         break;
-      case "share":
-        result = await shareHousehold(b.email);
+      case "share": {
+        const shared = await shareHousehold(b.email);
+        if (shared.status === "error") throw new DataError(shared.error);
+        result = {
+          delivery: shared.delivery,
+          email: shared.email,
+          slug: shared.slug,
+        };
         break;
+      }
       case "accept":
         result = await acceptInvitation(b.id);
         break;

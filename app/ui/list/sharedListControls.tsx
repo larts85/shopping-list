@@ -93,3 +93,5 @@ export default function SharedListControls({
     </section>
   );
 }
+
+SharedListControls.displayName = 'SharedListControls';

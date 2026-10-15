@@ -5,3 +5,5 @@ const SelectSkeleton = () => (
 );
 
 export default SelectSkeleton;
+
+SelectSkeleton.displayName = 'SelectSkeleton';

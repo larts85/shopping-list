@@ -201,3 +201,5 @@ export default function ListAccessProvider({
     );
   return <p role="status">Cargando tus listas…</p>;
 }
+
+ListAccessProvider.displayName = 'ListAccessProvider';

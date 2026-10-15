@@ -238,3 +238,5 @@ export default function ProductDetailsModal({
     </Modal>
   );
 }
+
+ProductDetailsModal.displayName = 'ProductDetailsModal';

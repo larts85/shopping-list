@@ -23,6 +23,9 @@ import { RiCheckLine, RiCloseLine } from "react-icons/ri";
 import { getActiveListId } from "@/app/lib/listClient";
 export default function CatalogRequests() {
   const [role, setRole] = useState<"admin" | "user">();
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
   const [categories, setCategories] = useState<Category[]>([]),
     [requests, setRequests] = useState<CatalogRequest[]>([]);
   const [kind, setKind] = useState<"category" | "product">("product"),
@@ -43,24 +46,30 @@ export default function CatalogRequests() {
     if (!isUnitAllowedForCategory(unit, nextCategoryName)) setUnit("un");
   };
   async function load() {
-    const [user, cats, items] = await Promise.all([
-      getCurrentUser(),
-      getCategories(),
-      getCatalogRequests(),
-    ]);
-    setRole(user.role);
-    setCategories(cats);
-    setRequests(items);
-    setSelectedRequestIds((current) =>
-      current.filter((id) =>
-        items.some((item) => item.id === id && item.status === "pending"),
-      ),
-    );
+    setLoadState("loading");
+    setError("");
+    try {
+      const [user, cats, items] = await Promise.all([
+        getCurrentUser(),
+        getCategories(),
+        getCatalogRequests(),
+      ]);
+      setRole(user.role);
+      setCategories(cats);
+      setRequests(items);
+      setSelectedRequestIds((current) =>
+        current.filter((id) =>
+          items.some((item) => item.id === id && item.status === "pending"),
+        ),
+      );
+      setLoadState("ready");
+    } catch {
+      setError("No pudimos cargar el catálogo y sus solicitudes.");
+      setLoadState("error");
+    }
   }
   useEffect(() => {
-    void load().catch(() =>
-      setError("No pudimos cargar el catálogo y sus solicitudes."),
-    );
+    void load();
   }, []);
   async function run(
     action: () => Promise<void | CatalogRequestSubmissionResult>,
@@ -97,12 +106,16 @@ export default function CatalogRequests() {
       <h2 className="text-xl font-semibold">
         {role === "admin"
           ? "Solicitudes del catálogo general"
-          : "Solicitar una categoría o producto"}
+          : role === "user"
+            ? "Solicitar una categoría o producto"
+            : "Solicitudes del catálogo"}
       </h2>
       <p className="text-sm text-zinc-600">
         {role === "admin"
           ? "Revisa y aprueba las solicitudes pendientes."
-          : "Solicita los productos o categorías que necesitas."}
+          : role === "user"
+            ? "Solicita los productos o categorías que necesitas."
+            : "Consulta y gestiona solicitudes de categorías y productos."}
       </p>
       {error && (
         <p role="alert" className="error-notice">
@@ -110,7 +123,17 @@ export default function CatalogRequests() {
         </p>
       )}
       {message && <p role="status">{message}</p>}
-      {role === "user" && (
+      {loadState === "loading" && (
+        <p role="status" className="loading-state">
+          Cargando catálogo y solicitudes…
+        </p>
+      )}
+      {loadState === "error" && (
+        <button className="btn-secondary" onClick={() => void load()}>
+          Reintentar
+        </button>
+      )}
+      {loadState === "ready" && role === "user" && (
         <form
           className="space-y-4"
           onSubmit={(e) => {
@@ -201,8 +224,12 @@ export default function CatalogRequests() {
           </button>
         </form>
       )}
-      <h3 className="text-lg font-semibold">Historial de solicitudes</h3>
-      {role === "admin" && pendingRequests.length > 0 && (
+      {loadState === "ready" && (
+        <h3 className="text-lg font-semibold">Historial de solicitudes</h3>
+      )}
+      {loadState === "ready" &&
+        role === "admin" &&
+        pendingRequests.length > 0 && (
         <div className="space-y-3 rounded-xl border border-zinc-200 p-4">
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -261,7 +288,8 @@ export default function CatalogRequests() {
         </div>
       )}
       <ul className="divide-y divide-zinc-200">
-        {requests.map((r) => (
+        {loadState === "ready" &&
+          requests.map((r) => (
           <li key={r.id} className="py-4 space-y-2">
             <p>
               {role === "admin" && r.status === "pending" && (
@@ -362,7 +390,11 @@ export default function CatalogRequests() {
           </li>
         ))}
       </ul>
-      {!requests.length && <p className="text-sm">No hay solicitudes.</p>}
+      {loadState === "ready" && !requests.length && (
+        <p className="text-sm">No hay solicitudes.</p>
+      )}
     </section>
   );
 }
+
+CatalogRequests.displayName = 'CatalogRequests';

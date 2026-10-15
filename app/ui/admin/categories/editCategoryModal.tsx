@@ -93,3 +93,5 @@ const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
   );
 };
 export default EditCategoryModal;
+
+EditCategoryModal.displayName = 'EditCategoryModal';

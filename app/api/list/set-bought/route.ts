@@ -14,6 +14,6 @@ export async function PUT(req: Request) {
     await setBought(idList, cantidad, medida, precio ?? null, unit, precioMode);
     return NextResponse.json({ message: "Success save data" }, { status: 200 });
   } catch (error) {
-    return apiError(error);
+    return apiError(error, req);
   }
 }

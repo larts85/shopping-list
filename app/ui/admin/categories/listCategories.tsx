@@ -191,3 +191,5 @@ export default function ListCategories() {
     </div>
   );
 }
+
+ListCategories.displayName = 'ListCategories';

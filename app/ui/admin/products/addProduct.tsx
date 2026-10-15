@@ -597,3 +597,5 @@ export default function AddProduct() {
     </div>
   );
 }
+
+AddProduct.displayName = 'AddProduct';

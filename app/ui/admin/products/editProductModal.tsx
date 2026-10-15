@@ -186,3 +186,5 @@ const EditProductModal: React.FC<EditProductModalProps> = ({
   );
 };
 export default EditProductModal;
+
+EditProductModal.displayName = 'EditProductModal';
