@@ -168,6 +168,41 @@ try {
       "preview_lists.",
     ),
   );
+  const unitCodeDomainMigration = migrationNames.find((n) =>
+    n.includes("unit_code_domain"),
+  );
+  assert.ok(unitCodeDomainMigration);
+  await db.exec(
+    readFileSync("supabase/migrations/" + unitCodeDomainMigration, "utf8").replaceAll(
+      "public.",
+      "preview_lists.",
+    ),
+  );
+  const unitColumns = await db.query(
+    "select table_name,domain_name from information_schema.columns where table_schema='preview_lists' and column_name='unit' order by table_name",
+  );
+  assert.deepEqual(
+    unitColumns.rows.map((row) => row.table_name),
+    [
+      "catalog_products",
+      "catalog_requests",
+      "list_suggestions",
+      "products",
+      "shopping_list",
+    ],
+  );
+  assert.ok(unitColumns.rows.every((row) => row.domain_name === "unit_code"));
+  const unitArrayColumns = await db.query(
+    "select table_name,udt_name from information_schema.columns where table_schema='preview_lists' and column_name in ('available_units','provisional_available_units') order by table_name",
+  );
+  assert.deepEqual(
+    unitArrayColumns.rows,
+    [
+      { table_name: "catalog_products", udt_name: "_text" },
+      { table_name: "shopping_list", udt_name: "_text" },
+    ],
+  );
+  checks += 3;
   checks++;
   const protection = (
     await db.query(
