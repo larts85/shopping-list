@@ -186,6 +186,34 @@ try {
   assert.ok(previewPurchaseConstraints.includes("shopping_list_purchased_values_check"));
   assert.ok(!previewPurchaseConstraints.includes("shopping_list_check"));
   checks += 2;
+  // A previous preview sync omitted description even though history SQL reads it.
+  await db.exec(
+    "alter table preview_lists.shopping_list drop column description",
+  );
+  const previewPurchaseDescriptionMigration = migrationNames.find((n) =>
+    n.includes("sync_preview_purchase_description"),
+  );
+  assert.ok(previewPurchaseDescriptionMigration);
+  await db.exec(
+    readFileSync(
+      "supabase/migrations/" + previewPurchaseDescriptionMigration,
+      "utf8",
+    ),
+  );
+  const previewDescriptionColumn = (
+    await db.query(
+      "select data_type,is_nullable,column_default from information_schema.columns where table_schema='preview_lists' and table_name='shopping_list' and column_name='description'",
+    )
+  ).rows[0];
+  assert.equal(previewDescriptionColumn.data_type, "text");
+  assert.equal(previewDescriptionColumn.is_nullable, "NO");
+  const previewDescriptionCheck = (
+    await db.query(
+      "select pg_get_constraintdef(oid) definition from pg_constraint where conrelid='preview_lists.shopping_list'::regclass and conname='shopping_list_description_check'",
+    )
+  ).rows[0]?.definition;
+  assert.match(previewDescriptionCheck, /char_length\(description\) <= 500/);
+  checks += 4;
   const unitCodeDomainMigration = migrationNames.find((n) =>
     n.includes("unit_code_domain"),
   );
@@ -544,13 +572,16 @@ try {
     [pricePurchase.purchaseId],
   );
   const noPriceItemId = randomUUID();
+  const pendingPriceCompanionId = randomUUID();
   await db.query(
     `insert into preview_lists.shopping_list(
        id,household_id,cantidad,medida,precio,comprado,unit,
        provisional_name,provisional_category_id,provisional_created_by,
        provisional_available_units
-     ) values($1,$2,1,1,0,false,'un','Compra sin precio','old-category',$3,array['un'])`,
-    [noPriceItemId, homeA, admin],
+     ) values
+       ($1,$2,1,1,0,false,'un','Compra sin precio','old-category',$3,array['un']),
+       ($4,$2,1,1,0,false,'un','Pendiente de prueba','old-category',$3,array['un'])`,
+    [noPriceItemId, homeA, admin, pendingPriceCompanionId],
   );
   await req(
     "/api/list/set-bought",
@@ -581,6 +612,7 @@ try {
   );
   assert.equal(noPriceSnapshot.purchase.precio, null);
   assert.equal(noPriceSnapshot.purchase.precio_total, null);
+  assert.equal(noPriceSnapshot.purchase.description, "");
   assert.equal(
     (
       await db.query(
@@ -590,7 +622,16 @@ try {
     ).rows[0].n,
     0,
   );
-  checks += 3;
+  assert.deepEqual(
+    (
+      await db.query(
+        "select comprado from preview_lists.shopping_list where household_id=$1 and id=$2",
+        [homeA, pendingPriceCompanionId],
+      )
+    ).rows,
+    [{ comprado: false }],
+  );
+  checks += 5;
   // Cart mutations must stay scoped and leave the global catalog untouched.
   const original = (
     await db.query(
