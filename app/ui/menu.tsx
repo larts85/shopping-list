@@ -20,15 +20,9 @@ export default async function Menu() {
               aria-hidden="true"
               className="flex size-10 items-center justify-center rounded-xl bg-zinc-900 text-lg text-white"
             >
-              H
+              I
             </span>
-            <span>
-              Hogar
-              <span className="hidden text-zinc-400 sm:inline">
-                {" "}
-                / Logística
-              </span>
-            </span>
+            <span>Inicio</span>
           </Link>
           <div className="flex items-center gap-3">
             <span className="hidden max-w-40 truncate text-sm text-zinc-500 md:block">

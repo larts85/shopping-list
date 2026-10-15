@@ -30,7 +30,9 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
   const [attempt, setAttempt] = useState(0);
   const [deletingId, setDeletingId] = useState("");
   const [deleteError, setDeleteError] = useState("");
-  const [listToDelete, setListToDelete] = useState<Data["lists"][number] | null>(null);
+  const [listToDelete, setListToDelete] = useState<
+    Data["lists"][number] | null
+  >(null);
   const [scheduleList, setScheduleList] = useState<{
     name: string;
     url: string;
