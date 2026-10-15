@@ -59,6 +59,9 @@ export default function List() {
   const [moveBusy, setMoveBusy] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [list, setList] = useState<Record<string, IList[]>>({});
+  const [quantityDrafts, setQuantityDrafts] = useState<Record<string, string>>(
+    {},
+  );
   const [listModal, setLisModal] = useState<IList | null>(null);
   const [detailsModal, setDetailsModal] = useState<IList | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -1009,14 +1012,25 @@ export default function List() {
                           !!purchaseConfirmation ||
                           product.comprado === "1"
                         }
-                        value={product.cantidad}
-                        onChange={(e) =>
+                        value={quantityDrafts[product.id] ?? product.cantidad}
+                        onChange={(e) => {
+                          setQuantityDrafts((drafts) => ({
+                            ...drafts,
+                            [product.id]: e.target.value,
+                          }));
                           handleInputChange(
                             e,
                             product.id,
                             category.id,
                             "cantidad",
-                          )
+                          );
+                        }}
+                        onBlur={() =>
+                          setQuantityDrafts((drafts) => {
+                            const nextDrafts = { ...drafts };
+                            delete nextDrafts[product.id];
+                            return nextDrafts;
+                          })
                         }
                       />
                       <UnitSelect
