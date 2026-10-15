@@ -165,6 +165,55 @@ try {
   await db.exec(
     readFileSync("supabase/migrations/" + previewPurchaseTotalMigration, "utf8"),
   );
+  // Recreate the stale preview-only constraint that still required a price,
+  // then apply the sync migration that must remove it.
+  await db.exec(`alter table preview_lists.shopping_list
+    drop constraint if exists shopping_list_purchased_values_check,
+    add constraint shopping_list_check
+      check (not comprado or (cantidad is not null and medida is not null and precio is not null));`);
+  const previewOptionalPriceMigration = migrationNames.find((n) =>
+    n.includes("sync_preview_optional_price"),
+  );
+  assert.ok(previewOptionalPriceMigration);
+  await db.exec(
+    readFileSync("supabase/migrations/" + previewOptionalPriceMigration, "utf8"),
+  );
+  const previewPurchaseConstraints = (
+    await db.query(
+      "select conname from pg_constraint where conrelid='preview_lists.shopping_list'::regclass and contype='c' order by conname",
+    )
+  ).rows.map((row) => row.conname);
+  assert.ok(previewPurchaseConstraints.includes("shopping_list_purchased_values_check"));
+  assert.ok(!previewPurchaseConstraints.includes("shopping_list_check"));
+  checks += 2;
+  // A previous preview sync omitted description even though history SQL reads it.
+  await db.exec(
+    "alter table preview_lists.shopping_list drop column description",
+  );
+  const previewPurchaseDescriptionMigration = migrationNames.find((n) =>
+    n.includes("sync_preview_purchase_description"),
+  );
+  assert.ok(previewPurchaseDescriptionMigration);
+  await db.exec(
+    readFileSync(
+      "supabase/migrations/" + previewPurchaseDescriptionMigration,
+      "utf8",
+    ),
+  );
+  const previewDescriptionColumn = (
+    await db.query(
+      "select data_type,is_nullable,column_default from information_schema.columns where table_schema='preview_lists' and table_name='shopping_list' and column_name='description'",
+    )
+  ).rows[0];
+  assert.equal(previewDescriptionColumn.data_type, "text");
+  assert.equal(previewDescriptionColumn.is_nullable, "NO");
+  const previewDescriptionCheck = (
+    await db.query(
+      "select pg_get_constraintdef(oid) definition from pg_constraint where conrelid='preview_lists.shopping_list'::regclass and conname='shopping_list_description_check'",
+    )
+  ).rows[0]?.definition;
+  assert.match(previewDescriptionCheck, /char_length\(description\) <= 500/);
+  checks += 4;
   const unitCodeDomainMigration = migrationNames.find((n) =>
     n.includes("unit_code_domain"),
   );
@@ -522,6 +571,67 @@ try {
     "delete from preview_lists.historical where purchase->>'purchase_id'=$1",
     [pricePurchase.purchaseId],
   );
+  const noPriceItemId = randomUUID();
+  const pendingPriceCompanionId = randomUUID();
+  await db.query(
+    `insert into preview_lists.shopping_list(
+       id,household_id,cantidad,medida,precio,comprado,unit,
+       provisional_name,provisional_category_id,provisional_created_by,
+       provisional_available_units
+     ) values
+       ($1,$2,1,1,0,false,'un','Compra sin precio','old-category',$3,array['un']),
+       ($4,$2,1,1,0,false,'un','Pendiente de prueba','old-category',$3,array['un'])`,
+    [noPriceItemId, homeA, admin, pendingPriceCompanionId],
+  );
+  await req(
+    "/api/list/set-bought",
+    "PUT",
+    { idList: noPriceItemId, cantidad: 2, medida: 1, unit: "un" },
+    admin,
+    200,
+    homeA,
+  );
+  const noPricePurchase = await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [noPriceItemId] },
+    admin,
+    200,
+    homeA,
+  );
+  const noPriceHistory = await req(
+    "/api/historical/get-historical",
+    "GET",
+    undefined,
+    admin,
+    200,
+    homeA,
+  );
+  const noPriceSnapshot = noPriceHistory.items.find(
+    (item) => item.purchase.purchase_id === noPricePurchase.purchaseId,
+  );
+  assert.equal(noPriceSnapshot.purchase.precio, null);
+  assert.equal(noPriceSnapshot.purchase.precio_total, null);
+  assert.equal(noPriceSnapshot.purchase.description, "");
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id=$2",
+        [homeA, noPriceItemId],
+      )
+    ).rows[0].n,
+    0,
+  );
+  assert.deepEqual(
+    (
+      await db.query(
+        "select comprado from preview_lists.shopping_list where household_id=$1 and id=$2",
+        [homeA, pendingPriceCompanionId],
+      )
+    ).rows,
+    [{ comprado: false }],
+  );
+  checks += 5;
   // Cart mutations must stay scoped and leave the global catalog untouched.
   const original = (
     await db.query(
@@ -1228,6 +1338,26 @@ try {
     200,
     second,
   );
+  await req("/api/list/add-list", "POST", undefined, outsider, 200, second);
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id_product=$2",
+        [second, newProduct.id],
+      )
+    ).rows[0].n,
+    1,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id_product=$2",
+        [homeB, newProduct.id],
+      )
+    ).rows[0].n,
+    0,
+  );
+  checks += 2;
   await req(
     "/api/products/edit-checked-product",
     "PUT",
