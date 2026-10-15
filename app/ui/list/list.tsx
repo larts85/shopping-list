@@ -974,28 +974,30 @@ export default function List() {
                         >
                           {product.comprado === "1" ? "✓" : ""}
                         </span>
-                        <span
-                          className={`min-w-0 break-words ${product.comprado === "1" ? "text-zinc-500 line-through" : "font-medium"}`}
-                        >
-                          {product.name}
-                        </span>
-                        {product.isProvisional && (
-                          <span className="text-xs text-amber-700">
-                            Provisional · agregado por {product.createdBy}
-                            {product.catalogRequestEmail && (
-                              <>
-                                {" "}
-                                · solicitud{" "}
-                                {product.catalogRequestStatus === "approved"
-                                  ? "aprobada"
-                                  : product.catalogRequestStatus === "rejected"
-                                    ? "rechazada"
-                                    : "pendiente"}{" "}
-                                de {product.catalogRequestEmail}
-                              </>
-                            )}
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span
+                            className={`min-w-0 break-words ${product.comprado === "1" ? "text-zinc-500 line-through" : "font-medium"}`}
+                          >
+                            {product.name}
                           </span>
-                        )}
+                          {product.isProvisional && (
+                            <span className="min-w-0 break-words text-xs text-amber-700">
+                              Provisional · agregado por {product.createdBy}
+                              {product.catalogRequestEmail && (
+                                <>
+                                  {" "}
+                                  · solicitud{" "}
+                                  {product.catalogRequestStatus === "approved"
+                                    ? "aprobada"
+                                    : product.catalogRequestStatus === "rejected"
+                                      ? "rechazada"
+                                      : "pendiente"}{" "}
+                                  de {product.catalogRequestEmail}
+                                </>
+                              )}
+                            </span>
+                          )}
+                        </span>
                         <span className="sr-only">
                           {product.comprado === "1"
                             ? ", desmarcar comprado"
