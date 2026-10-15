@@ -12,6 +12,7 @@ import ActionMenu from "@/shared/components/ui/ActionMenu";
 import Modal from "@/shared/components/ui/Modal";
 import ConfirmModal from "@/shared/components/ui/ConfirmModal";
 import { completedPurchaseName } from "@/app/lib/completedPurchase";
+import { getPurchaseActionLabel } from "@/app/lib/purchaseAction";
 import BoughtListModal from "./boughtModal";
 import ProductDetailsModal from "./productDetailsModal";
 import { IList } from "@/app/lib/types";
@@ -706,6 +707,7 @@ export default function List() {
   const boughtCount = products.filter(
     (product) => product.comprado === "1",
   ).length;
+  const purchaseActionLabel = getPurchaseActionLabel(products);
   return (
     <div className="space-y-6">
       <SharedListControls onSwitch={load} />
@@ -805,6 +807,7 @@ export default function List() {
           </p>
           <div className="flex flex-wrap gap-2">
             <button
+              type="button"
               onClick={openPurchaseConfirmation}
               disabled={
                 !canManageList ||
@@ -815,7 +818,7 @@ export default function List() {
               }
               className="btn-secondary"
             >
-              Finalizar compra parcial
+              {purchaseActionLabel}
             </button>
           </div>
         </div>
