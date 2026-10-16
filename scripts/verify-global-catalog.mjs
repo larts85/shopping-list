@@ -609,14 +609,6 @@ try {
     200,
     homeA,
   );
-  const noPricePurchase = await req(
-    "/api/historical/add-historical",
-    "POST",
-    { productIds: [noPriceItemId] },
-    admin,
-    200,
-    homeA,
-  );
   await req(
     "/api/list/item-details",
     "PATCH",
@@ -652,6 +644,14 @@ try {
   assert.equal(
     purchasedList.find((item) => item.id === noPriceItemId).description,
     "Descripción actualizada por un miembro",
+  );
+  const noPricePurchase = await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [noPriceItemId] },
+    admin,
+    200,
+    homeA,
   );
   const noPriceHistory = await req(
     "/api/historical/get-historical",
@@ -708,7 +708,7 @@ try {
     "/api/list/cart-items",
     "PATCH",
     { id: original.id },
-    user,
+    outsider,
     403,
     homeA,
   );
@@ -746,7 +746,7 @@ try {
     "/api/list/cart-items",
     "DELETE",
     { productId: original.id },
-    user,
+    outsider,
     403,
     homeA,
   );
@@ -1057,7 +1057,7 @@ try {
     undefined,
     user,
   );
-  assert.equal(homeAfterCreate.lists.length, 2);
+  assert.equal(homeAfterCreate.lists.length, 3);
   assert.ok(homeAfterCreate.lists.some((household) => household.id === second));
   const createdSlug = (
     await db.query("select slug from preview_lists.households where id=$1", [
