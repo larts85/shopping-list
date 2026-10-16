@@ -57,4 +57,6 @@ export function Authenticate({ returnTo }: { returnTo?: string }) {
     </Card>
   );
 }
+
+Authenticate.displayName = 'Authenticate';
 export default Authenticate;

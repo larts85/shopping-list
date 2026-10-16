@@ -134,3 +134,5 @@ export default function InvitationBanner() {
     </section>
   );
 }
+
+InvitationBanner.displayName = 'InvitationBanner';

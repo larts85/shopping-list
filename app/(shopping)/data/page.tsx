@@ -12,3 +12,5 @@ export default function Page() {
     </main>
   );
 }
+
+Page.displayName = 'Page';

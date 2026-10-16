@@ -6,11 +6,13 @@ export default function Modal({
   onClose,
   title,
   children,
+  initialFocusRef,
 }: {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -18,6 +20,7 @@ export default function Modal({
     if (!dialog || !isOpen) return;
     const returnFocus = document.activeElement as HTMLElement | null;
     dialog.showModal();
+    initialFocusRef?.current?.focus();
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
@@ -25,7 +28,7 @@ export default function Modal({
       document.body.style.overflow = previousOverflow;
       if (returnFocus?.isConnected) returnFocus.focus();
     };
-  }, [isOpen]);
+  }, [initialFocusRef, isOpen]);
   return (
     <dialog
       ref={ref}
@@ -40,3 +43,5 @@ export default function Modal({
     </dialog>
   );
 }
+
+Modal.displayName = 'Modal';

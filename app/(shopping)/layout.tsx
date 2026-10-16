@@ -27,3 +27,5 @@ export default async function Layout({
     </div>
   );
 }
+
+Layout.displayName = 'Layout';

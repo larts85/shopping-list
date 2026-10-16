@@ -108,3 +108,5 @@ export default function CreateListModal({
     </Modal>
   );
 }
+
+CreateListModal.displayName = 'CreateListModal';

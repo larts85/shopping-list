@@ -9,11 +9,19 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Required props" }, { status: 400 });
     }
 
-    const { idList, cantidad, medida, precio, unit, precioMode } =
+    const { idList, cantidad, medida, precio, unit, precioMode, description } =
       propsSetBougth;
-    await setBought(idList, cantidad, medida, precio ?? null, unit, precioMode);
+    await setBought(
+      idList,
+      cantidad,
+      medida,
+      precio ?? null,
+      unit,
+      precioMode,
+      description,
+    );
     return NextResponse.json({ message: "Success save data" }, { status: 200 });
   } catch (error) {
-    return apiError(error);
+    return apiError(error, req);
   }
 }

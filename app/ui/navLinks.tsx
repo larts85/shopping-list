@@ -115,3 +115,5 @@ export default function NavLinks({ admin = false }: { admin?: boolean }) {
     </nav>
   );
 }
+
+NavLinks.displayName = 'NavLinks';

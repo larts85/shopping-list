@@ -7,8 +7,8 @@ import { SessionProvider } from "next-auth/react";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Logistica del Hogar",
-  description: "Aplicación que ayuda a una eficiente logistica del hogar",
+  title: "Lista de compra",
+  description: "Aplicación que ayuda a una eficiente logística del hogar",
 };
 
 export default function RootLayout({
@@ -19,10 +19,10 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={inter.className}>
-        <SessionProvider>
-          {children}
-        </SessionProvider>
+        <SessionProvider>{children}</SessionProvider>
       </body>
     </html>
   );
 }
+
+RootLayout.displayName = 'RootLayout';

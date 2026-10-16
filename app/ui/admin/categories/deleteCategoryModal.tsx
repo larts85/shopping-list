@@ -74,3 +74,5 @@ const DeleteCategoryModal: React.FC<DeleteCategoryModalProps> = ({
   );
 };
 export default DeleteCategoryModal;
+
+DeleteCategoryModal.displayName = 'DeleteCategoryModal';
