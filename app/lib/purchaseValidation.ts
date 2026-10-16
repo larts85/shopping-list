@@ -1,5 +1,13 @@
 import { DataError, positive } from "./database";
-import { isUnit, type Unit } from "./units";
+import { isQuantityValidForUnit, isUnit, type Unit } from "./units";
+export function quantityForUnit(value: unknown, unit?: Unit): number {
+  const quantity = positive(value);
+  if (unit && !isQuantityValidForUnit(quantity, unit))
+    throw new DataError(
+      "La cantidad debe ser un número entero para esta unidad",
+    );
+  return quantity;
+}
 export function purchaseValues(
   cantidad: unknown,
   medida: unknown,
@@ -8,7 +16,7 @@ export function purchaseValues(
   if (unit !== undefined && !isUnit(unit))
     throw new DataError("Unidad inválida");
   return {
-    cantidad: positive(cantidad),
+    cantidad: quantityForUnit(cantidad, unit as Unit | undefined),
     medida: positive(medida),
     unit: unit as Unit | undefined,
   };

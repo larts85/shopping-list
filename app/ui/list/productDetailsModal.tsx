@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { listFetch } from "@/app/lib/listClient";
 import type { IList } from "@/app/lib/types";
-import { compatibleUnits, type Unit } from "@/app/lib/units";
+import {
+  compatibleUnits,
+  requiresWholeQuantity,
+  type Unit,
+} from "@/app/lib/units";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
 import Modal from "@/shared/components/ui/Modal";
 
@@ -51,6 +55,15 @@ export default function ProductDetailsModal({
       }
     } else if (bought && canEditPurchase) {
       setError("La cantidad comprada debe ser mayor que cero.");
+      return;
+    }
+    if (
+      canEditPurchase &&
+      cantidad !== "" &&
+      requiresWholeQuantity(unit) &&
+      !Number.isInteger(Number(cantidad))
+    ) {
+      setError("La cantidad debe ser un número entero para esta unidad.");
       return;
     }
     if (
@@ -185,8 +198,8 @@ export default function ProductDetailsModal({
             Cantidad
             <input
               type="number"
-              min="0"
-              step="any"
+              min={requiresWholeQuantity(unit) ? "1" : "0.000001"}
+              step={requiresWholeQuantity(unit) ? "1" : "any"}
               required={bought && canManageList}
               className="field mt-2"
               value={cantidad}

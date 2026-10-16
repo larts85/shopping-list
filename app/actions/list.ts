@@ -11,6 +11,7 @@ import {
 } from "../lib/database";
 import {
   purchaseValues,
+  quantityForUnit,
   requireAvailableUnit,
 } from "../lib/purchaseValidation";
 import {
@@ -111,7 +112,7 @@ export async function setBought(
     throw new DataError("La descripción no puede superar los 500 caracteres");
   await withListItemEditor(async (db, h) => {
     const product = await db.query(
-      `select c.name as category_name
+      `select c.name as category_name,coalesce(l.unit,p.unit) as current_unit
        from shopping_list l
        left join catalog_products p on p.id=l.id_product
        left join catalog_categories c on c.id=coalesce(p.id_category,l.provisional_category_id)
@@ -124,6 +125,10 @@ export async function setBought(
       !isUnitAllowedForCategory(values.unit, product.rows[0].category_name ?? "")
     )
       throw new DataError("La unidad no está disponible para esta categoría");
+    values.cantidad = quantityForUnit(
+      cantidad,
+      values.unit ?? product.rows[0].current_unit,
+    );
     requireRow(
       (
         await db.query(
@@ -194,6 +199,8 @@ export async function updateListItemDetails(
     if (bought && hasCantidad && cantidad === null)
       throw new DataError("La cantidad comprada debe ser mayor que cero");
     const currentUnit = product.rows[0].unit ?? product.rows[0].product_unit;
+    if (hasCantidad && cantidad !== null)
+      quantityForUnit(cantidad, hasUnit ? unit! : currentUnit);
     const quantityChanged =
       hasCantidad && Number(cantidad) !== Number(product.rows[0].cantidad);
     const unitChanged = hasUnit && unit !== currentUnit;
@@ -369,7 +376,7 @@ export async function updateMultipleProducts(
   await withListItemEditor(async (db, h) => {
     for (const p of validated) {
       const product = await db.query(
-        `select l.comprado,c.name as category_name
+        `select l.comprado,c.name as category_name,coalesce(l.unit,p.unit) as current_unit
          from shopping_list l
          left join catalog_products p on p.id=l.id_product
          left join catalog_categories c on c.id=coalesce(p.id_category,l.provisional_category_id)
@@ -386,6 +393,7 @@ export async function updateMultipleProducts(
         !isUnitAllowedForCategory(p.unit, product.rows[0].category_name ?? "")
       )
         throw new DataError("La unidad no está disponible para esta categoría");
+      quantityForUnit(p.cantidad, p.unit ?? product.rows[0].current_unit);
       requireRow(
         (
           await db.query(
@@ -586,9 +594,12 @@ export async function bulkAddToList(
       }
       const name = text(item.name);
       const idCategory = text(item.idCategory);
-      const cantidad = item.cantidad ? positive(item.cantidad, false) : 1;
       const requestedUnit: Unit =
         item.unit && isUnit(item.unit) ? item.unit : "un";
+      const cantidad =
+        item.cantidad === undefined
+          ? 1
+          : quantityForUnit(item.cantidad, requestedUnit);
       const requestedAvailableUnits =
         item.availableUnits ?? compatibleUnits(requestedUnit);
       if (!isValidAvailableUnits(requestedAvailableUnits, requestedUnit))

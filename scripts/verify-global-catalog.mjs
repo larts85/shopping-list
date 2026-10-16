@@ -609,14 +609,6 @@ try {
     200,
     homeA,
   );
-  const noPricePurchase = await req(
-    "/api/historical/add-historical",
-    "POST",
-    { productIds: [noPriceItemId] },
-    admin,
-    200,
-    homeA,
-  );
   await req(
     "/api/list/item-details",
     "PATCH",
@@ -652,6 +644,14 @@ try {
   assert.equal(
     purchasedList.find((item) => item.id === noPriceItemId).description,
     "Descripción actualizada por un miembro",
+  );
+  const noPricePurchase = await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [noPriceItemId] },
+    admin,
+    200,
+    homeA,
   );
   const noPriceHistory = await req(
     "/api/historical/get-historical",
@@ -708,7 +708,7 @@ try {
     "/api/list/cart-items",
     "PATCH",
     { id: original.id },
-    user,
+    outsider,
     403,
     homeA,
   );
@@ -746,7 +746,7 @@ try {
     "/api/list/cart-items",
     "DELETE",
     { productId: original.id },
-    user,
+    outsider,
     403,
     homeA,
   );
@@ -1036,6 +1036,15 @@ try {
   await req("/api/list/update-multiple-products", "PUT", [
     { id: list[0].id, cantidad: 0.5, medida: 1, precio: 0, unit: "kg" },
   ]);
+  const fractionalQuantity = await req("/api/list/get-list");
+  assert.equal(Number(fractionalQuantity[0].cantidad), 0.5);
+  await req(
+    "/api/list/update-multiple-products",
+    "PUT",
+    [{ id: list[0].id, cantidad: 0.5, medida: 1, precio: 0, unit: "un" }],
+    user,
+    400,
+  );
   const second = (
     await req("/api/households", "POST", {
       action: "create",
@@ -1048,7 +1057,7 @@ try {
     undefined,
     user,
   );
-  assert.equal(homeAfterCreate.lists.length, 2);
+  assert.equal(homeAfterCreate.lists.length, 3);
   assert.ok(homeAfterCreate.lists.some((household) => household.id === second));
   const createdSlug = (
     await db.query("select slug from preview_lists.households where id=$1", [
@@ -1678,11 +1687,13 @@ try {
   await req(
     "/api/list/set-bought",
     "PUT",
-    { idList: list[0].id, cantidad: 0.5, medida: 1, precio: 1000, unit: "kg" },
+    { idList: list[0].id, cantidad: 0.25, medida: 1, precio: 1000, unit: "kg" },
     user,
     200,
     own.household.id,
   );
+  const purchasedFraction = await req("/api/list/get-list", "GET", undefined, user, 200, own.household.id);
+  assert.equal(Number(purchasedFraction[0].cantidad), 0.25);
   const beforePartial = (
     await db.query(
       "select name,slug from preview_lists.households where id=$1",

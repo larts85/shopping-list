@@ -8,7 +8,10 @@ import {
   requireRow,
   DataError,
 } from "../lib/database";
-import { requireAvailableUnit } from "../lib/purchaseValidation";
+import {
+  quantityForUnit,
+  requireAvailableUnit,
+} from "../lib/purchaseValidation";
 import { isUnit, type Unit } from "../lib/units";
 export interface SuggestionInput {
   kind: "add" | "quantity" | "remove";
@@ -50,6 +53,8 @@ export async function submitSuggestion(
     requireRow(product.rowCount);
     if (input.kind !== "remove")
       requireAvailableUnit(input.unit!, product.rows[0].available_units);
+    const validatedQuantity =
+      input.kind === "remove" ? null : quantityForUnit(quantity, input.unit);
     if (input.kind !== "add")
       requireRow(
         (
@@ -66,7 +71,7 @@ export async function submitSuggestion(
         email,
         input.kind,
         productId,
-        quantity,
+        validatedQuantity,
         input.kind === "remove" ? null : input.unit,
         note,
       ],

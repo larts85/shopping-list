@@ -19,7 +19,11 @@ import BoughtListModal from "./boughtModal";
 import ProductDetailsModal from "./productDetailsModal";
 import { IList } from "@/app/lib/types";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
-import { compatibleUnits, type Unit } from "@/app/lib/units";
+import {
+  compatibleUnits,
+  requiresWholeQuantity,
+  type Unit,
+} from "@/app/lib/units";
 import SharedListControls from "./sharedListControls";
 import { getHouseholdData } from "@/app/actions/households";
 import { Category } from "@/app/lib/types";
@@ -482,7 +486,11 @@ export default function List() {
     if (!updates.length) return;
     if (
       updates.some(
-        (update) => !Number.isFinite(update.cantidad) || update.cantidad <= 0,
+        (update) =>
+          !Number.isFinite(update.cantidad) ||
+          update.cantidad <= 0 ||
+          (requiresWholeQuantity(update.unit) &&
+            !Number.isInteger(update.cantidad)),
       )
     ) {
       setStatus(
@@ -1130,8 +1138,16 @@ export default function List() {
                         aria-label={`Cantidad de ${product.name}`}
                         className="h-10 min-w-0 w-full rounded-lg border border-zinc-300 px-1.5 text-center text-base tabular-nums focus:ring-2 focus:ring-zinc-400 sm:h-9 sm:text-sm"
                         type="number"
-                        min="0"
-                        step="any"
+                        min={
+                          requiresWholeQuantity(product.unit ?? "un")
+                            ? "1"
+                            : "0.000001"
+                        }
+                        step={
+                          requiresWholeQuantity(product.unit ?? "un")
+                            ? "1"
+                            : "any"
+                        }
                         disabled={
                           !canEditList ||
                           isLoading ||
