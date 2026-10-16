@@ -5,7 +5,7 @@ import Menu from "./ui/menu";
 import HomeLists from "./ui/list/homeLists";
 import { defaultListName } from "./lib/listName";
 
-export const metadata = { title: "Carritos" };
+export const metadata = { title: "Shopear" };
 
 export default async function Home({
   searchParams,

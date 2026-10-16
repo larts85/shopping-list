@@ -73,6 +73,10 @@ try {
     [homeA, admin, homeB, user],
   );
   await db.query(
+    "insert into preview_lists.household_members(household_id,email) values($1,$2)",
+    [homeA, user],
+  );
+  await db.query(
     "insert into preview_lists.categories(id,household_id,name) values($1,$2,$3),($4,$5,$6)",
     ["old-category", homeA, "Alimentos", "user-category", homeB, "Higiene"],
   );
@@ -515,7 +519,7 @@ try {
     "PATCH",
     {
       id: totalPriceItemId,
-      description: "",
+      description: "Descripción editada después de comprar",
       cantidad: 3,
       unit: "un",
       precio: Number(totalPriced.precioValue),
@@ -536,7 +540,11 @@ try {
     detailsRefresh.find((item) => item.id === totalPriceItemId).precioTotal,
     currency(29.99),
   );
-  checks++;
+  assert.equal(
+    detailsRefresh.find((item) => item.id === totalPriceItemId).description,
+    "Descripción editada después de comprar",
+  );
+  checks += 2;
   const pricePurchase = await req(
     "/api/historical/add-historical",
     "POST",
@@ -566,7 +574,11 @@ try {
   assert.ok(
     Math.abs(Number(totalSnapshot.purchase.precio) * 3 - 29.99) < 1e-9,
   );
-  checks += 5;
+  assert.equal(
+    totalSnapshot.purchase.description,
+    "Descripción editada después de comprar",
+  );
+  checks += 6;
   await db.query(
     "delete from preview_lists.historical where purchase->>'purchase_id'=$1",
     [pricePurchase.purchaseId],
@@ -575,18 +587,24 @@ try {
   const pendingPriceCompanionId = randomUUID();
   await db.query(
     `insert into preview_lists.shopping_list(
-       id,household_id,cantidad,medida,precio,comprado,unit,
+       id,household_id,cantidad,medida,precio,comprado,unit,description,
        provisional_name,provisional_category_id,provisional_created_by,
        provisional_available_units
      ) values
-       ($1,$2,1,1,0,false,'un','Compra sin precio','old-category',$3,array['un']),
-       ($4,$2,1,1,0,false,'un','Pendiente de prueba','old-category',$3,array['un'])`,
+       ($1,$2,1,1,0,false,'un','Descripción anterior','Compra sin precio','old-category',$3,array['un']),
+       ($4,$2,1,1,0,false,'un','','Pendiente de prueba','old-category',$3,array['un'])`,
     [noPriceItemId, homeA, admin, pendingPriceCompanionId],
   );
   await req(
     "/api/list/set-bought",
     "PUT",
-    { idList: noPriceItemId, cantidad: 2, medida: 1, unit: "un" },
+    {
+      idList: noPriceItemId,
+      cantidad: 2,
+      medida: 1,
+      unit: "un",
+      description: "Detalle guardado al comprar",
+    },
     admin,
     200,
     homeA,
@@ -598,6 +616,42 @@ try {
     admin,
     200,
     homeA,
+  );
+  await req(
+    "/api/list/item-details",
+    "PATCH",
+    {
+      id: noPriceItemId,
+      description: "Descripción actualizada por un miembro",
+    },
+    user,
+    200,
+    homeA,
+  );
+  await req(
+    "/api/list/item-details",
+    "PATCH",
+    {
+      id: noPriceItemId,
+      description: "Cambio rechazado",
+      cantidad: 3,
+      unit: "un",
+    },
+    user,
+    403,
+    homeA,
+  );
+  const purchasedList = await req(
+    "/api/list/get-list",
+    "GET",
+    undefined,
+    admin,
+    200,
+    homeA,
+  );
+  assert.equal(
+    purchasedList.find((item) => item.id === noPriceItemId).description,
+    "Descripción actualizada por un miembro",
   );
   const noPriceHistory = await req(
     "/api/historical/get-historical",
@@ -612,7 +666,10 @@ try {
   );
   assert.equal(noPriceSnapshot.purchase.precio, null);
   assert.equal(noPriceSnapshot.purchase.precio_total, null);
-  assert.equal(noPriceSnapshot.purchase.description, "");
+  assert.equal(
+    noPriceSnapshot.purchase.description,
+    "Descripción actualizada por un miembro",
+  );
   assert.equal(
     (
       await db.query(
@@ -631,7 +688,7 @@ try {
     ).rows,
     [{ comprado: false }],
   );
-  checks += 5;
+  checks += 6;
   // Cart mutations must stay scoped and leave the global catalog untouched.
   const original = (
     await db.query(
@@ -1338,6 +1395,26 @@ try {
     200,
     second,
   );
+  await req("/api/list/add-list", "POST", undefined, outsider, 200, second);
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id_product=$2",
+        [second, newProduct.id],
+      )
+    ).rows[0].n,
+    1,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id_product=$2",
+        [homeB, newProduct.id],
+      )
+    ).rows[0].n,
+    0,
+  );
+  checks += 2;
   await req(
     "/api/products/edit-checked-product",
     "PUT",

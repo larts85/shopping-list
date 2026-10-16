@@ -1,13 +1,15 @@
 "use client";
 import { getActiveListId, setActiveListId } from "@/app/lib/listClient";
 import { listFetch } from "@/app/lib/listClient";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId } from "react";
 import { ClipLoader } from "react-spinners";
 import {
   RiArrowLeftRightLine,
   RiDeleteBin6Line,
+  RiErrorWarningLine,
   RiMore2Fill,
 } from "react-icons/ri";
+import { createPortal } from "react-dom";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
 import Modal from "@/shared/components/ui/Modal";
 import ConfirmModal from "@/shared/components/ui/ConfirmModal";
@@ -35,6 +37,127 @@ interface PendingProductUpdate {
   cantidad: number;
   unit: Unit;
   version: number;
+}
+
+function ProvisionalInfo({ description }: { description: string }) {
+  const tooltipId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hovering = useRef(false);
+  const focused = useRef(false);
+  const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [position, setPosition] = useState<{ top: number; left: number }>();
+
+  function show() {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const tooltipWidth = Math.min(320, window.innerWidth - 16);
+    setPosition({
+      top:
+        window.innerHeight - rect.bottom < 120 && rect.top > 120
+          ? Math.max(8, rect.top - 112)
+          : rect.bottom,
+      left: Math.max(
+        8,
+        Math.min(rect.left, window.innerWidth - tooltipWidth - 8),
+      ),
+    });
+    setOpen(true);
+  }
+
+  function scheduleClose() {
+    if (pinned || hovering.current || focused.current) return;
+    closeTimer.current = setTimeout(() => {
+      if (!pinned && !hovering.current && !focused.current) setOpen(false);
+    }, 150);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      setPinned(false);
+      triggerRef.current?.focus();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
+
+  useEffect(
+    () => () => {
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+    },
+    [],
+  );
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label="Información del producto provisional"
+        aria-describedby={open ? tooltipId : undefined}
+        aria-expanded={open}
+        className="flex size-8 shrink-0 touch-manipulation items-center justify-center rounded-full text-amber-700 hover:bg-amber-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+        onMouseEnter={() => {
+          hovering.current = true;
+          show();
+        }}
+        onMouseLeave={() => {
+          hovering.current = false;
+          scheduleClose();
+        }}
+        onFocus={() => {
+          focused.current = true;
+          show();
+        }}
+        onBlur={() => {
+          focused.current = false;
+          scheduleClose();
+        }}
+        onClick={() => {
+          if (pinned) {
+            setPinned(false);
+            setOpen(false);
+          } else {
+            setPinned(true);
+            show();
+          }
+        }}
+      >
+        <RiErrorWarningLine aria-hidden="true" size={18} />
+      </button>
+      {open &&
+        position &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            id={tooltipId}
+            role="tooltip"
+            className="fixed z-50 rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs leading-5 text-zinc-800 shadow-lg"
+            style={{
+              top: position.top,
+              left: position.left,
+              width: "min(20rem, calc(100vw - 1rem))",
+            }}
+            onMouseEnter={() => {
+              hovering.current = true;
+              if (closeTimer.current) clearTimeout(closeTimer.current);
+            }}
+            onMouseLeave={() => {
+              hovering.current = false;
+              scheduleClose();
+            }}
+          >
+            {description}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
 }
 
 export default function List() {
@@ -722,8 +845,8 @@ export default function List() {
       )}
       {canEditList && (
         <>
-          <div className="panel flex flex-wrap items-center justify-between gap-4">
-            <div>
+          <div className="panel flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
               <h2 className="font-semibold">¿Falta algún producto?</h2>
               <p className="mt-1 text-sm text-zinc-500">
                 Se agregará a{" "}
@@ -732,7 +855,7 @@ export default function List() {
             </div>
             <button
               type="button"
-              className="btn-primary"
+              className="btn-primary w-full sm:w-auto"
               aria-expanded={isAddItemsOpen}
               aria-controls="add-products-panel"
               disabled={isLoading || pendingSaveCount > 0 || isSavingEdits}
@@ -956,54 +1079,53 @@ export default function List() {
                       key={product.id}
                       className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] sm:gap-2 sm:px-6 md:grid-cols-[minmax(0,1fr)_3.5rem_4rem_8rem]"
                     >
-                      <button
-                        type="button"
-                        disabled={
-                          !canEditList ||
-                          isLoading ||
-                          purchaseBusy ||
-                          !!purchaseConfirmation ||
-                          pendingSaveCount > 0
-                        }
-                        onClick={() => handleOpenModal(product)}
-                        className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg text-left text-sm hover:text-zinc-500 sm:gap-3"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${product.comprado === "1" ? "border-zinc-900 bg-zinc-900 text-xs text-white" : "border-zinc-300"}`}
+                      <div className="flex min-w-0 items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={
+                            !canEditList ||
+                            isLoading ||
+                            purchaseBusy ||
+                            !!purchaseConfirmation ||
+                            pendingSaveCount > 0
+                          }
+                          onClick={() => handleOpenModal(product)}
+                          className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg text-left text-sm hover:text-zinc-500 sm:gap-3"
                         >
-                          {product.comprado === "1" ? "✓" : ""}
-                        </span>
-                        <span className="flex min-w-0 flex-1 flex-col">
                           <span
-                            className={`min-w-0 break-words ${product.comprado === "1" ? "text-zinc-500 line-through" : "font-medium"}`}
+                            aria-hidden="true"
+                            className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${product.comprado === "1" ? "border-zinc-900 bg-zinc-900 text-xs text-white" : "border-zinc-300"}`}
+                          >
+                            {product.comprado === "1" ? "✓" : ""}
+                          </span>
+                          <span
+                            className={`min-w-0 flex-1 break-words ${product.comprado === "1" ? "text-zinc-500 line-through" : "font-medium"}`}
                           >
                             {product.name}
                           </span>
-                          {product.isProvisional && (
-                            <span className="min-w-0 break-words text-xs text-amber-700">
-                              Provisional · agregado por {product.createdBy}
-                              {product.catalogRequestEmail && (
-                                <>
-                                  {" "}
-                                  · solicitud{" "}
-                                  {product.catalogRequestStatus === "approved"
-                                    ? "aprobada"
-                                    : product.catalogRequestStatus === "rejected"
-                                      ? "rechazada"
-                                      : "pendiente"}{" "}
-                                  de {product.catalogRequestEmail}
-                                </>
-                              )}
-                            </span>
-                          )}
-                        </span>
-                        <span className="sr-only">
-                          {product.comprado === "1"
-                            ? ", desmarcar comprado"
-                            : ", registrar compra"}
-                        </span>
-                      </button>
+                          <span className="sr-only">
+                            {product.comprado === "1"
+                              ? ", desmarcar comprado"
+                              : ", registrar compra"}
+                          </span>
+                        </button>
+                        {product.isProvisional && (
+                          <ProvisionalInfo
+                            description={`Provisional · agregado por ${product.createdBy || "un miembro del hogar"}${
+                              product.catalogRequestEmail
+                                ? ` · solicitud ${
+                                    product.catalogRequestStatus === "approved"
+                                      ? "aprobada"
+                                      : product.catalogRequestStatus ===
+                                          "rejected"
+                                        ? "rechazada"
+                                        : "pendiente"
+                                  } de ${product.catalogRequestEmail}`
+                                : ""
+                            }`}
+                          />
+                        )}
+                      </div>
                       <input
                         aria-label={`Cantidad de ${product.name}`}
                         className="h-10 min-w-0 w-full rounded-lg border border-zinc-300 px-1.5 text-center text-base tabular-nums focus:ring-2 focus:ring-zinc-400 sm:h-9 sm:text-sm"
@@ -1366,6 +1488,7 @@ export default function List() {
           availableUnits={
             listModal.availableUnits ?? [listModal.productUnit ?? "un"]
           }
+          description={listModal.description ?? ""}
         />
       )}
       {canEditList && detailsModal && (
