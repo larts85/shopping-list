@@ -21,6 +21,16 @@ export const unitAbbreviations: Record<Unit, string> = {
 export function isUnit(value: unknown): value is Unit {
   return typeof value === "string" && units.includes(value as Unit);
 }
+export function requiresWholeQuantity(unit: Unit): boolean {
+  return unit === "un" || unit === "comp";
+}
+export function isQuantityValidForUnit(value: number, unit: Unit): boolean {
+  return (
+    Number.isFinite(value) &&
+    value > 0 &&
+    (!requiresWholeQuantity(unit) || Number.isInteger(value))
+  );
+}
 export function compatibleUnits(unit: Unit): Unit[] {
   if (unit === "comp") return ["comp"];
   if (unit === "kg" || unit === "g" || unit === "mg")

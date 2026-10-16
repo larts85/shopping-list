@@ -1036,6 +1036,15 @@ try {
   await req("/api/list/update-multiple-products", "PUT", [
     { id: list[0].id, cantidad: 0.5, medida: 1, precio: 0, unit: "kg" },
   ]);
+  const fractionalQuantity = await req("/api/list/get-list");
+  assert.equal(Number(fractionalQuantity[0].cantidad), 0.5);
+  await req(
+    "/api/list/update-multiple-products",
+    "PUT",
+    [{ id: list[0].id, cantidad: 0.5, medida: 1, precio: 0, unit: "un" }],
+    user,
+    400,
+  );
   const second = (
     await req("/api/households", "POST", {
       action: "create",
@@ -1678,11 +1687,13 @@ try {
   await req(
     "/api/list/set-bought",
     "PUT",
-    { idList: list[0].id, cantidad: 0.5, medida: 1, precio: 1000, unit: "kg" },
+    { idList: list[0].id, cantidad: 0.25, medida: 1, precio: 1000, unit: "kg" },
     user,
     200,
     own.household.id,
   );
+  const purchasedFraction = await req("/api/list/get-list", "GET", undefined, user, 200, own.household.id);
+  assert.equal(Number(purchasedFraction[0].cantidad), 0.25);
   const beforePartial = (
     await db.query(
       "select name,slug from preview_lists.households where id=$1",

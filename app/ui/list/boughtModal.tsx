@@ -3,7 +3,11 @@ import { listFetch } from "@/app/lib/listClient";
 import Modal from "@/shared/components/ui/Modal";
 import { useRef, useState } from "react";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
-import { compatibleUnits, type Unit } from "@/app/lib/units";
+import {
+  compatibleUnits,
+  requiresWholeQuantity,
+  type Unit,
+} from "@/app/lib/units";
 import { IList } from "@/app/lib/types";
 
 interface ListModalProps {
@@ -65,6 +69,10 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         (!Number.isFinite(Number(precioTotal)) || Number(precioTotal) < 0))
     ) {
       setError("Completa una cantidad mayor que cero y revisa el precio.");
+      return;
+    }
+    if (requiresWholeQuantity(unit) && !Number.isInteger(Number(cantidad))) {
+      setError("La cantidad debe ser un número entero para esta unidad.");
       return;
     }
     setIsLoading(true);
@@ -211,8 +219,8 @@ const BoughtListModal: React.FC<ListModalProps> = ({
             <input
               type="number"
               required
-              min="0"
-              step="any"
+              min={requiresWholeQuantity(unit) ? "1" : "0.000001"}
+              step={requiresWholeQuantity(unit) ? "1" : "any"}
               className="field mt-2"
               value={cantidad}
               onChange={(e) => {
