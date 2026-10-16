@@ -96,11 +96,19 @@ export async function setBought(
   precio: number | null,
   unit?: Unit,
   precioMode: "unit" | "total" = "unit",
+  description?: unknown,
 ): Promise<void> {
   const values = purchaseValues(cantidad, medida, unit);
   if (precioMode !== "unit" && precioMode !== "total")
     throw new DataError("Modo de precio inválido");
   const enteredPrice = precio == null ? null : positive(precio, true);
+  const hasDescription = description !== undefined;
+  if (hasDescription && typeof description !== "string")
+    throw new DataError("Descripción inválida");
+  const validDescription =
+    typeof description === "string" ? description.trim() : null;
+  if (validDescription !== null && validDescription.length > 500)
+    throw new DataError("La descripción no puede superar los 500 caracteres");
   await withListItemEditor(async (db, h) => {
     const product = await db.query(
       `select c.name as category_name
@@ -123,6 +131,7 @@ export async function setBought(
              precio=case when $5::numeric is null then null when $7::text='total' then $5::numeric/$3::numeric else $5::numeric end,
              precio_total=case when $5::numeric is null then null when $7::text='total' then $5::numeric else $3::numeric*$5::numeric end,
              comprado=true,unit=coalesce($6,unit),
+             description=case when $8::boolean then $9::text else description end,
              provisional_available_units=case when id_product is null and $6::text is not null
                then array[$6::text] else provisional_available_units end
            where household_id=$1 and id=$2`,
@@ -134,6 +143,8 @@ export async function setBought(
             enteredPrice,
             values.unit ?? null,
             precioMode,
+            hasDescription,
+            validDescription,
           ],
         )
       ).rowCount,

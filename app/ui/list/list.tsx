@@ -1366,6 +1366,7 @@ export default function List() {
           availableUnits={
             listModal.availableUnits ?? [listModal.productUnit ?? "un"]
           }
+          description={listModal.description ?? ""}
         />
       )}
       {canEditList && detailsModal && (

@@ -17,6 +17,7 @@ interface ListModalProps {
   unitp: Unit;
   productUnit: Unit;
   availableUnits: Unit[];
+  description?: string;
 }
 
 const BoughtListModal: React.FC<ListModalProps> = ({
@@ -30,6 +31,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
   unitp,
   productUnit,
   availableUnits,
+  description: initialDescription = "",
 }) => {
   const options = availableUnits.length
     ? availableUnits
@@ -43,6 +45,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
   const medida = 1;
   const [precioUnitario, setPrecioUnitario] = useState("");
   const [precioTotal, setPrecioTotal] = useState("");
+  const [description, setDescription] = useState(initialDescription);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const markBoughtRef = useRef<HTMLButtonElement>(null);
@@ -94,6 +97,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         unit,
         precio,
         precioMode,
+        description: description.trim(),
       };
       const response = await listFetch("/api/list/set-bought", {
         method: "PUT",
@@ -144,6 +148,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         comprado: "1",
         unit,
         productUnit,
+        description: description.trim(),
       };
       setIsLoading(false);
       onClose(updateList);
@@ -223,6 +228,17 @@ const BoughtListModal: React.FC<ListModalProps> = ({
             options={options}
             disabled={isLoading}
           />
+          <label className="col-span-2 text-sm font-medium">
+            Descripción (opcional)
+            <textarea
+              className="field mt-2 min-h-24 resize-y"
+              value={description}
+              maxLength={500}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Añade una descripción"
+              disabled={isLoading}
+            />
+          </label>
           <label className="col-span-2 text-sm font-medium">
             Precio por unidad de medida (opcional)
             <input
