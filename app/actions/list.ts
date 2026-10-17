@@ -11,6 +11,7 @@ import {
 } from "../lib/database";
 import {
   purchaseValues,
+  quantityForUnit,
   requireAvailableUnit,
 } from "../lib/purchaseValidation";
 import {
@@ -21,7 +22,7 @@ import {
   unitsForCategory,
   type Unit,
 } from "../lib/units";
-import type { IList } from "../lib/types";
+import type { Category, IList } from "../lib/types";
 export async function addList(): Promise<void> {
   await withListItemEditor(async (db, h) => {
     await db.query(
@@ -96,14 +97,22 @@ export async function setBought(
   precio: number | null,
   unit?: Unit,
   precioMode: "unit" | "total" = "unit",
+  description?: unknown,
 ): Promise<void> {
   const values = purchaseValues(cantidad, medida, unit);
   if (precioMode !== "unit" && precioMode !== "total")
     throw new DataError("Modo de precio inválido");
   const enteredPrice = precio == null ? null : positive(precio, true);
+  const hasDescription = description !== undefined;
+  if (hasDescription && typeof description !== "string")
+    throw new DataError("Descripción inválida");
+  const validDescription =
+    typeof description === "string" ? description.trim() : null;
+  if (validDescription !== null && validDescription.length > 500)
+    throw new DataError("La descripción no puede superar los 500 caracteres");
   await withListItemEditor(async (db, h) => {
     const product = await db.query(
-      `select c.name as category_name
+      `select c.name as category_name,coalesce(l.unit,p.unit) as current_unit
        from shopping_list l
        left join catalog_products p on p.id=l.id_product
        left join catalog_categories c on c.id=coalesce(p.id_category,l.provisional_category_id)
@@ -116,6 +125,10 @@ export async function setBought(
       !isUnitAllowedForCategory(values.unit, product.rows[0].category_name ?? "")
     )
       throw new DataError("La unidad no está disponible para esta categoría");
+    values.cantidad = quantityForUnit(
+      cantidad,
+      values.unit ?? product.rows[0].current_unit,
+    );
     requireRow(
       (
         await db.query(
@@ -123,6 +136,7 @@ export async function setBought(
              precio=case when $5::numeric is null then null when $7::text='total' then $5::numeric/$3::numeric else $5::numeric end,
              precio_total=case when $5::numeric is null then null when $7::text='total' then $5::numeric else $3::numeric*$5::numeric end,
              comprado=true,unit=coalesce($6,unit),
+             description=case when $8::boolean then $9::text else description end,
              provisional_available_units=case when id_product is null and $6::text is not null
                then array[$6::text] else provisional_available_units end
            where household_id=$1 and id=$2`,
@@ -134,6 +148,8 @@ export async function setBought(
             enteredPrice,
             values.unit ?? null,
             precioMode,
+            hasDescription,
+            validDescription,
           ],
         )
       ).rowCount,
@@ -183,6 +199,8 @@ export async function updateListItemDetails(
     if (bought && hasCantidad && cantidad === null)
       throw new DataError("La cantidad comprada debe ser mayor que cero");
     const currentUnit = product.rows[0].unit ?? product.rows[0].product_unit;
+    if (hasCantidad && cantidad !== null)
+      quantityForUnit(cantidad, hasUnit ? unit! : currentUnit);
     const quantityChanged =
       hasCantidad && Number(cantidad) !== Number(product.rows[0].cantidad);
     const unitChanged = hasUnit && unit !== currentUnit;
@@ -240,6 +258,95 @@ export async function getListProductsByCategories(): Promise<
     {} as Record<string, IList[]>,
   );
 }
+export async function getListPageData(scope?: string): Promise<{
+  household: { id: string; name: string };
+  canEditList: boolean;
+  canManageList: boolean;
+  list: Record<string, IList[]>;
+  categories: Category[];
+}> {
+  return withHousehold(async (db, household, email) => {
+    const [listRows, categoryRows, householdRows] = await Promise.all([
+      db.query(
+        `select l.*,coalesce(p.name,l.provisional_name) name,
+          coalesce(p.id_category,l.provisional_category_id) id_category,
+          c.name as category_name,p.unit as product_unit,
+          coalesce(p.available_units,l.provisional_available_units) available_units,
+          l.id_product is null is_provisional,l.provisional_created_by,
+          cr.email catalog_request_email,cr.status catalog_request_status
+         from shopping_list l
+         left join catalog_products p on p.id=l.id_product
+         left join catalog_categories c on c.id=coalesce(p.id_category,l.provisional_category_id)
+         left join catalog_requests cr on cr.id=l.catalog_request_id
+         where l.household_id=$1 order by name,l.id`,
+        [household],
+      ),
+      db.query(
+        "select id,name from catalog_categories where not archived order by name,id",
+      ),
+      db.query(
+        "select id,name,(owner_email=$2) as is_owner from households where id=$1",
+        [household, email],
+      ),
+    ]);
+    const currency = (n: number) =>
+      new Intl.NumberFormat("es-AR", {
+        style: "currency",
+        currency: "ARS",
+      }).format(n);
+    const grouped = listRows.rows.map((r) => ({
+      id: r.id,
+      id_product: r.id_product,
+      name: r.name,
+      description: r.description ?? "",
+      id_category: r.id_category,
+      cantidad: r.cantidad ?? "",
+      medida: r.medida ?? "",
+      precio: r.precio == null ? "" : currency(Number(r.precio)),
+      precioValue: r.precio == null ? null : Number(r.precio),
+      precioTotal:
+        r.precio_total == null && (r.precio == null || r.cantidad == null)
+          ? ""
+          : currency(
+              r.precio_total == null
+                ? Number(r.precio) * Number(r.cantidad)
+                : Number(r.precio_total),
+            ),
+      precioKg:
+        r.precio == null || r.medida == null
+          ? ""
+          : currency(Number(r.precio) / Number(r.medida)),
+      kgTotal:
+        r.cantidad == null || r.medida == null
+          ? ""
+          : String(Number(r.cantidad) * Number(r.medida)),
+      comprado: r.comprado ? "1" : "",
+      unit: r.unit ?? r.product_unit,
+      productUnit: r.product_unit ?? r.unit ?? "un",
+      availableUnits: unitsForCategory(r.category_name ?? ""),
+      isProvisional: r.is_provisional,
+      createdBy: r.provisional_created_by,
+      catalogRequestEmail: r.catalog_request_email,
+      catalogRequestStatus: r.catalog_request_status,
+    }));
+    return {
+      household: {
+        id: householdRows.rows[0].id,
+        name: householdRows.rows[0].name,
+      },
+      canEditList: true,
+      canManageList: householdRows.rows[0].is_owner,
+      list: grouped.reduce(
+        (a, product) => {
+          (a[product.id_category] ||= []).push(product);
+          return a;
+        },
+        {} as Record<string, IList[]>,
+      ),
+      categories: categoryRows.rows as Category[],
+    };
+  }, scope);
+}
 export async function shoppingList(): Promise<IList[]> {
   return (await getList()).filter((p) => p.comprado === "1");
 }
@@ -269,7 +376,7 @@ export async function updateMultipleProducts(
   await withListItemEditor(async (db, h) => {
     for (const p of validated) {
       const product = await db.query(
-        `select l.comprado,c.name as category_name
+        `select l.comprado,c.name as category_name,coalesce(l.unit,p.unit) as current_unit
          from shopping_list l
          left join catalog_products p on p.id=l.id_product
          left join catalog_categories c on c.id=coalesce(p.id_category,l.provisional_category_id)
@@ -286,6 +393,7 @@ export async function updateMultipleProducts(
         !isUnitAllowedForCategory(p.unit, product.rows[0].category_name ?? "")
       )
         throw new DataError("La unidad no está disponible para esta categoría");
+      quantityForUnit(p.cantidad, p.unit ?? product.rows[0].current_unit);
       requireRow(
         (
           await db.query(
@@ -486,9 +594,12 @@ export async function bulkAddToList(
       }
       const name = text(item.name);
       const idCategory = text(item.idCategory);
-      const cantidad = item.cantidad ? positive(item.cantidad, false) : 1;
       const requestedUnit: Unit =
         item.unit && isUnit(item.unit) ? item.unit : "un";
+      const cantidad =
+        item.cantidad === undefined
+          ? 1
+          : quantityForUnit(item.cantidad, requestedUnit);
       const requestedAvailableUnits =
         item.availableUnits ?? compatibleUnits(requestedUnit);
       if (!isValidAvailableUnits(requestedAvailableUnits, requestedUnit))

@@ -3,7 +3,11 @@ import { listFetch } from "@/app/lib/listClient";
 import Modal from "@/shared/components/ui/Modal";
 import { useRef, useState } from "react";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
-import { compatibleUnits, type Unit } from "@/app/lib/units";
+import {
+  compatibleUnits,
+  requiresWholeQuantity,
+  type Unit,
+} from "@/app/lib/units";
 import { IList } from "@/app/lib/types";
 
 interface ListModalProps {
@@ -17,6 +21,7 @@ interface ListModalProps {
   unitp: Unit;
   productUnit: Unit;
   availableUnits: Unit[];
+  description?: string;
 }
 
 const BoughtListModal: React.FC<ListModalProps> = ({
@@ -30,6 +35,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
   unitp,
   productUnit,
   availableUnits,
+  description: initialDescription = "",
 }) => {
   const options = availableUnits.length
     ? availableUnits
@@ -43,6 +49,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
   const medida = 1;
   const [precioUnitario, setPrecioUnitario] = useState("");
   const [precioTotal, setPrecioTotal] = useState("");
+  const [description, setDescription] = useState(initialDescription);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const markBoughtRef = useRef<HTMLButtonElement>(null);
@@ -62,6 +69,10 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         (!Number.isFinite(Number(precioTotal)) || Number(precioTotal) < 0))
     ) {
       setError("Completa una cantidad mayor que cero y revisa el precio.");
+      return;
+    }
+    if (requiresWholeQuantity(unit) && !Number.isInteger(Number(cantidad))) {
+      setError("La cantidad debe ser un número entero para esta unidad.");
       return;
     }
     setIsLoading(true);
@@ -94,6 +105,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         unit,
         precio,
         precioMode,
+        description: description.trim(),
       };
       const response = await listFetch("/api/list/set-bought", {
         method: "PUT",
@@ -144,6 +156,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         comprado: "1",
         unit,
         productUnit,
+        description: description.trim(),
       };
       setIsLoading(false);
       onClose(updateList);
@@ -206,8 +219,8 @@ const BoughtListModal: React.FC<ListModalProps> = ({
             <input
               type="number"
               required
-              min="0"
-              step="any"
+              min={requiresWholeQuantity(unit) ? "1" : "0.000001"}
+              step={requiresWholeQuantity(unit) ? "1" : "any"}
               className="field mt-2"
               value={cantidad}
               onChange={(e) => {
@@ -223,6 +236,17 @@ const BoughtListModal: React.FC<ListModalProps> = ({
             options={options}
             disabled={isLoading}
           />
+          <label className="col-span-2 text-sm font-medium">
+            Descripción (opcional)
+            <textarea
+              className="field mt-2 min-h-24 resize-y"
+              value={description}
+              maxLength={500}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Añade una descripción"
+              disabled={isLoading}
+            />
+          </label>
           <label className="col-span-2 text-sm font-medium">
             Precio por unidad de medida (opcional)
             <input

@@ -66,33 +66,25 @@ export default function ListAccessProvider({
           setInvitation(linked);
           return;
         }
-        const active =
-          linked?.kind === "member" ? linked.id : getActiveListId();
-        let data: Awaited<ReturnType<typeof getHouseholdData>>;
         if (linked?.kind === "member") {
-          const response = await fetch("/api/households", {
-            cache: "no-store",
-            headers: { "X-List-ID": linked.id },
-          });
-          const result = await response.json();
-          if (!response.ok)
-            throw new Error(
-              result.error ||
-                "No pudimos cargar esta lista. Intenta nuevamente.",
-            );
-          data = result;
-        } else {
-          let response = await fetch("/api/households", {
-            cache: "no-store",
-            headers: active ? { "X-List-ID": active } : {},
-          });
-          if (!response.ok && active)
-            response = await fetch("/api/households", { cache: "no-store" });
-          const result = await response.json();
-          if (!response.ok)
-            throw new Error(result.error || "No pudimos cargar tus listas.");
-          data = result;
+          // The list page fetches page-data next, which revalidates membership
+          // before returning any rows. Avoid loading household metadata here;
+          // this provider does not use it for a slug-backed list.
+          setActiveListId(linked.id);
+          setReadyPath(pathname);
+          return;
         }
+        const active = getActiveListId();
+        let response = await fetch("/api/households", {
+          cache: "no-store",
+          headers: active ? { "X-List-ID": active } : {},
+        });
+        if (!response.ok && active)
+          response = await fetch("/api/households", { cache: "no-store" });
+        const result = await response.json();
+        if (!response.ok)
+          throw new Error(result.error || "No pudimos cargar tus listas.");
+        const data: Awaited<ReturnType<typeof getHouseholdData>> = result;
         if (cancelled) return;
         setActiveListId(data.household.id);
         setReadyPath(pathname);

@@ -19,7 +19,11 @@ import BoughtListModal from "./boughtModal";
 import ProductDetailsModal from "./productDetailsModal";
 import { IList } from "@/app/lib/types";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
-import { compatibleUnits, type Unit } from "@/app/lib/units";
+import {
+  compatibleUnits,
+  requiresWholeQuantity,
+  type Unit,
+} from "@/app/lib/units";
 import SharedListControls from "./sharedListControls";
 import { getHouseholdData } from "@/app/actions/households";
 import { Category } from "@/app/lib/types";
@@ -239,7 +243,7 @@ export default function List() {
         Object.keys(pendingProductUpdates.current).length === 0 &&
         !isSavingEditsRef.current
       )
-        void Promise.all([fetchList(), fetchCategories()]).catch(() =>
+        void fetchPageData().catch(() =>
           setError("No se pudo actualizar la lista compartida."),
         );
     };
@@ -259,19 +263,27 @@ export default function List() {
   ]);
 
   async function load() {
+    const startedAtRevision = revision.current;
     setIsLoading(true);
     setError("");
     try {
-      const data = await getHouseholdData(getActiveListId());
-      setActiveListId(data.household.id);
-      setCanEditList(data.canEditList);
-      setCanManageList(data.canManageList);
-      setHouseholdName(data.household.name);
-      await Promise.all([fetchList(), fetchCategories()]);
+      const pageResponse = await listFetch("/api/list/page-data", {
+        method: "GET",
+      });
+      if (!pageResponse.ok) throw new Error("Error fetching list data");
+      const pageData = await pageResponse.json();
+      if (startedAtRevision !== revision.current) return;
+      setActiveListId(pageData.household.id);
+      setCanEditList(pageData.canEditList);
+      setCanManageList(pageData.canManageList);
+      setHouseholdName(pageData.household.name);
+      setList(pageData.list);
+      setCategories(pageData.categories);
     } catch {
-      setError("No pudimos cargar tu lista. Intenta nuevamente.");
+      if (startedAtRevision === revision.current)
+        setError("No pudimos cargar tu lista. Intenta nuevamente.");
     } finally {
-      setIsLoading(false);
+      if (startedAtRevision === revision.current) setIsLoading(false);
     }
   }
   const [visibleCategories, setVisibleCategories] = useState<
@@ -294,22 +306,14 @@ export default function List() {
     }
   }, [categories]);
 
-  async function fetchCategories() {
-    const categoriesRespone = await listFetch(
-      "/api/categories/get-categories",
-      {
-        method: "GET",
-        headers: {
-          "content-type": "application/json",
-        },
-      },
-    );
-    if (!categoriesRespone.ok) {
-      throw new Error("Error fetching categories");
-    }
-    const categoriesData = await categoriesRespone.json();
-
-    setCategories(categoriesData);
+  async function fetchPageData() {
+    const startedAtRevision = revision.current;
+    const response = await listFetch("/api/list/page-data", { method: "GET" });
+    if (!response.ok) throw new Error("Error fetching list data");
+    const data = await response.json();
+    if (startedAtRevision !== revision.current) return;
+    setList(data.list);
+    setCategories(data.categories);
   }
 
   async function fetchList() {
@@ -482,7 +486,11 @@ export default function List() {
     if (!updates.length) return;
     if (
       updates.some(
-        (update) => !Number.isFinite(update.cantidad) || update.cantidad <= 0,
+        (update) =>
+          !Number.isFinite(update.cantidad) ||
+          update.cantidad <= 0 ||
+          (requiresWholeQuantity(update.unit) &&
+            !Number.isInteger(update.cantidad)),
       )
     ) {
       setStatus(
@@ -878,7 +886,7 @@ export default function List() {
               <Select
                 listName={householdName}
                 onAdded={async (message) => {
-                  await Promise.all([fetchList(), fetchCategories()]);
+                  await fetchPageData();
                   setStatus(
                     message ?? `Productos agregados a ${householdName}.`,
                   );
@@ -1130,8 +1138,16 @@ export default function List() {
                         aria-label={`Cantidad de ${product.name}`}
                         className="h-10 min-w-0 w-full rounded-lg border border-zinc-300 px-1.5 text-center text-base tabular-nums focus:ring-2 focus:ring-zinc-400 sm:h-9 sm:text-sm"
                         type="number"
-                        min="0"
-                        step="any"
+                        min={
+                          requiresWholeQuantity(product.unit ?? "un")
+                            ? "1"
+                            : "0.000001"
+                        }
+                        step={
+                          requiresWholeQuantity(product.unit ?? "un")
+                            ? "1"
+                            : "any"
+                        }
                         disabled={
                           !canEditList ||
                           isLoading ||
@@ -1488,6 +1504,7 @@ export default function List() {
           availableUnits={
             listModal.availableUnits ?? [listModal.productUnit ?? "un"]
           }
+          description={listModal.description ?? ""}
         />
       )}
       {canEditList && detailsModal && (

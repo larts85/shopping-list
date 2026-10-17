@@ -6,7 +6,7 @@ import {
   unitLabels,
   type Unit,
 } from "@/app/lib/units";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { ClipLoader } from "react-spinners";
 import { Category } from "@/app/lib/types";
 import BulkPaste from "./bulkPaste";
@@ -22,6 +22,7 @@ export default function Select({ listName, onAdded }: SelectProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [mode, setMode] = useState<"category" | "bulk">("category");
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [productSearch, setProductSearch] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -34,11 +35,10 @@ export default function Select({ listName, onAdded }: SelectProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isAddingProvisional, setIsAddingProvisional] = useState(false);
   const [provisionalUnit, setProvisionalUnit] = useState<Unit>("un");
-  const productRequest = useRef(0);
-  const selectedCount = products.filter((product) => product.checked).length;
-  const allChecked = products.length > 0 && selectedCount === products.length;
-  const visibleProducts = products.filter((product) =>
-    product.name
+  const visibleProducts = products.filter((product) => {
+    const matchesCategory =
+      !selectedCategory || product.id_category === selectedCategory;
+    const matchesSearch = product.name
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLocaleLowerCase()
@@ -48,42 +48,31 @@ export default function Select({ listName, onAdded }: SelectProps) {
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "")
           .toLocaleLowerCase(),
-      ),
-  );
+      );
+    return matchesCategory && matchesSearch;
+  });
 
   useEffect(() => {
     fetchCategories();
   }, []);
 
-  useEffect(() => {
-    if (!selectedCategory) return;
-    setIsLoading(true);
-    setError("");
-    setProducts([]);
-    fetchProducts();
-  }, [selectedCategory]);
-
   async function fetchCategories() {
     try {
-      const categoriesRespone = await listFetch(
-        "/api/categories/get-categories",
-        {
-          method: "GET",
-          headers: {
-            "content-type": "application/json",
-          },
-        },
-      );
-      if (!categoriesRespone.ok) {
-        throw new Error("Error fetching categories");
-      }
+      const [categoriesRespone, productsResponse] = await Promise.all([
+        listFetch("/api/categories/get-categories", { method: "GET" }),
+        listFetch("/api/products/get-products", { method: "GET" }),
+      ]);
+      if (!categoriesRespone.ok || !productsResponse.ok)
+        throw new Error("Error fetching catalog");
       const categoriesData = await categoriesRespone.json();
+      const productsData = await productsResponse.json();
       setCategories(categoriesData);
+      setProducts(productsData);
       setIsLoading(false);
     } catch (error) {
-      console.error("Error fetching categories:", error);
+      console.error("Error fetching catalog:", error);
       setError(
-        "No pudimos cargar las categorías. Recarga la página para intentar nuevamente.",
+        "No pudimos cargar el catálogo. Recarga la página para intentar nuevamente.",
       );
       setIsLoading(false);
     }
@@ -96,38 +85,16 @@ export default function Select({ listName, onAdded }: SelectProps) {
     unit?: Unit;
   }
 
-  async function fetchProducts() {
-    if (!selectedCategory) return;
-    const requestId = ++productRequest.current;
-    try {
-      const response = await listFetch(
-        "/api/products/get-products-by-category",
-        {
-          method: "POST",
-          headers: { "Content-type": "application/json" },
-          body: JSON.stringify({ id_category: selectedCategory }),
-        },
-      );
-      if (!response.ok) throw new Error("Error fetching products");
-      const data = await response.json();
-      if (requestId !== productRequest.current) return;
-      setProducts(
-        data.map(
-          (
-            product: Omit<Product, "checked"> & { checked: string | boolean },
-          ) => ({
-            ...product,
-            checked: product.checked === "1" || product.checked === true,
-          }),
-        ),
-      );
-    } catch {
-      if (requestId === productRequest.current)
-        setError("No pudimos cargar los productos. Intenta nuevamente.");
-    } finally {
-      if (requestId === productRequest.current) setIsLoading(false);
-    }
-  }
+  const categoryProducts = products.filter(
+    (product) => product.id_category === selectedCategory,
+  );
+  const selectionProducts = visibleProducts;
+  const selectedCount = selectionProducts.filter(
+    (product) => product.checked,
+  ).length;
+  const allChecked =
+    selectionProducts.length > 0 &&
+    selectedCount === selectionProducts.length;
 
   async function fetchBulkProducts() {
     if (bulkProductsLoaded || isLoadingBulkProducts) return;
@@ -151,8 +118,18 @@ export default function Select({ listName, onAdded }: SelectProps) {
 
   const handleSelectChange = (categoryId: string) => {
     setSelectedCategoy(categoryId);
+    setSelectedProductId("");
     setProductSearch("");
     setProvisionalUnit("un");
+  };
+
+  const handleProductSelect = (productId: string) => {
+    const product = products.find((item) => item.id === productId);
+    if (!product) return;
+    setSelectedCategoy(product.id_category);
+    setSelectedProductId(product.id);
+    setProductSearch(product.name);
+    if (!product.checked) void handleProductChecked(product.id, true);
   };
 
   const addProvisionalProduct = async () => {
@@ -204,10 +181,10 @@ export default function Select({ listName, onAdded }: SelectProps) {
     setError("");
     const checked = event.target.checked;
 
-    const allcheckedProducts = products.map((product) => ({
-      ...product,
-      checked: checked,
-    }));
+    const selectionIds = new Set(selectionProducts.map((product) => product.id));
+    const allcheckedProducts = products.map((product) =>
+      selectionIds.has(product.id) ? { ...product, checked } : product,
+    );
 
     setProducts(allcheckedProducts);
 
@@ -219,7 +196,7 @@ export default function Select({ listName, onAdded }: SelectProps) {
           headers: {
             "Content-type": "application/json",
           },
-          body: JSON.stringify(allcheckedProducts),
+          body: JSON.stringify(allcheckedProducts.filter((product) => selectionIds.has(product.id))),
         },
       );
       if (!productsResponse.ok) {
@@ -359,15 +336,15 @@ export default function Select({ listName, onAdded }: SelectProps) {
                 onClick={() => {
                   setError("");
                   setIsLoading(true);
-                  selectedCategory ? fetchProducts() : fetchCategories();
+                  fetchCategories();
                 }}
               >
                 Reintentar
               </button>
             </div>
           )}
-          <div className="panel flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="w-full sm:max-w-sm">
+          <div className="panel flex flex-col gap-4 sm:flex-row sm:items-end">
+            <div className="w-full sm:flex-1">
               <Autocomplete
                 label="Categoría"
                 value=""
@@ -380,15 +357,33 @@ export default function Select({ listName, onAdded }: SelectProps) {
                 disabled={isUpdating || isLoading}
               />
             </div>
+            <div className="w-full sm:flex-1">
+              <Autocomplete
+                label="Producto"
+                value={productSearch}
+                options={products.map((product) => ({
+                  value: product.id,
+                  label: product.name,
+                  description: categories.find((category) => category.id === product.id_category)?.name,
+                }))}
+                onChange={(value) => {
+                  setProductSearch(value);
+                  setSelectedProductId("");
+                }}
+                onSelect={(option) => handleProductSelect(option.value)}
+                placeholder="Busca un producto"
+                disabled={isUpdating || isLoading}
+              />
+            </div>
             <button
               onClick={createList}
-              disabled={isLoading || isUpdating || !selectedCategory}
+              disabled={isLoading || isUpdating || (!selectedCategory && !selectedProductId)}
               className="btn-primary"
             >
               Agregar a mi lista
             </button>
           </div>
-          {!selectedCategory && !isLoading && !error && (
+          {!selectedCategory && !productSearch && !isLoading && !error && (
             <div className="empty-state">
               <p className="font-semibold text-zinc-900">
                 Empecemos por una categoría.
@@ -398,28 +393,8 @@ export default function Select({ listName, onAdded }: SelectProps) {
               </p>
             </div>
           )}
-          {!isLoading && products.length > 0 && (
+          {!isLoading && (selectedCategory || productSearch) && products.length > 0 && (
             <>
-              <div className="panel">
-                <Autocomplete
-                  label="Buscar producto"
-                  value={productSearch}
-                  options={products.map((product) => ({
-                    value: product.id,
-                    label: product.name,
-                  }))}
-                  onChange={setProductSearch}
-                  onSelect={(option) => {
-                    setProductSearch("");
-                    const product = products.find(
-                      (item) => item.id === option.value,
-                    );
-                    if (product && !product.checked)
-                      void handleProductChecked(product.id, true);
-                  }}
-                  placeholder="Escribe el nombre del producto"
-                />
-              </div>
               <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
                 <div className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-4">
                   <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
@@ -442,7 +417,7 @@ export default function Select({ listName, onAdded }: SelectProps) {
                   </span>
                 </div>
                 <ul className="divide-y divide-zinc-100">
-                  {visibleProducts.map((product) => (
+                  {selectionProducts.map((product) => (
                     <li key={product.id}>
                       <label
                         className={`flex min-h-16 cursor-pointer items-center gap-3 px-5 py-4 text-sm transition-colors hover:bg-zinc-50 ${product.checked ? "bg-zinc-50 font-medium" : ""}`}
@@ -475,7 +450,7 @@ export default function Select({ listName, onAdded }: SelectProps) {
           {selectedCategory &&
             !isLoading &&
             !error &&
-            products.length === 0 && (
+            categoryProducts.length === 0 && (
               <div className="empty-state space-y-3">
                 <p>
                   Todavía no hay productos en esta categoría. Puedes agregar

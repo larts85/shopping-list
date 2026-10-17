@@ -10,7 +10,12 @@ import {
   type ClassifiedItem,
 } from "@/app/lib/itemClassification";
 import type { Category, Product } from "@/app/lib/types";
-import { unitLabels, unitsForCategory, type Unit } from "@/app/lib/units";
+import {
+  requiresWholeQuantity,
+  unitLabels,
+  unitsForCategory,
+  type Unit,
+} from "@/app/lib/units";
 import Autocomplete from "@/shared/components/ui/Autocomplete";
 
 interface BulkPasteProps {
@@ -426,8 +431,10 @@ export default function BulkPaste({
                       </label>
                       <input
                         type="number"
-                        min="1"
-                        step="1"
+                        min={
+                          requiresWholeQuantity(item.unit) ? "1" : "0.000001"
+                        }
+                        step={requiresWholeQuantity(item.unit) ? "1" : "any"}
                         value={item.quantity}
                         onChange={(e) =>
                           handleQuantityChange(idx, Number(e.target.value))

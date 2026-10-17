@@ -73,6 +73,10 @@ try {
     [homeA, admin, homeB, user],
   );
   await db.query(
+    "insert into preview_lists.household_members(household_id,email) values($1,$2)",
+    [homeA, user],
+  );
+  await db.query(
     "insert into preview_lists.categories(id,household_id,name) values($1,$2,$3),($4,$5,$6)",
     ["old-category", homeA, "Alimentos", "user-category", homeB, "Higiene"],
   );
@@ -515,7 +519,7 @@ try {
     "PATCH",
     {
       id: totalPriceItemId,
-      description: "",
+      description: "Descripción editada después de comprar",
       cantidad: 3,
       unit: "un",
       precio: Number(totalPriced.precioValue),
@@ -536,7 +540,11 @@ try {
     detailsRefresh.find((item) => item.id === totalPriceItemId).precioTotal,
     currency(29.99),
   );
-  checks++;
+  assert.equal(
+    detailsRefresh.find((item) => item.id === totalPriceItemId).description,
+    "Descripción editada después de comprar",
+  );
+  checks += 2;
   const pricePurchase = await req(
     "/api/historical/add-historical",
     "POST",
@@ -566,7 +574,11 @@ try {
   assert.ok(
     Math.abs(Number(totalSnapshot.purchase.precio) * 3 - 29.99) < 1e-9,
   );
-  checks += 5;
+  assert.equal(
+    totalSnapshot.purchase.description,
+    "Descripción editada después de comprar",
+  );
+  checks += 6;
   await db.query(
     "delete from preview_lists.historical where purchase->>'purchase_id'=$1",
     [pricePurchase.purchaseId],
@@ -575,21 +587,63 @@ try {
   const pendingPriceCompanionId = randomUUID();
   await db.query(
     `insert into preview_lists.shopping_list(
-       id,household_id,cantidad,medida,precio,comprado,unit,
+       id,household_id,cantidad,medida,precio,comprado,unit,description,
        provisional_name,provisional_category_id,provisional_created_by,
        provisional_available_units
      ) values
-       ($1,$2,1,1,0,false,'un','Compra sin precio','old-category',$3,array['un']),
-       ($4,$2,1,1,0,false,'un','Pendiente de prueba','old-category',$3,array['un'])`,
+       ($1,$2,1,1,0,false,'un','Descripción anterior','Compra sin precio','old-category',$3,array['un']),
+       ($4,$2,1,1,0,false,'un','','Pendiente de prueba','old-category',$3,array['un'])`,
     [noPriceItemId, homeA, admin, pendingPriceCompanionId],
   );
   await req(
     "/api/list/set-bought",
     "PUT",
-    { idList: noPriceItemId, cantidad: 2, medida: 1, unit: "un" },
+    {
+      idList: noPriceItemId,
+      cantidad: 2,
+      medida: 1,
+      unit: "un",
+      description: "Detalle guardado al comprar",
+    },
     admin,
     200,
     homeA,
+  );
+  await req(
+    "/api/list/item-details",
+    "PATCH",
+    {
+      id: noPriceItemId,
+      description: "Descripción actualizada por un miembro",
+    },
+    user,
+    200,
+    homeA,
+  );
+  await req(
+    "/api/list/item-details",
+    "PATCH",
+    {
+      id: noPriceItemId,
+      description: "Cambio rechazado",
+      cantidad: 3,
+      unit: "un",
+    },
+    user,
+    403,
+    homeA,
+  );
+  const purchasedList = await req(
+    "/api/list/get-list",
+    "GET",
+    undefined,
+    admin,
+    200,
+    homeA,
+  );
+  assert.equal(
+    purchasedList.find((item) => item.id === noPriceItemId).description,
+    "Descripción actualizada por un miembro",
   );
   const noPricePurchase = await req(
     "/api/historical/add-historical",
@@ -612,7 +666,10 @@ try {
   );
   assert.equal(noPriceSnapshot.purchase.precio, null);
   assert.equal(noPriceSnapshot.purchase.precio_total, null);
-  assert.equal(noPriceSnapshot.purchase.description, "");
+  assert.equal(
+    noPriceSnapshot.purchase.description,
+    "Descripción actualizada por un miembro",
+  );
   assert.equal(
     (
       await db.query(
@@ -631,7 +688,7 @@ try {
     ).rows,
     [{ comprado: false }],
   );
-  checks += 5;
+  checks += 6;
   // Cart mutations must stay scoped and leave the global catalog untouched.
   const original = (
     await db.query(
@@ -651,7 +708,7 @@ try {
     "/api/list/cart-items",
     "PATCH",
     { id: original.id },
-    user,
+    outsider,
     403,
     homeA,
   );
@@ -689,7 +746,7 @@ try {
     "/api/list/cart-items",
     "DELETE",
     { productId: original.id },
-    user,
+    outsider,
     403,
     homeA,
   );
@@ -979,6 +1036,15 @@ try {
   await req("/api/list/update-multiple-products", "PUT", [
     { id: list[0].id, cantidad: 0.5, medida: 1, precio: 0, unit: "kg" },
   ]);
+  const fractionalQuantity = await req("/api/list/get-list");
+  assert.equal(Number(fractionalQuantity[0].cantidad), 0.5);
+  await req(
+    "/api/list/update-multiple-products",
+    "PUT",
+    [{ id: list[0].id, cantidad: 0.5, medida: 1, precio: 0, unit: "un" }],
+    user,
+    400,
+  );
   const second = (
     await req("/api/households", "POST", {
       action: "create",
@@ -991,7 +1057,7 @@ try {
     undefined,
     user,
   );
-  assert.equal(homeAfterCreate.lists.length, 2);
+  assert.equal(homeAfterCreate.lists.length, 3);
   assert.ok(homeAfterCreate.lists.some((household) => household.id === second));
   const createdSlug = (
     await db.query("select slug from preview_lists.households where id=$1", [
@@ -1621,11 +1687,13 @@ try {
   await req(
     "/api/list/set-bought",
     "PUT",
-    { idList: list[0].id, cantidad: 0.5, medida: 1, precio: 1000, unit: "kg" },
+    { idList: list[0].id, cantidad: 0.25, medida: 1, precio: 1000, unit: "kg" },
     user,
     200,
     own.household.id,
   );
+  const purchasedFraction = await req("/api/list/get-list", "GET", undefined, user, 200, own.household.id);
+  assert.equal(Number(purchasedFraction[0].cantidad), 0.25);
   const beforePartial = (
     await db.query(
       "select name,slug from preview_lists.households where id=$1",
