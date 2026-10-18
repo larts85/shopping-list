@@ -1,9 +1,10 @@
 "use client";
-import { getActiveListId, listFetch, setActiveListId } from "@/app/lib/listClient";
-import { useEffect, useState } from "react";
+import { setActiveListId } from "@/app/lib/listClient";
+import { useEffect, useRef, useState } from "react";
 import { isUnit } from "@/app/lib/units";
 import { useRouter } from "next/navigation";
 import { repeatPurchase } from "@/app/actions/historical";
+import EditHistoricalItemModal from "./editHistoricalItemModal";
 import {
   purchaseDate,
   purchaseHistoryGroupKey,
@@ -13,6 +14,9 @@ import ActionMenu from "@/shared/components/ui/ActionMenu";
 import { RiShoppingCartLine } from "react-icons/ri";
 type Item = PurchaseHistoryRecord & {
   id: string;
+  listId: string;
+  listName: string;
+  canEdit: boolean;
 };
 const currency = (value: string | number | null | undefined) => {
   if (value == null || value === "") return "—";
@@ -32,28 +36,37 @@ export default function History() {
   const [hasMore, setHasMore] = useState(false);
   const [busy, setBusy] = useState(true);
   const [repeatBusy, setRepeatBusy] = useState("");
+  const [editing, setEditing] = useState<Item | null>(null);
   const [error, setError] = useState("");
+  const requestVersion = useRef(0);
   async function load(next: number) {
+    const version = ++requestVersion.current;
     setRetryPage(next);
     setBusy(true);
     setError("");
     try {
-      const response = await listFetch(
+      const response = await fetch(
         `/api/historical/get-historical?page=${next}`,
+        { cache: "no-store" },
       );
       if (!response.ok) throw new Error("No se pudo cargar el historial.");
       const data = await response.json();
+      if (version !== requestVersion.current) return;
       setItems((prev) => (next === 0 ? data.items : [...prev, ...data.items]));
       setHasMore(data.hasMore);
       setPage(next);
     } catch {
-      setError("No se pudo cargar el historial. Intenta nuevamente.");
+      if (version === requestVersion.current)
+        setError("No se pudo cargar el historial. Intenta nuevamente.");
     } finally {
-      setBusy(false);
+      if (version === requestVersion.current) setBusy(false);
     }
   }
   useEffect(() => {
     void load(0);
+    return () => {
+      requestVersion.current++;
+    };
   }, []);
   async function repeat(groupKey: string, purchases: Item[]) {
     if (repeatBusy) return;
@@ -63,7 +76,7 @@ export default function History() {
       const created = await repeatPurchase(
         groupKey,
         purchases.map((item) => item.id),
-        getActiveListId(),
+        purchases[0].listId,
       );
       setActiveListId(created.id);
       router.push(`/lists/${created.slug}`);
@@ -79,7 +92,7 @@ export default function History() {
   }
   const groups = items.reduce(
     (acc, item) => {
-      const key = purchaseHistoryGroupKey(item);
+      const key = `${item.listId}:${purchaseHistoryGroupKey(item)}`;
       (acc[key] ||= []).push(item);
       return acc;
     },
@@ -89,8 +102,7 @@ export default function History() {
     <div className="page-shell space-y-6">
       <h1 className="text-2xl font-semibold">Historial de compras</h1>
       <p className="text-sm text-zinc-500">
-        Compras finalizadas del hogar activo, incluidas las importadas. Los
-        productos pendientes siguen en Mi lista.
+        Compras finalizadas de tus listas compartidas, incluidas las importadas.
       </p>
       {error && (
         <div role="alert" className="error-notice">
@@ -123,7 +135,7 @@ export default function History() {
               type="button"
               className="btn-secondary hidden shrink-0 items-center gap-2 md:flex"
               disabled={busy || !!repeatBusy}
-              onClick={() => void repeat(date, purchases)}
+              onClick={() => void repeat(purchaseHistoryGroupKey(purchases[0]), purchases)}
             >
               <RiShoppingCartLine aria-hidden="true" size={18} />
               Volver a comprar
@@ -135,20 +147,25 @@ export default function History() {
                   label: "Volver a comprar",
                   icon: RiShoppingCartLine,
                   disabled: busy || !!repeatBusy,
-                  onSelect: () => void repeat(date, purchases),
+                  onSelect: () => void repeat(purchaseHistoryGroupKey(purchases[0]), purchases),
                 },
               ]}
             />
           </div>
-          {purchases[0].purchase.purchase_id && (
-            <p className="text-sm text-zinc-500 mb-4">
+          <div className="mb-4 space-y-1">
+            <p className="text-sm text-zinc-500">
+              Lista: {purchases[0].listName}
+            </p>
+            {purchases[0].purchase.purchase_id && (
+              <p className="text-sm text-zinc-500">
               {new Intl.DateTimeFormat("es-AR", {
                 dateStyle: "long",
                 timeStyle: "medium",
                 timeZone: "America/Argentina/Buenos_Aires",
               }).format(new Date(purchases[0].purchasedAt))}
-            </p>
-          )}
+              </p>
+            )}
+          </div>
           <ul className="divide-y divide-zinc-100">
             {purchases.map((item) => (
               <li
@@ -178,9 +195,20 @@ export default function History() {
                     {isUnit(item.purchase.unit) ? item.purchase.unit : "unidad"}
                   </p>
                 </div>
-                <p className="font-semibold">
-                  {currency(item.purchase.precio_total)}
-                </p>
+                <div className="flex items-center gap-3">
+                  <p className="font-semibold">
+                    {currency(item.purchase.precio_total)}
+                  </p>
+                  {item.canEdit && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setEditing(item)}
+                    >
+                      Editar
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -195,6 +223,16 @@ export default function History() {
         >
           Ver más compras
         </button>
+      )}
+      {editing && (
+        <EditHistoricalItemModal
+          item={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(updated) => {
+            setItems((current) => current.map((item) => item.id === updated.id ? updated : item));
+            setEditing(null);
+          }}
+        />
       )}
     </div>
   );

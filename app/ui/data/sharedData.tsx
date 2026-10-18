@@ -66,7 +66,7 @@ export default function SharedData() {
       setBusy(false);
     }
   }
-  const owner = data?.email === data?.household.owner_email;
+  const manager = data?.canManageList;
   const pendingNameCount =
     data?.nameSuggestions.filter((suggestion) => suggestion.status === "pending")
       .length ?? 0;
@@ -91,19 +91,27 @@ export default function SharedData() {
               Rol en la aplicación: <strong>Administrador</strong>.
             </p>
           )}
-          <form
+          {data.householdRole === "list_editor" && (
+            <p>
+              Rol en esta lista: <strong>Editor</strong>.
+            </p>
+          )}
+          {data.householdRole === "list_viewer" && (
+            <p>Rol en esta lista: <strong>Solo lectura</strong>.</p>
+          )}
+          {data.canEditList ? <form
             className="flex flex-wrap gap-3 items-end"
             onSubmit={(e) => {
               e.preventDefault();
               void run(() =>
-                owner
+                manager
                   ? renameHousehold(name, getActiveListId())
                   : suggestHouseholdName(name, getActiveListId()),
               );
             }}
           >
             <label>
-              {owner ? "Nombre de la lista" : "Proponer nombre de la lista"}
+              {manager ? "Nombre de la lista" : "Proponer nombre de la lista"}
               <input
                 className="field mt-2"
                 value={name}
@@ -113,9 +121,10 @@ export default function SharedData() {
               />
             </label>
             <button className="btn-secondary" disabled={busy}>
-              {owner ? "Guardar nombre" : "Enviar sugerencia de nombre"}
+              {manager ? "Guardar nombre" : "Enviar sugerencia de nombre"}
             </button>
           </form>
+          : <p className="text-sm text-zinc-500">Tienes acceso de solo lectura a esta lista.</p>}
           <section aria-label="Sugerencias de nombre" className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="font-semibold">
@@ -146,7 +155,7 @@ export default function SharedData() {
                       ? "Aprobada"
                       : "Rechazada"}
                 </p>
-                {owner && suggestion.status === "pending" && (
+                {manager && suggestion.status === "pending" && (
                   <div className="flex items-center gap-3">
                     <div className="hidden items-center gap-3 md:flex">
                       <button
@@ -233,9 +242,13 @@ export default function SharedData() {
                 <span>
                   {m.email === data.household.owner_email
                     ? "Propietario"
-                    : "Colaborador"}
+                    : m.role === "list_editor"
+                      ? "Editor"
+                      : "Solo lectura"}
                 </span>
-                {owner && m.email !== data.household.owner_email && (
+                {manager &&
+                  m.email !== data.household.owner_email &&
+                  m.email !== data.email && (
                   <>
                     <button
                       className="btn-secondary hidden md:inline-flex"
@@ -261,7 +274,7 @@ export default function SharedData() {
               </li>
             ))}
           </ul>
-          {owner && (
+          {manager && (
             <button
               className="btn-primary"
               disabled={busy}
@@ -270,10 +283,10 @@ export default function SharedData() {
               Compartir lista
             </button>
           )}
-          {owner &&
+          {manager &&
             data.pending.map((i) => (
               <div key={i.id} className="flex flex-wrap items-center gap-3">
-                Invitación pendiente: {i.email}
+                Invitación pendiente: {i.email} · {i.role === "list_editor" ? "Editor" : "Solo lectura"}
                 <button
                   disabled={busy}
                   className="btn-secondary hidden md:inline-flex"

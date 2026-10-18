@@ -4,6 +4,7 @@ import { listShareUrl } from "../lib/listShareUrl";
 import { deliverInvitation } from "../lib/invitationDelivery";
 import {
   withHousehold,
+  withListItemEditor,
   withListEditor,
   identity,
   transaction,
@@ -11,8 +12,11 @@ import {
   DataError,
   requireRow,
   householdRole,
+  canManageHousehold,
+  canEditHousehold,
   appRole,
   type MemberRole,
+  type HouseholdAccessRole,
 } from "../lib/database";
 export async function getPendingInvitations() {
   const { email } = await identity();
@@ -21,20 +25,22 @@ export async function getPendingInvitations() {
     async (db) =>
       (
         await db.query(
-          "select i.id,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email) order by h.name,i.id",
+          "select i.id,h.name,h.owner_email,i.role from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email) order by h.name,i.id",
           [email],
         )
-      ).rows as { id: string; name: string; owner_email: string }[],
+      ).rows as { id: string; name: string; owner_email: string; role: HouseholdAccessRole }[],
   );
 }
 export async function getHouseholdData(scope?: string) {
   return withHousehold(async (db, h, email) => {
     const role = await householdRole(db, h, email);
+    const canManageList = canManageHousehold(role);
     return {
       email,
       role: await appRole(db, email),
-      canEditList: true,
-      canManageList: role === "owner",
+      canEditList: canEditHousehold(role),
+      canManageList,
+      householdRole: role,
       memberCount: Number(
         (
           await db.query(
@@ -55,12 +61,10 @@ export async function getHouseholdData(scope?: string) {
         owner_email: string;
       },
       members:
-        email ===
-        (await db.query("select owner_email from households where id=$1", [h]))
-          .rows[0].owner_email
+        canManageList
           ? ((
               await db.query(
-                "select m.email,case when m.email=h.owner_email then 'owner' else 'collaborator' end role from household_members m join households h on h.id=m.household_id where h.id=$1 order by m.email",
+                "select m.email,case when m.email=h.owner_email then 'owner' else m.role end role from household_members m join households h on h.id=m.household_id where h.id=$1 order by m.email",
                 [h],
               )
             ).rows as { email: string; role: MemberRole }[])
@@ -78,18 +82,19 @@ export async function getHouseholdData(scope?: string) {
       }[],
       invitations: (
         await db.query(
-          "select i.id,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email)",
+          "select i.id,h.name,h.owner_email,i.role from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email)",
           [email],
         )
-      ).rows as {
+        ).rows as {
         id: string;
         name: string;
         owner_email: string;
+          role: HouseholdAccessRole;
       }[],
       nameSuggestions: (
         await db.query(
           "select id,email,name,status from list_name_suggestions where household_id=$1 and ($2 or email=$3) order by created_at desc,id desc limit 100",
-          [h, role === "owner", email],
+          [h, canManageList, email],
         )
       ).rows as {
         id: string;
@@ -98,15 +103,13 @@ export async function getHouseholdData(scope?: string) {
         status: "pending" | "approved" | "rejected";
       }[],
       pending:
-        email ===
-        (await db.query("select owner_email from households where id=$1", [h]))
-          .rows[0].owner_email
+        canManageList
           ? ((
               await db.query(
-                "select i.id,i.email from household_invitations i where i.household_id=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email)",
+                "select i.id,i.email,i.role from household_invitations i where i.household_id=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email)",
                 [h],
               )
-            ).rows as { id: string; email: string }[])
+            ).rows as { id: string; email: string; role: HouseholdAccessRole }[])
           : [],
     };
   }, scope);
@@ -133,7 +136,9 @@ export async function getHomeLists() {
     const pendingListSuggestions = await db.query(
       `select s.household_id,count(*)::int as count
        from list_suggestions s join households h on h.id=s.household_id
-       where s.status='pending' and (h.owner_email=$1 or s.email=$1)
+       where s.status='pending' and (
+         h.owner_email=$1 or s.email=$1
+       )
          and exists (
            select 1 from household_members m
            where m.household_id=s.household_id and m.email=$1
@@ -190,7 +195,7 @@ export async function createHousehold(
       [email, label],
     );
     await db.query(
-      "insert into household_members(household_id,email,role) values($1,$2,'suggester')",
+      "insert into household_members(household_id,email,role) values($1,$2,'list_editor')",
       [home.id, email],
     );
     if (activate)
@@ -233,7 +238,8 @@ export async function renameHousehold(
 }
 export async function shareHousehold(
   recipient: string,
-  scope?: string,
+  scope: string | undefined,
+  accessRole: unknown,
 ): Promise<
   | { status: "error"; error: string }
   | {
@@ -241,20 +247,16 @@ export async function shareHousehold(
       delivery: "not_configured" | "sent" | "failed";
       email: string;
       slug: string;
+      accessRole: HouseholdAccessRole;
     }
 > {
   const email = text(recipient).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new DataError("Email inválido");
-  const list = await withHousehold(async (db, h, owner) => {
-    requireRow(
-      (
-        await db.query(
-          "select 1 from households where id=$1 and owner_email=$2",
-          [h, owner],
-        )
-      ).rowCount,
-    );
+  if (accessRole !== "list_viewer" && accessRole !== "list_editor")
+    throw new DataError("Tipo de acceso inválido");
+  const selectedRole = accessRole as HouseholdAccessRole;
+  const list = await withListEditor(async (db, h) => {
     if (
       (
         await db.query(
@@ -265,11 +267,12 @@ export async function shareHousehold(
     )
       return { status: "already_member" as const };
     await db.query(
-      "insert into household_invitations(household_id,email) values($1,$2) on conflict do nothing",
-      [h, email],
+      "insert into household_invitations(household_id,email,role) values($1,$2,$3) on conflict(household_id,email) do update set role=excluded.role",
+      [h, email, selectedRole],
     );
     return {
       status: "invite" as const,
+      accessRole: selectedRole,
       list: (await db.query("select name,slug from households where id=$1", [h]))
         .rows[0] as { name: string; slug: string },
     };
@@ -280,13 +283,20 @@ export async function shareHousehold(
     email,
     name: list.list.name,
     url: listShareUrl(list.list.slug),
+    accessRole: list.accessRole,
     apiKey: process.env.RESEND_API_KEY,
     from: process.env.INVITATION_FROM,
     gmailUser: process.env.GMAIL_USER_EMAIL,
     gmailPassword: process.env.GMAIL_APP_PASSWORD,
   });
   console.info(`list_invitation delivery=${delivery}`);
-  return { status: "ok", delivery, email, slug: list.list.slug };
+  return {
+    status: "ok",
+    delivery,
+    email,
+    slug: list.list.slug,
+    accessRole: list.accessRole,
+  };
 }
 export async function acceptInvitation(
   id: string,
@@ -294,23 +304,20 @@ export async function acceptInvitation(
   const { email } = await identity();
   return transaction(email, async (db) => {
     const invite = await db.query(
-      "select i.household_id,h.slug from household_invitations i join households h on h.id=i.household_id where i.id::text=$1 and i.email=$2",
+      "select i.household_id,h.slug,i.role from household_invitations i join households h on h.id=i.household_id where i.id::text=$1 and i.email=$2",
       [text(id), email],
     );
     requireRow(invite.rowCount);
     const h = invite.rows[0].household_id;
     await db.query("select pg_advisory_xact_lock(hashtextextended($1,1))", [h]);
-    requireRow(
-      (
-        await db.query(
-          "select 1 from household_invitations where id::text=$1 and email=$2 for update",
-          [id, email],
-        )
-      ).rowCount,
+    const lockedInvite = await db.query(
+      "select role from household_invitations where id::text=$1 and email=$2 for update",
+      [id, email],
     );
+    requireRow(lockedInvite.rowCount);
     await db.query(
-      "insert into household_members(household_id,email,role) values($1,$2,'suggester') on conflict do nothing",
-      [h, email],
+      "insert into household_members(household_id,email,role) values($1,$2,$3) on conflict do nothing",
+      [h, email, lockedInvite.rows[0].role],
     );
     await db.query(
       "delete from household_invitations where id::text=$1 and email=$2",
@@ -359,18 +366,17 @@ export async function revokeAccess(
   recipient: string,
   scope?: string,
 ): Promise<void> {
-  await withHousehold(async (db, h, email) => {
-    requireRow(
-      (
-        await db.query(
-          "select 1 from households where id=$1 and owner_email=$2",
-          [h, email],
-        )
-      ).rowCount,
-    );
+  await withListEditor(async (db, h, email) => {
     const target = text(recipient).toLowerCase();
     if (target === email)
-      throw new DataError("No puedes quitar al propietario");
+      throw new DataError("No puedes quitar tu propio acceso");
+    const household = await db.query(
+      "select owner_email from households where id=$1",
+      [h],
+    );
+    requireRow(household.rowCount);
+    if (target === household.rows[0].owner_email)
+      throw new DataError("No puedes quitar el acceso del propietario");
     await db.query(
       "delete from user_preferences where household_id=$1 and email=$2",
       [h, target],
@@ -391,14 +397,14 @@ export async function resolveListSlug(
   slug: string,
 ): Promise<
   | { kind: "member"; id: string }
-  | { kind: "invitation"; invitationId: string; name: string; owner: string }
+  | { kind: "invitation"; invitationId: string; name: string; owner: string; role: HouseholdAccessRole }
 > {
   if (!/^lista-[0-9a-f]{32}$/.test(slug))
     throw new DataError("Enlace de lista inválido", 400);
   const { email } = await identity();
   return transaction(email, async (db) => {
     const result = await db.query(
-      `select h.id,h.name,h.owner_email,m.email as member,i.id as invitation
+      `select h.id,h.name,h.owner_email,m.email as member,i.id as invitation,i.role as invitation_role
        from households h
        left join household_members m on m.household_id=h.id and m.email=$2
        left join household_invitations i on i.household_id=h.id and i.email=$2
@@ -418,6 +424,7 @@ export async function resolveListSlug(
           invitationId: list.invitation,
           name: list.name,
           owner: list.owner_email,
+          role: list.invitation_role as HouseholdAccessRole,
         };
   });
 }
@@ -427,7 +434,7 @@ export async function suggestHouseholdName(
   scope?: string,
 ): Promise<void> {
   const label = text(name);
-  await withHousehold(async (db, h, email) => {
+  await withListItemEditor(async (db, h, email) => {
     await db.query(
       "insert into list_name_suggestions(household_id,email,name) values($1,$2,$3)",
       [h, email, label],
@@ -455,7 +462,7 @@ export async function reviewHouseholdName(
       requireRow(
         (
           await db.query(
-            "select 1 from household_members where household_id=$1 and email=$2",
+          "select 1 from household_members where household_id=$1 and email=$2",
             [h, proposed.email],
           )
         ).rowCount,

@@ -372,7 +372,7 @@ export default function Select({ listName, onAdded }: SelectProps) {
                 }}
                 onSelect={(option) => handleProductSelect(option.value)}
                 placeholder="Busca un producto"
-                disabled={isUpdating || isLoading}
+                disabled={isUpdating}
               />
             </div>
             <button

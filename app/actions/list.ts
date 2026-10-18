@@ -3,11 +3,14 @@ import {
   withHousehold,
   withListItemEditor,
   withListEditor,
+  canManageHousehold,
+  canEditHousehold,
   text,
   positive,
   requireRow,
   DataError,
   householdRole,
+  type MemberRole,
 } from "../lib/database";
 import {
   purchaseValues,
@@ -194,7 +197,11 @@ export async function updateListItemDetails(
     requireRow(product.rowCount);
     const bought = product.rows[0].comprado;
     const editingPurchase = hasCantidad || hasUnit || hasPrice;
-    if (bought && editingPurchase && (await householdRole(db, h, email)) !== "owner")
+    if (
+      bought &&
+      editingPurchase &&
+      !canManageHousehold(await householdRole(db, h, email))
+    )
       throw new DataError("Solo el propietario puede editar los datos de compra", 403);
     if (bought && hasCantidad && cantidad === null)
       throw new DataError("La cantidad comprada debe ser mayor que cero");
@@ -285,7 +292,10 @@ export async function getListPageData(scope?: string): Promise<{
         "select id,name from catalog_categories where not archived order by name,id",
       ),
       db.query(
-        "select id,name,(owner_email=$2) as is_owner from households where id=$1",
+        `select h.id,h.name,h.owner_email=$2 as can_manage,
+          case when h.owner_email=$2 then 'owner' else m.role end as member_role
+         from households h join household_members m on m.household_id=h.id and m.email=$2
+         where h.id=$1`,
         [household, email],
       ),
     ]);
@@ -334,8 +344,10 @@ export async function getListPageData(scope?: string): Promise<{
         id: householdRows.rows[0].id,
         name: householdRows.rows[0].name,
       },
-      canEditList: true,
-      canManageList: householdRows.rows[0].is_owner,
+      canEditList: canEditHousehold(
+        householdRows.rows[0].member_role as MemberRole,
+      ),
+      canManageList: householdRows.rows[0].can_manage,
       list: grouped.reduce(
         (a, product) => {
           (a[product.id_category] ||= []).push(product);

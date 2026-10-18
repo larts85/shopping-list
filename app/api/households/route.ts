@@ -44,12 +44,13 @@ export async function POST(request: Request) {
         await deleteHousehold(b.id);
         break;
       case "share": {
-        const shared = await shareHousehold(b.email);
+        const shared = await shareHousehold(b.email, undefined, b.role);
         if (shared.status === "error") throw new DataError(shared.error);
         result = {
           delivery: shared.delivery,
           email: shared.email,
           slug: shared.slug,
+          role: shared.accessRole,
         };
         break;
       }
