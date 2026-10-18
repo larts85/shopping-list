@@ -147,14 +147,21 @@ export function requireRow(count: number | null) {
   if (!count) throw new DataError("El registro no existe en este hogar", 404);
 }
 
-export type MemberRole = "owner" | "collaborator";
+export type MemberRole = "owner" | "list_editor" | "list_viewer";
+export type HouseholdAccessRole = Exclude<MemberRole, "owner">;
+export function canManageHousehold(role: MemberRole): boolean {
+  return role === "owner";
+}
+export function canEditHousehold(role: MemberRole): boolean {
+  return role === "owner" || role === "list_editor";
+}
 export async function householdRole(
   db: PoolClient,
   household: string,
   email: string,
 ): Promise<MemberRole> {
   const result = await db.query(
-    "select case when h.owner_email=$2 then 'owner' else 'collaborator' end as role from households h join household_members m on m.household_id=h.id where h.id=$1 and m.email=$2",
+    "select case when h.owner_email=$2 then 'owner' else m.role end as role from households h join household_members m on m.household_id=h.id where h.id=$1 and m.email=$2",
     [household, email],
   );
   if (!result.rowCount)
@@ -166,21 +173,25 @@ export async function withListEditor<T>(
   scope?: string,
 ) {
   return withHousehold(async (db, h, email) => {
-    if ((await householdRole(db, h, email)) !== "owner")
+    if (!canManageHousehold(await householdRole(db, h, email)))
       throw new DataError(
-        "Solo el propietario puede modificar esta lista. Envía una sugerencia.",
+        "Solo el propietario puede gestionar esta lista.",
         403,
       );
     return run(db, h, email);
   }, scope);
 }
 
-// Item edits require active membership; ownership still guards administration.
+// Item edits require the explicit editor role; viewers remain read-only.
 export async function withListItemEditor<T>(
   run: (db: PoolClient, household: string, email: string) => Promise<T>,
   scope?: string,
 ) {
-  return withHousehold(run, scope);
+  return withHousehold(async (db, household, email) => {
+    if (!canEditHousehold(await householdRole(db, household, email)))
+      throw new DataError("Esta lista es de solo lectura para tu acceso", 403);
+    return run(db, household, email);
+  }, scope);
 }
 
 export type AppRole = "admin" | "user";
@@ -188,9 +199,7 @@ export async function appRole(db: PoolClient, email: string): Promise<AppRole> {
   const result = await db.query("select role from app_users where email=$1", [
     email,
   ]);
-  return result.rows[0]?.role === "admin" && email === "larts85@gmail.com"
-    ? "admin"
-    : "user";
+  return result.rows[0]?.role === "admin" ? "admin" : "user";
 }
 export async function withCatalog<T>(
   run: (db: PoolClient, email: string) => Promise<T>,

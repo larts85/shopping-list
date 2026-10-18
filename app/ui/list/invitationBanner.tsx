@@ -72,7 +72,7 @@ export default function InvitationBanner() {
         <div key={i.id} className="flex flex-wrap items-center gap-3">
           <p>
             {i.owner_email} te invitó a <strong>{i.name}</strong>. Al aceptar
-            podrás sugerir cambios.
+            tendrás acceso de {i.role === "list_editor" ? "editor de la lista" : "solo lectura"}.
           </p>
           <div className="hidden shrink-0 items-center gap-3 md:flex">
             <button
@@ -118,7 +118,9 @@ export default function InvitationBanner() {
       <ConfirmModal
         isOpen={!!invitationToAccept}
         title="Aceptar invitación"
-        message="Abrir la lista compartida descarta los cambios sin guardar de la pantalla actual. ¿Continuar?"
+        message={invitationToAccept?.role === "list_editor"
+          ? "Al aceptar podrás editar artículos y enviar sugerencias. El cierre de compras y la administración de accesos siguen reservados al propietario. Abrir la lista descarta los cambios sin guardar de la pantalla actual. ¿Continuar?"
+          : "Al aceptar podrás consultar la lista y su historial, pero no editar ni enviar sugerencias. Abrir la lista descarta los cambios sin guardar de la pantalla actual. ¿Continuar?"}
         confirmLabel="Aceptar y abrir"
         busy={busy}
         onClose={() => {

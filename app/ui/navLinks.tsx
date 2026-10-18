@@ -8,14 +8,15 @@ import { getCurrentUser } from "@/app/actions/profile";
 
 const mainLinks = [
   { href: "/", label: "Carritos" },
-  { href: "/admin", label: "Administrar" },
   { href: "/catalog", label: "Solicitudes" },
   { href: "/history", label: "Historial" },
   { href: "/data", label: "Accesos" },
+  { href: "/admin", label: "Administrar" },
 ];
 const adminLinks = [
   { href: "/admin/categories", label: "Categorías" },
   { href: "/admin/products", label: "Productos" },
+  { href: "/admin/users", label: "Usuarios" },
 ];
 export default function NavLinks({ admin = false }: { admin?: boolean }) {
   const pathname = usePathname();
@@ -58,6 +59,11 @@ export default function NavLinks({ admin = false }: { admin?: boolean }) {
       }
     };
     void refresh();
+    if (pathname === "/history") {
+      return () => {
+        active = false;
+      };
+    }
     window.addEventListener("active-list-changed", refresh);
     window.addEventListener("focus", refresh);
     const timer = setInterval(refresh, 15000);
@@ -82,7 +88,8 @@ export default function NavLinks({ admin = false }: { admin?: boolean }) {
         : [
             ...mainLinks.slice(0, 1),
             ...(listHref ? [{ href: listHref, label: "Lista" }] : []),
-            ...mainLinks.slice(1),
+            ...mainLinks.slice(1).filter((l) => l.href !== "/admin"),
+            ...(isAdmin ? [mainLinks.find((l) => l.href === "/admin")!] : []),
           ].filter((l) => isAdmin || l.href !== "/admin")
       ).map(({ href, label }) => {
         const active =

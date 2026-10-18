@@ -847,8 +847,7 @@ export default function List() {
       <SharedListControls onSwitch={load} />
       {!canEditList && (
         <p className="text-sm text-zinc-500">
-          Tienes acceso como colaborador. Puedes sugerir cambios al final de la
-          lista.
+          Tienes acceso de solo lectura a esta lista.
         </p>
       )}
       {canEditList && (
@@ -931,30 +930,39 @@ export default function List() {
         </div>
       )}
       {!isLoading && (
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <p className="text-sm text-zinc-500">
-            <span className="font-semibold text-zinc-900">
-              {products.length}
-            </span>{" "}
-            {products.length === 1 ? "producto" : "productos"} · {boughtCount}{" "}
-            {boughtCount === 1 ? "comprado" : "comprados"}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={openPurchaseConfirmation}
-              disabled={
-                !canManageList ||
-                purchaseBusy ||
-                boughtCount === 0 ||
-                pendingSaveCount > 0 ||
-                isSavingEdits
-              }
-              className="btn-secondary"
-            >
-              {purchaseActionLabel}
-            </button>
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <p className="text-sm text-zinc-500">
+              <span className="font-semibold text-zinc-900">
+                {products.length}
+              </span>{" "}
+              {products.length === 1 ? "producto" : "productos"} · {boughtCount}{" "}
+              {boughtCount === 1 ? "comprado" : "comprados"}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={openPurchaseConfirmation}
+                disabled={
+                  !canManageList ||
+                  purchaseBusy ||
+                  boughtCount === 0 ||
+                  pendingSaveCount > 0 ||
+                  isSavingEdits
+                }
+                className="btn-secondary"
+              >
+                {purchaseActionLabel}
+              </button>
+            </div>
           </div>
+          {!canManageList && boughtCount > 0 && (
+            <p className="mt-3 text-sm text-zinc-500">
+              Solo el propietario puede finalizar la compra. Los productos
+              marcados como comprados seguirán en esta lista y no aparecerán en
+              Historial hasta que el propietario la finalice.
+            </p>
+          )}
         </div>
       )}
       {!isLoading && !error && products.length === 0 && (

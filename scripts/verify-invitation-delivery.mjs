@@ -6,6 +6,7 @@ const message = {
   email: "qa@example.invalid",
   name: "Lista <de prueba>",
   url: "https://preview.example.invalid/lists/lista-0123456789abcdef0123456789abcdef",
+  accessRole: "list_editor",
   apiKey: "fake-test-token",
   from: "QA <sender@example.invalid>",
 };
@@ -35,6 +36,7 @@ assert.equal(
     assert(payload.text.includes(message.url));
     assert(!payload.text.includes(message.url + "/logistic"));
     assert(payload.text.includes(message.name));
+    assert(payload.text.includes("editar artículos"));
     return new Response("{}", { status: 200 });
   }),
   "sent",
@@ -52,7 +54,17 @@ assert.equal(
   }),
   "failed",
 );
-console.log("13 offline invitation-delivery checks passed; no messages sent");
+const viewerMessage = { ...message, accessRole: "list_viewer" };
+assert.equal(
+  await deliverInvitation(viewerMessage, async (_url, options) => {
+    const payload = JSON.parse(options.body);
+    assert(payload.text.includes("solo lectura"));
+    assert(payload.text.includes("no editar artículos"));
+    return new Response("{}", { status: 200 });
+  }),
+  "sent",
+);
+console.log("17 offline invitation-delivery checks passed; no messages sent");
 const gmail = {
   ...message,
   apiKey: undefined,

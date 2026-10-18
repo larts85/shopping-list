@@ -1,7 +1,9 @@
 "use server";
 import {
   withHousehold,
+  withListItemEditor,
   withListEditor,
+  canManageHousehold,
   householdRole,
   text,
   positive,
@@ -45,7 +47,7 @@ export async function submitSuggestion(
   const quantity = input.kind === "remove" ? null : positive(input.quantity);
   if (input.kind !== "remove" && !isUnit(input.unit))
     throw new DataError("Unidad inválida");
-  await withHousehold(async (db, h, email) => {
+  await withListItemEditor(async (db, h, email) => {
     const product = await db.query(
       "select available_units from catalog_products where id=$1 and not archived",
       [productId],
@@ -82,11 +84,11 @@ export async function getSuggestions(
   scope?: string,
 ): Promise<ListSuggestion[]> {
   return withHousehold(async (db, h, email) => {
-    const admin = (await householdRole(db, h, email)) === "owner";
+    const canReviewAll = canManageHousehold(await householdRole(db, h, email));
     return (
       await db.query(
         "select s.id,s.email,s.kind,s.product_id,p.name,s.quantity,s.unit,s.note,s.status,s.created_at,s.reviewed_by from list_suggestions s join catalog_products p on p.id=s.product_id where s.household_id=$1 and ($2 or s.email=$3) order by s.created_at desc,s.id desc limit 100",
-        [h, admin, email],
+        [h, canReviewAll, email],
       )
     ).rows.map((r) => ({
       ...r,

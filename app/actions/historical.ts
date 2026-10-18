@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import { completedPurchaseName } from "../lib/completedPurchase";
 import {
   DataError,
+  identity,
+  positive,
   text,
+  transaction,
   withHousehold,
   withListEditor,
 } from "../lib/database";
@@ -11,6 +14,7 @@ import {
   compatibleUnits,
   isUnit,
   isUnitAllowedForCategory,
+  requiresWholeQuantity,
 } from "../lib/units";
 import { purchaseDate, purchaseHistoryGroupKey } from "../lib/purchaseHistory";
 export async function addHistorical(productIds: unknown) {
@@ -68,20 +72,100 @@ export async function addHistorical(productIds: unknown) {
 export async function getHistorical(page = 0) {
   if (!Number.isSafeInteger(page) || page < 0)
     throw new Error("Página inválida");
-  return withHousehold(async (db, h) => {
+  const { email } = await identity();
+  return transaction(email, async (db) => {
     const { rows } = await db.query(
-      "select id,purchase,purchased_at from historical where household_id=$1 order by purchased_at desc,id desc limit 51 offset $2",
-      [h, page * 50],
+      `select i.id,i.household_id as list_id,h.name as list_name,h.owner_email,
+              i.purchase,i.purchased_at
+       from historical i
+       join households h on h.id=i.household_id
+       join household_members m on m.household_id=i.household_id and m.email=$1
+       order by i.purchased_at desc,i.id desc limit 51 offset $2`,
+      [email, page * 50],
     );
     return {
       hasMore: rows.length > 50,
       items: rows.slice(0, 50).map((r) => ({
         id: r.id as string,
+        listId: r.list_id as string,
+        listName: r.list_name as string,
+        canEdit: r.owner_email === email,
         purchase: r.purchase as Record<string, string | number | null>,
         purchasedAt: r.purchased_at.toISOString() as string,
       })),
     };
   });
+}
+
+export async function updateHistoricalItem(
+  id: unknown,
+  input: unknown,
+  scope?: string,
+) {
+  const historicalId = text(id);
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      historicalId,
+    )
+  )
+    throw new DataError("El producto histórico no es válido");
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    throw new DataError("Datos del producto inválidos");
+  const values = input as Record<string, unknown>;
+  const name = text(values.name);
+  if (typeof values.description !== "string" || values.description.length > 500)
+    throw new DataError("La descripción no puede superar los 500 caracteres");
+  const description = values.description.trim();
+  const cantidad = positive(values.cantidad);
+  const unit = values.unit;
+  if (!isUnit(unit)) throw new DataError("Unidad inválida");
+  if (requiresWholeQuantity(unit) && !Number.isInteger(cantidad))
+    throw new DataError("La cantidad debe ser entera para esta unidad");
+  const precio =
+    values.precio === null || values.precio === ""
+      ? null
+      : positive(values.precio, true);
+  const precioTotal = Object.hasOwn(values, "precio_total")
+    ? values.precio_total === null || values.precio_total === ""
+      ? null
+      : positive(values.precio_total, true)
+    : precio === null
+      ? null
+      : precio * cantidad;
+
+  return withListEditor(async (db, household) => {
+    const patch = {
+      name,
+      description,
+      cantidad,
+      unit,
+      precio,
+      precio_total: precioTotal,
+    };
+    const result = await db.query(
+      `update historical
+       set purchase = purchase || $3::jsonb
+       where household_id=$1 and id=$2::uuid
+       returning id,purchase,purchased_at`,
+      [household, historicalId, JSON.stringify(patch)],
+    );
+    if (!result.rowCount)
+      throw new DataError("El producto no existe en esta lista", 404);
+    const list = await db.query("select name from households where id=$1", [
+      household,
+    ]);
+    return {
+      id: result.rows[0].id as string,
+      listId: household,
+      listName: list.rows[0]?.name as string,
+      canEdit: true,
+      purchase: result.rows[0].purchase as Record<
+        string,
+        string | number | null
+      >,
+      purchasedAt: (result.rows[0].purchased_at as Date).toISOString(),
+    };
+  }, scope);
 }
 
 export async function repeatPurchase(
@@ -137,7 +221,7 @@ export async function repeatPurchase(
     );
     const householdId = created.rows[0].id as string;
     await db.query(
-      "insert into household_members(household_id,email,role) values($1,$2,'suggester')",
+      "insert into household_members(household_id,email,role) values($1,$2,'list_editor')",
       [householdId, email],
     );
     await db.query(
