@@ -2,6 +2,7 @@
 import { getActiveListId } from "@/app/lib/listClient";
 import { useState } from "react";
 import { shareHousehold } from "../../actions/households";
+import type { HouseholdAccessRole } from "@/app/lib/database";
 export default function SharedDataModal({
   isOpen,
   onClose,
@@ -10,6 +11,7 @@ export default function SharedDataModal({
   onClose: (shared?: boolean) => void;
 }) {
   const [email, setEmail] = useState("");
+  const [accessRole, setAccessRole] = useState<HouseholdAccessRole | "">("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [delivery, setDelivery] = useState("");
@@ -29,8 +31,7 @@ export default function SharedDataModal({
         </h2>
         <p>
           La persona debe ingresar con el correo invitado y aceptar la
-          notificación. Podrá ver esta lista y su historial, y sugerir cambios.
-          El propietario de la lista debe aprobarlos.
+          invitación. Elige qué permisos tendrá en esta lista.
         </p>
         {!delivery ? (
           <form
@@ -40,7 +41,11 @@ export default function SharedDataModal({
               setBusy(true);
               setError("");
               try {
-                const result = await shareHousehold(email, getActiveListId());
+                const result = await shareHousehold(
+                  email,
+                  getActiveListId(),
+                  accessRole,
+                );
                 if (result.status === "error") {
                   setError(result.error);
                   return;
@@ -69,6 +74,25 @@ export default function SharedDataModal({
                 className="field mt-2"
               />
             </label>
+            <label className="block">
+              Tipo de acceso
+              <select
+                className="field mt-2"
+                value={accessRole}
+                onChange={(event) => setAccessRole(event.target.value as HouseholdAccessRole | "")}
+                required
+                disabled={busy}
+              >
+                <option value="" disabled>Selecciona un tipo de acceso</option>
+                <option value="list_viewer">Solo lectura</option>
+                <option value="list_editor">Editor de la lista</option>
+              </select>
+              <span className="mt-2 block text-sm text-zinc-500">
+                {accessRole === "list_editor"
+                  ? "Podrá editar artículos y enviar sugerencias. El cierre de compras y la administración de accesos siguen reservados al propietario."
+                  : "Podrá consultar la lista y su historial, pero no podrá editar artículos ni enviar sugerencias."}
+              </span>
+            </label>
             {error && (
               <p role="alert" className="error-notice">
                 {error}
@@ -91,10 +115,10 @@ export default function SharedDataModal({
           <div className="space-y-4">
             <p role="status">
               {delivery === "sent"
-                ? "Invitación guardada. El proveedor aceptó el correo para su envío; revisa también spam."
+                ? `Invitación guardada como ${accessRole === "list_editor" ? "editor de la lista" : "solo lectura"}. El proveedor aceptó el correo para su envío; revisa también spam.`
                 : delivery === "failed"
-                  ? "La invitación quedó guardada, pero el correo no se pudo enviar. Comparte el enlace para que la persona ingrese y la acepte."
-                  : "Invitación guardada. No se envió un correo porque el envío automático todavía no está configurado. Comparte el enlace para que la persona ingrese y la acepte."}
+                  ? `Invitación guardada como ${accessRole === "list_editor" ? "editor de la lista" : "solo lectura"}, pero el correo no se pudo enviar. Comparte el enlace para que la persona ingrese y la acepte.`
+                  : `Invitación guardada como ${accessRole === "list_editor" ? "editor de la lista" : "solo lectura"}. No se envió un correo porque el envío automático todavía no está configurado. Comparte el enlace para que la persona ingrese y la acepte.`}
             </p>
             <label className="block">
               Enlace para ingresar

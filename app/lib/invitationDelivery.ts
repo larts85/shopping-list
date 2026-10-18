@@ -1,8 +1,10 @@
+import type { HouseholdAccessRole } from "./database";
 export type InvitationDelivery = "not_configured" | "sent" | "failed";
 export interface InvitationMessage {
   email: string;
   name: string;
   url: string;
+  accessRole: HouseholdAccessRole;
   apiKey?: string;
   from?: string;
   gmailUser?: string;
@@ -52,7 +54,10 @@ export async function deliverInvitation(
   sendSmtp: SmtpSender = gmailSender,
 ): Promise<InvitationDelivery> {
   const subject = "Invitación a una lista de compras";
-  const content = `Te invitaron a la lista «${message.name}». Inicia sesión con este correo y acepta la invitación: ${message.url}`;
+  const access = message.accessRole === "list_editor"
+    ? "Tendrás acceso de editor: podrás editar artículos y enviar sugerencias. El cierre de compras y la administración de accesos quedan reservados al propietario."
+    : "Tendrás acceso de solo lectura: podrás consultar la lista y su historial, pero no editar artículos ni enviar sugerencias.";
+  const content = `Te invitaron a la lista «${message.name}». ${access} Inicia sesión con este correo y acepta la invitación: ${message.url}`;
   if (
     (!message.apiKey || !message.from) &&
     message.gmailUser &&

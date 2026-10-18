@@ -35,6 +35,7 @@ export default function ListAccessProvider({
   const requiresList =
     pathname !== "/" &&
     pathname !== "/catalog" &&
+    pathname !== "/history" &&
     !pathname.startsWith("/admin");
   const slug = pathname.startsWith("/lists/")
     ? pathname.slice("/lists/".length)
@@ -110,7 +111,9 @@ export default function ListAccessProvider({
       <section className="panel space-y-3">
         <p>
           {invitation.owner} te invitó a <strong>{invitation.name}</strong>.
-          Podrás editar artículos y sugerir un nombre al propietario.
+          {invitation.role === "list_editor"
+            ? " Tendrás acceso de editor: podrás editar artículos y enviar sugerencias. El cierre de compras y la administración de accesos quedan reservados al propietario."
+            : " Tendrás acceso de solo lectura: podrás consultar la lista y el historial, pero no editar ni enviar sugerencias."}
         </p>
         {invitationError && (
           <p role="alert" className="error-notice">

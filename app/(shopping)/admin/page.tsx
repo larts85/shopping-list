@@ -21,6 +21,12 @@ export default function Admin() {
             description:
               "Mantén a mano los productos que compras habitualmente.",
           },
+          {
+            href: "users",
+            title: "Usuarios",
+            description:
+              "Consulta los usuarios de la aplicación y administra sus roles.",
+          },
         ].map((item) => (
           <Link
             key={item.href}

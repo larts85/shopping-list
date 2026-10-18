@@ -14,8 +14,10 @@ let checks = 0;
 const admin = "larts85@gmail.com",
   user = "masajelasmanos@example.invalid",
   outsider = "new-user@example.invalid";
+const viewer = "viewer@example.invalid";
 const homeA = randomUUID(),
-  homeB = randomUUID();
+  homeB = randomUUID(),
+  homeC = randomUUID();
 const testPort = process.env.TEST_PORT || process.env.QA_HTTP_PORT || "2037";
 const databasePort = Number(
   process.env.TEST_DB_PORT || process.env.QA_DATABASE_PORT || 55437,
@@ -103,6 +105,39 @@ try {
       ) +
       "commit;",
   );
+  const userRolesMigration = migrationNames.find((n) =>
+    n.includes("manage_app_user_roles"),
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/" + userRolesMigration, "utf8").replaceAll(
+      "public.",
+      "preview_lists.",
+    ),
+  );
+  for (const migrationPart of [
+    "add_household_invitation_role",
+    "household_access_roles",
+  ]) {
+    const migration = migrationNames.find((name) => name.includes(migrationPart));
+    assert.ok(migration, `${migrationPart} migration must exist`);
+    await db.exec(
+      "begin;" +
+        readFileSync("supabase/migrations/" + migration, "utf8").replaceAll(
+          "public.",
+          "preview_lists.",
+        ) +
+        "commit;",
+    );
+  }
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.household_members where role<>'list_editor'",
+      )
+    ).rows[0].n,
+    0,
+  );
+  checks++;
   const slugMigration = migrationNames.find((n) => n.includes("list_slugs"));
   await db.exec(
     readFileSync("supabase/migrations/" + slugMigration, "utf8").replaceAll(
@@ -1269,7 +1304,7 @@ try {
   const sharing = await req(
     "/api/households",
     "POST",
-    { action: "share", email: outsider },
+    { action: "share", email: outsider, role: "list_editor" },
     user,
     200,
     second,
@@ -1277,7 +1312,16 @@ try {
   const secondSlug = (await req("/api/households")).household.slug;
   assert.notEqual(secondSlug, linkedSlug);
   assert.equal(sharing.result.slug, secondSlug);
+  assert.equal(sharing.result.role, "list_editor");
   checks++;
+  await req(
+    "/api/households",
+    "POST",
+    { action: "share", email: "missing-role@example.invalid" },
+    user,
+    400,
+    second,
+  );
   const recipientBefore = await req(
     "/api/households",
     "GET",
@@ -1326,6 +1370,7 @@ try {
   const invitationLink = await req(sharedPath, "GET", undefined, outsider);
   assert.equal(invitationLink.kind, "invitation");
   assert.equal(invitationLink.name, "Otra lista");
+  assert.equal(invitationLink.role, "list_editor");
   await req(sharedPath, "GET", undefined, admin, 403);
   checks += 2;
   const recipient = await req("/api/households", "GET", undefined, outsider);
@@ -1351,7 +1396,7 @@ try {
   const duplicateShare = await req(
     "/api/households",
     "POST",
-    { action: "share", email: outsider },
+    { action: "share", email: outsider, role: "list_editor" },
     user,
     400,
     second,
@@ -1395,7 +1440,91 @@ try {
   assert.equal(shared.role, "user");
   assert.equal(shared.canEditList, true);
   assert.equal(shared.canManageList, false);
-  checks += 2;
+  assert.equal(shared.householdRole, "list_editor");
+  checks += 4;
+  const viewerShare = await req(
+    "/api/households",
+    "POST",
+    { action: "share", email: viewer, role: "list_viewer" },
+    user,
+    200,
+    second,
+  );
+  assert.equal(viewerShare.result.role, "list_viewer");
+  const viewerInvitation = (
+    await db.query(
+      "select id,role from preview_lists.household_invitations where household_id=$1 and email=$2",
+      [second, viewer],
+    )
+  ).rows[0];
+  assert.equal(viewerInvitation.role, "list_viewer");
+  const viewerInvitePreview = await req(sharedPath, "GET", undefined, viewer);
+  assert.equal(viewerInvitePreview.kind, "invitation");
+  assert.equal(viewerInvitePreview.role, "list_viewer");
+  await req(
+    "/api/households",
+    "POST",
+    { action: "share", email: "another@example.invalid", role: "list_editor" },
+    outsider,
+    403,
+    second,
+  );
+  await req(
+    "/api/households",
+    "POST",
+    { action: "accept", id: viewerInvitation.id },
+    viewer,
+  );
+  const viewOnly = await req(
+    "/api/households",
+    "GET",
+    undefined,
+    viewer,
+    200,
+    second,
+  );
+  assert.equal(viewOnly.householdRole, "list_viewer");
+  assert.equal(viewOnly.canEditList, false);
+  assert.equal(viewOnly.canManageList, false);
+  const viewerHistory = await req(
+    "/api/historical/get-historical",
+    "GET",
+    undefined,
+    viewer,
+    200,
+    second,
+  );
+  assert.ok(viewerHistory.items.every((item) => item.canEdit === false));
+  await req(
+    "/api/households",
+    "POST",
+    { action: "suggest-name", name: "No permitido" },
+    viewer,
+    403,
+    second,
+  );
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [randomUUID()] },
+    viewer,
+    403,
+    second,
+  );
+  await req(
+    "/api/historical/item",
+    "PATCH",
+    { id: randomUUID(), name: "No permitido", description: "", cantidad: 1, unit: "un", precio: null },
+    viewer,
+    403,
+    second,
+  );
+  assert.ok(
+    Array.isArray(
+      await req("/api/list/get-list", "GET", undefined, viewer, 200, second),
+    ),
+  );
+  checks += 9;
   await req(
     "/api/products/edit-checked-product",
     "PUT",
@@ -1423,7 +1552,7 @@ try {
     ).rows[0].n,
     0,
   );
-  checks += 2;
+  checks += 3;
   await req(
     "/api/products/edit-checked-product",
     "PUT",
@@ -1856,6 +1985,9 @@ try {
   );
   const archived = history.items.find((i) => i.purchase.name === "Queso");
   assert.ok(archived);
+  assert.equal(archived.listId, own.household.id);
+  assert.equal(archived.listName, beforePartial.name);
+  assert.equal(archived.canEdit, true);
   assert.equal(archived.purchase.purchase_name, completed.purchaseName);
   assert.equal(archived.purchase.purchase_id, completed.purchaseId);
   assert.equal(archived.purchase.list_name, beforePartial.name);
@@ -1874,6 +2006,54 @@ try {
     completed.purchaseName,
     `${beforePartial.name} [${part("day")}/${part("month")}/${part("year")}-${part("hour")}:${part("minute")}:${part("second")}]`,
   );
+  checks += 7;
+  const editedHistoryItem = await req(
+    "/api/historical/item",
+    "PATCH",
+    { id: archived.id, name: "Queso editado", description: "Sin sal", cantidad: 2, unit: "un", precio: 42 },
+    user,
+    200,
+    own.household.id,
+  );
+  assert.equal(editedHistoryItem.purchase.name, "Queso editado");
+  assert.equal(editedHistoryItem.purchase.description, "Sin sal");
+  assert.equal(editedHistoryItem.purchase.cantidad, 2);
+  assert.equal(editedHistoryItem.purchase.precio_total, 84);
+  await req(
+    "/api/historical/item",
+    "PATCH",
+    { id: archived.id, name: "Queso", description: "", cantidad: 1, unit: "un", precio: -1 },
+    user,
+    400,
+    own.household.id,
+  );
+  const otherHouseHistoryId = (
+    await db.query("select id from preview_lists.historical where household_id=$1 limit 1", [homeB])
+  ).rows[0].id;
+  await db.query(
+    "insert into preview_lists.households(id,owner_email,name) values($1,$2,$3)",
+    [homeC, outsider, "Otra lista"],
+  );
+  await db.query(
+    "insert into preview_lists.household_members(household_id,email) values($1,$2)",
+    [homeC, outsider],
+  );
+  await req(
+    "/api/historical/item",
+    "PATCH",
+    { id: otherHouseHistoryId, name: "No autorizado", description: "", cantidad: 1, unit: "un", precio: null },
+    outsider,
+    404,
+    homeC,
+  );
+  const adminUsers = await req("/api/admin/users", "GET", undefined, admin);
+  assert.ok(adminUsers.some((entry) => entry.email === user && entry.role === "user"));
+  await req("/api/admin/users", "GET", undefined, user, 403);
+  await req("/api/admin/users", "PATCH", { email: user, role: "admin" }, admin);
+  await req("/api/admin/users", "GET", undefined, user, 200);
+  await req("/api/admin/users", "PATCH", { email: user, role: "user" }, user, 409);
+  await req("/api/admin/users", "PATCH", { email: user, role: "user" }, admin);
+  await req("/api/admin/users", "PATCH", { email: user, role: "superuser" }, admin, 400);
   checks += 5;
   const remaining = await req(
     "/api/list/get-list",
@@ -1957,9 +2137,7 @@ try {
   );
   checks++;
   await assert.rejects(() =>
-    db.exec(
-      "insert into preview_lists.app_users(email,role) values('attacker@example.invalid','admin')",
-    ),
+    db.exec("insert into preview_lists.app_users(email,role) values('attacker@example.invalid','superuser')"),
   );
   checks++;
   console.log(
