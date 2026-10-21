@@ -114,10 +114,7 @@ try {
       "preview_lists.",
     ),
   );
-  for (const migrationPart of [
-    "add_household_invitation_role",
-    "household_access_roles",
-  ]) {
+  for (const migrationPart of ["add_household_invitation_role"]) {
     const migration = migrationNames.find((name) => name.includes(migrationPart));
     assert.ok(migration, `${migrationPart} migration must exist`);
     await db.exec(
@@ -129,6 +126,29 @@ try {
         "commit;",
     );
   }
+  const householdRolesMigration = migrationNames.find((name) =>
+    name.includes("sync_production_household_access_roles"),
+  );
+  assert.ok(householdRolesMigration, "household role repair migration must exist");
+  const householdRolesSql = readFileSync(
+    "supabase/migrations/" + householdRolesMigration,
+    "utf8",
+  ).replaceAll("public.", "preview_lists.");
+  await db.exec("begin;" + householdRolesSql + "commit;");
+  await db.exec("begin;" + householdRolesSql + "commit;");
+  const householdRoleSchema = await db.query(
+    `select pg_get_constraintdef(p.oid) as role_check,c.column_default
+     from pg_constraint p
+     join information_schema.columns c
+       on c.table_schema='preview_lists' and c.table_name='household_members' and c.column_name='role'
+     where p.conrelid='preview_lists.household_members'::regclass
+       and p.conname='household_members_role_check'`,
+  );
+  assert.equal(householdRoleSchema.rowCount, 1);
+  assert.match(householdRoleSchema.rows[0].role_check, /list_viewer/);
+  assert.match(householdRoleSchema.rows[0].role_check, /list_editor/);
+  assert.match(householdRoleSchema.rows[0].column_default, /list_editor/);
+  checks += 4;
   assert.equal(
     (
       await db.query(

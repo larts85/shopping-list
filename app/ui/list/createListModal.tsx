@@ -36,7 +36,7 @@ export default function CreateListModal({
       router.refresh();
     } catch (error) {
       setError(
-        error instanceof Error ? error.message : "No pudimos crear la lista.",
+        `No se pudo confirmar la creación. La lista anterior sigue activa. ${error instanceof Error ? error.message : "No pudimos crear la lista."}`,
       );
     } finally {
       setBusy(false);
