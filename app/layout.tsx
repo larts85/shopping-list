@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Lista de compra",
-  description: "Aplicación que ayuda a una eficiente logística del hogar",
+  description: "Logística para tu hogar",
 };
 
 export default function RootLayout({
@@ -25,4 +25,4 @@ export default function RootLayout({
   );
 }
 
-RootLayout.displayName = 'RootLayout';
+RootLayout.displayName = "RootLayout";

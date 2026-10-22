@@ -1,5 +1,8 @@
 # El carrito de la compra
 
+Para conectar ChatGPT, consultar [CHATGPT_MCP.md](CHATGPT_MCP.md). La integración
+MCP autentica por usuario; por sí sola no publica la app en el directorio.
+
 Next.js App Router, TypeScript y Postgres en Supabase. Usar Yarn y Node 22 o posterior.
 
 ## Catálogo y roles

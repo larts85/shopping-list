@@ -20,6 +20,7 @@
     "verify:invitations": "node --experimental-strip-types scripts/verify-invitation-delivery.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
     "@supabase/supabase-js": "2.117.3",
     "@tailwindcss/postcss": "4.3.3",
     "next": "16.4.0",
@@ -30,7 +31,8 @@
     "react-dom": "19.3.0",
     "react-icons": "5.7.0",
     "react-spinners": "0.17.1",
-    "server-only": "0.0.1"
+    "server-only": "0.0.1",
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

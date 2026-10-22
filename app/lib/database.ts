@@ -4,6 +4,7 @@ import type { PoolClient } from "pg";
 import { pool } from "./databaseConnection";
 import { auth } from "@/auth";
 import { headers } from "next/headers";
+import { currentMcpIdentity } from "./mcpIdentity";
 
 export class DataError extends Error {
   constructor(
@@ -32,6 +33,9 @@ export function positive(value: unknown, allowZero = false): number {
   return number;
 }
 export async function identity() {
+  const mcpEmail = currentMcpIdentity();
+  if (mcpEmail) return { email: mcpEmail, session: null };
+
   const session = await auth();
   const email = session?.user?.email?.toLowerCase();
   if (!email) throw new DataError("Inicia sesión para continuar", 401);
@@ -113,8 +117,10 @@ export async function withHousehold<T>(
   run: (db: PoolClient, household: string, email: string) => Promise<T>,
   scope?: string,
 ) {
-  const requestedScope =
-    scope ?? (await headers()).get("X-List-ID") ?? undefined;
+  const isMcpRequest = currentMcpIdentity() !== undefined;
+  const requestedScope = isMcpRequest
+    ? undefined
+    : (scope ?? (await headers()).get("X-List-ID") ?? undefined);
   if (
     requestedScope &&
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
