@@ -139,7 +139,10 @@ export async function withHousehold<T>(
         )
       ).rowCount
     )
-      throw new DataError("Ya no tienes acceso a este hogar", 403);
+      throw new DataError(
+        "No tienes acceso a esta lista. Inicia sesión con el correo invitado o pide al propietario que te invite.",
+        403,
+      );
     return run(db, household, email);
   });
 }
@@ -165,7 +168,10 @@ export async function householdRole(
     [household, email],
   );
   if (!result.rowCount)
-    throw new DataError("Ya no tienes acceso a esta lista", 403);
+    throw new DataError(
+      "No tienes acceso a esta lista. Inicia sesión con el correo invitado o pide al propietario que te invite.",
+      403,
+    );
   return result.rows[0].role;
 }
 export async function withListEditor<T>(

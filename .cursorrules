@@ -1,12 +1,12 @@
-# Home Logistics - Cursor Rules
+# Shopear - Cursor Rules
 
 ## Project Intelligence
 
-This file captures important patterns, preferences, and project intelligence for the Home Logistics application.
+This file captures important patterns, preferences, and project intelligence for the Shopear application.
 
 ## Project Context
 
-Home Logistics is a Next.js 14 application that uses Google Drive and Google Sheets as a backend database for managing household shopping logistics.
+Shopear is a Next.js 14 application that uses Google Drive and Google Sheets as a backend database for managing household shopping logistics.
 
 ### Key Architectural Decisions
 
