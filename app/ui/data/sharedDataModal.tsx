@@ -17,6 +17,7 @@ export default function SharedDataModal({
   const [delivery, setDelivery] = useState("");
   const [link, setLink] = useState("");
   const [copied, setCopied] = useState(false);
+  const shareMessage = `Te compartí una lista de compras en Shopear. Para acceder, inicia sesión con ${email} y acepta la invitación. Luego podrás abrirla desde este enlace: ${link}`;
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -128,14 +129,14 @@ export default function SharedDataModal({
               className="btn-secondary"
               onClick={async () => {
                 try {
-                  await navigator.clipboard.writeText(link);
+                  await navigator.clipboard.writeText(shareMessage);
                   setCopied(true);
                 } catch {
-                  setError("No pudimos copiar el enlace.");
+                  setError("No pudimos copiar el mensaje.");
                 }
               }}
             >
-              {copied ? "Enlace copiado" : "Copiar enlace de la invitación"}
+              {copied ? "Mensaje copiado" : "Copiar mensaje para compartir"}
             </button>
             {error && (
               <p role="alert" className="error-notice">
@@ -144,7 +145,7 @@ export default function SharedDataModal({
             )}
             <a
               className="btn-secondary inline-flex"
-              href={`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("Invitación a una lista de compras")}&body=${encodeURIComponent(`Te invité a mi lista de compras. Ingresa con este correo y acepta la invitación: ${link}`)}`}
+              href={`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("Invitación a una lista de compras")}&body=${encodeURIComponent(shareMessage)}`}
             >
               Preparar correo en mi aplicación
             </a>
