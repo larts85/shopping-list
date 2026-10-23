@@ -65,7 +65,24 @@ export async function addHistorical(productIds: unknown) {
       "delete from shopping_list where household_id=$1 and comprado and id=any($2::text[])",
       [h, ids],
     );
-    return { purchaseId, purchaseName, count: ids.length };
+    const completed = (
+      await db.query(
+        "select not exists(select 1 from shopping_list where household_id=$1) completed",
+        [h],
+      )
+    ).rows[0].completed as boolean;
+    if (completed) {
+      await db.query(
+        "update households set status='completed' where id=$1 and status='active'",
+        [h],
+      );
+      await db.query(
+        "update list_selections set checked=false where household_id=$1",
+        [h],
+      );
+      await db.query("delete from user_preferences where household_id=$1", [h]);
+    }
+    return { purchaseId, purchaseName, count: ids.length, completed };
   });
 }
 
@@ -165,7 +182,7 @@ export async function updateHistoricalItem(
       >,
       purchasedAt: (result.rows[0].purchased_at as Date).toISOString(),
     };
-  }, scope);
+  }, scope, { allowCompleted: true });
 }
 
 export async function repeatPurchase(
@@ -376,5 +393,5 @@ export async function repeatPurchase(
       name,
       count,
     };
-  }, scope);
+  }, scope, { allowCompleted: true });
 }

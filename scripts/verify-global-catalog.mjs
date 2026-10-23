@@ -18,6 +18,7 @@ const viewer = "viewer@example.invalid";
 const homeA = randomUUID(),
   homeB = randomUUID(),
   homeC = randomUUID();
+const completedFixtureList = randomUUID();
 const testPort = process.env.TEST_PORT || process.env.QA_HTTP_PORT || "2037";
 const databasePort = Number(
   process.env.TEST_DB_PORT || process.env.QA_DATABASE_PORT || 55437,
@@ -87,8 +88,16 @@ try {
     ["old-product", homeA, "Queso", "old-category", "kg", true],
   );
   await db.query(
+    "insert into preview_lists.products(id,household_id,name,id_category,unit,checked) values($1,$2,$3,$4,$5,$6)",
+    ["legacy-partial-product", homeB, "Producto pendiente", "user-category", "un", false],
+  );
+  await db.query(
     "insert into preview_lists.shopping_list(id,household_id,id_product,cantidad,medida,precio,comprado,unit) values($1,$2,$3,1,1,10,true,$4)",
     ["old-purchase", homeA, "old-product", "kg"],
+  );
+  await db.query(
+    "insert into preview_lists.shopping_list(id,household_id,id_product,unit) values($1,$2,$3,$4)",
+    ["legacy-partial-item", homeB, "legacy-partial-product", "un"],
   );
   await db.query(
     "insert into preview_lists.historical(household_id,purchase) values($1,$2)",
@@ -263,6 +272,67 @@ try {
       "preview_lists.",
     ),
   );
+  const listLifecycleMigration = migrationNames.find((n) =>
+    n.includes("list_lifecycle_status"),
+  );
+  assert.ok(listLifecycleMigration);
+  await db.query(
+    "insert into preview_lists.households(id,owner_email,name) values($1,$2,$3)",
+    [completedFixtureList, user, "Lista completada anterior a la migration"],
+  );
+  await db.query(
+    "insert into preview_lists.historical(household_id,purchase) values($1,$2)",
+    [completedFixtureList, JSON.stringify({ purchase_id: "legacy-purchase" })],
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/" + listLifecycleMigration, "utf8").replaceAll(
+      "public.",
+      "preview_lists.",
+    ),
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select status from preview_lists.households where id=$1",
+        [completedFixtureList],
+      )
+    ).rows[0].status,
+    "completed",
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.households where status='completed'",
+      )
+    ).rows[0].n,
+    1,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select status from preview_lists.households where id=$1",
+        [homeB],
+      )
+    ).rows[0].status,
+    "active",
+  );
+  await db.query("delete from preview_lists.households where id=$1", [
+    completedFixtureList,
+  ]);
+  await db.query(
+    "delete from preview_lists.shopping_list where id='legacy-partial-item'",
+  );
+  await db.query(
+    "delete from preview_lists.list_selections where household_id=$1 and product_id='legacy-partial-product'",
+    [homeB],
+  );
+  await db.query(
+    "delete from preview_lists.products where id='legacy-partial-product'",
+  );
+  await db.query(
+    "delete from preview_lists.catalog_products where id='legacy-partial-product'",
+  );
+  checks++;
   const unitColumns = await db.query(
     "select table_name,domain_name from information_schema.columns where table_schema='preview_lists' and column_name='unit' order by table_name",
   );
@@ -1952,6 +2022,16 @@ try {
   );
   assert.deepEqual(archiveResponses.map((r) => r.status).sort(), [200, 409]);
   const completed = archiveResponses.find((r) => r.status === 200).result;
+  assert.equal(completed.completed, false);
+  assert.equal(
+    (
+      await db.query(
+        "select status from preview_lists.households where id=$1",
+        [own.household.id],
+      )
+    ).rows[0].status,
+    "active",
+  );
   assert.match(
     completed.purchaseName,
     /^Masaje lista \[\d{2}\/\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\]$/,
@@ -1974,7 +2054,7 @@ try {
     ).rows[0].checked,
     true,
   );
-  checks += 4;
+  checks += 6;
   const history = await req(
     "/api/historical/get-historical",
     "GET",
@@ -2136,6 +2216,83 @@ try {
     history.items.length,
   );
   checks++;
+  await db.query(
+    "insert into preview_lists.household_members(household_id,email,role) values($1,$2,'list_viewer')",
+    [own.household.id, viewer],
+  );
+  const finalPurchase = await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [pendingItem.id] },
+    user,
+    200,
+    own.household.id,
+  );
+  assert.equal(finalPurchase.completed, true);
+  assert.equal(
+    (
+      await db.query(
+        "select status from preview_lists.households where id=$1",
+        [own.household.id],
+      )
+    ).rows[0].status,
+    "completed",
+  );
+  for (const email of [user, viewer]) {
+    const cartIndex = await req(
+      "/api/households?view=home",
+      "GET",
+      undefined,
+      email,
+    );
+    assert.ok(!cartIndex.lists.some((entry) => entry.id === own.household.id));
+    await req(
+      "/api/list/get-list",
+      "GET",
+      undefined,
+      email,
+      410,
+      own.household.id,
+    );
+  }
+  const sharedHistory = await req(
+    "/api/historical/get-historical",
+    "GET",
+    undefined,
+    viewer,
+  );
+  assert.ok(
+    sharedHistory.items.some(
+      (item) =>
+        item.listId === own.household.id &&
+        item.purchase.purchase_id === finalPurchase.purchaseId,
+    ),
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.user_preferences where household_id=$1",
+        [own.household.id],
+      )
+    ).rows[0].n,
+    0,
+  );
+  await req(
+    "/api/list/page-data",
+    "GET",
+    undefined,
+    user,
+    410,
+    own.household.id,
+  );
+  await req(
+    `/api/households?slug=${beforePartial.slug}`,
+    "GET",
+    undefined,
+    user,
+    403,
+  );
+  checks += 8;
   await assert.rejects(() =>
     db.exec("insert into preview_lists.app_users(email,role) values('attacker@example.invalid','superuser')"),
   );

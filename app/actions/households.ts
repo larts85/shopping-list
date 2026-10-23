@@ -25,7 +25,7 @@ export async function getPendingInvitations() {
     async (db) =>
       (
         await db.query(
-          "select i.id,h.name,h.owner_email,i.role from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email) order by h.name,i.id",
+          "select i.id,h.name,h.owner_email,i.role from household_invitations i join households h on h.id=i.household_id where i.email=$1 and h.status='active' and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email) order by h.name,i.id",
           [email],
         )
       ).rows as { id: string; name: string; owner_email: string; role: HouseholdAccessRole }[],
@@ -71,7 +71,7 @@ export async function getHouseholdData(scope?: string) {
           : [],
       households: (
         await db.query(
-          "select h.id,h.slug,h.name,h.owner_email from households h join household_members m on m.household_id=h.id where m.email=$1 order by h.created_at,h.id",
+          "select h.id,h.slug,h.name,h.owner_email from households h join household_members m on m.household_id=h.id where m.email=$1 and h.status='active' order by h.created_at,h.id",
           [email],
         )
       ).rows as {
@@ -82,7 +82,7 @@ export async function getHouseholdData(scope?: string) {
       }[],
       invitations: (
         await db.query(
-          "select i.id,h.name,h.owner_email,i.role from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email)",
+          "select i.id,h.name,h.owner_email,i.role from household_invitations i join households h on h.id=i.household_id where i.email=$1 and h.status='active' and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email)",
           [email],
         )
         ).rows as {
@@ -106,7 +106,7 @@ export async function getHouseholdData(scope?: string) {
         canManageList
           ? ((
               await db.query(
-                "select i.id,i.email,i.role from household_invitations i where i.household_id=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email)",
+                "select i.id,i.email,i.role from household_invitations i join households h on h.id=i.household_id where i.household_id=$1 and h.status='active' and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email)",
                 [h],
               )
             ).rows as { id: string; email: string; role: HouseholdAccessRole }[])
@@ -119,24 +119,24 @@ export async function getHomeLists() {
   return transaction(email, async (db) => {
     const role = await appRole(db, email);
     const lists = await db.query(
-      "select h.id,h.slug,h.name,h.owner_email from households h join household_members m on m.household_id=h.id where m.email=$1 order by h.created_at,h.id",
+      "select h.id,h.slug,h.name,h.owner_email from households h join household_members m on m.household_id=h.id where m.email=$1 and h.status='active' order by h.created_at,h.id",
       [email],
     );
     const invitations = await db.query(
-      "select i.id,h.slug,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email) order by h.created_at,i.id",
+      "select i.id,h.slug,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1 and h.status='active' and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email) order by h.created_at,i.id",
       [email],
     );
     const pendingNameSuggestions = await db.query(
       `select s.id,s.household_id,h.name as list_name,h.slug,s.name,s.email
        from list_name_suggestions s join households h on h.id=s.household_id
-       where h.owner_email=$1 and s.status='pending'
+       where h.owner_email=$1 and h.status='active' and s.status='pending'
        order by s.created_at desc,s.id desc limit 100`,
       [email],
     );
     const pendingListSuggestions = await db.query(
       `select s.household_id,count(*)::int as count
        from list_suggestions s join households h on h.id=s.household_id
-       where s.status='pending' and (
+       where h.status='active' and s.status='pending' and (
          h.owner_email=$1 or s.email=$1
        )
          and exists (
@@ -304,14 +304,14 @@ export async function acceptInvitation(
   const { email } = await identity();
   return transaction(email, async (db) => {
     const invite = await db.query(
-      "select i.household_id,h.slug,i.role from household_invitations i join households h on h.id=i.household_id where i.id::text=$1 and i.email=$2",
+      "select i.household_id,h.slug,i.role from household_invitations i join households h on h.id=i.household_id where i.id::text=$1 and i.email=$2 and h.status='active'",
       [text(id), email],
     );
     requireRow(invite.rowCount);
     const h = invite.rows[0].household_id;
     await db.query("select pg_advisory_xact_lock(hashtextextended($1,1))", [h]);
     const lockedInvite = await db.query(
-      "select role from household_invitations where id::text=$1 and email=$2 for update",
+      "select i.role from household_invitations i join households h on h.id=i.household_id where i.id::text=$1 and i.email=$2 and h.status='active' for update of i",
       [id, email],
     );
     requireRow(lockedInvite.rowCount);
@@ -345,7 +345,7 @@ export async function switchHousehold(id: string): Promise<void> {
     requireRow(
       (
         await db.query(
-          "select 1 from household_members where household_id::text=$1 and email=$2",
+          "select 1 from household_members m join households h on h.id=m.household_id where m.household_id::text=$1 and m.email=$2 and h.status='active'",
           [text(id), email],
         )
       ).rowCount,
@@ -408,7 +408,7 @@ export async function resolveListSlug(
        from households h
        left join household_members m on m.household_id=h.id and m.email=$2
        left join household_invitations i on i.household_id=h.id and i.email=$2
-       where h.slug=$1 and (m.email is not null or i.id is not null)`,
+       where h.slug=$1 and h.status='active' and (m.email is not null or i.id is not null)`,
       [slug, email],
     );
     if (!result.rowCount)
