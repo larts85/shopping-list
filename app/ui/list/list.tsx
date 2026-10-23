@@ -199,6 +199,7 @@ export default function List() {
   const submitting = useRef(false);
   const [purchaseConfirmation, setPurchaseConfirmation] = useState<{
     ids: string[];
+    isPartial: boolean;
     name: string;
     listId: string;
   } | null>(null);
@@ -740,6 +741,7 @@ export default function List() {
       .filter((p) => p.comprado === "1")
       .map((p) => p.id);
     if (!ids.length) return;
+    const isPartial = ids.length < Object.values(list).flat().length;
     submitting.current = true;
     revision.current++;
     const confirmationRevision = revision.current;
@@ -751,6 +753,7 @@ export default function List() {
       if (confirmationRevision !== revision.current) return;
       setPurchaseConfirmation({
         ids,
+        isPartial,
         name: data.household.name,
         listId: data.household.id,
       });
@@ -1333,21 +1336,36 @@ export default function List() {
       {purchaseConfirmation && (
         <Modal
           isOpen
-          title="Finalizar compra parcial"
+          title={
+            purchaseConfirmation.isPartial
+              ? "Finalizar compra parcial"
+              : "Finalizar compra"
+          }
           onClose={() => {
             if (!submitting.current) setPurchaseConfirmation(null);
           }}
         >
-          <h2 className="text-xl font-semibold">Finalizar compra parcial</h2>
+          <h2 className="text-xl font-semibold">
+            {purchaseConfirmation.isPartial
+              ? "Finalizar compra parcial"
+              : "Finalizar compra"}
+          </h2>
           <p className="mt-4">
             Los productos marcados como comprados (
             {purchaseConfirmation.ids.length}) se quitarán del carrito activo y
             se guardarán como una compra/lista terminada en el historial.
           </p>
-          <p className="mt-3">
-            Los productos sin marcar seguirán en el carrito, que conservará su
-            nombre e identidad.
-          </p>
+          {purchaseConfirmation.isPartial ? (
+            <p className="mt-3">
+              Los productos sin marcar seguirán en el carrito, que conservará
+              su nombre e identidad.
+            </p>
+          ) : (
+            <p className="mt-3">
+              Todos los productos están marcados como comprados. La lista se
+              vaciará y la compra aparecerá en el historial.
+            </p>
+          )}
           <p className="mt-3 break-words">
             Nombre en el historial:{" "}
             <strong>
@@ -1374,7 +1392,11 @@ export default function List() {
               disabled={purchaseBusy}
               onClick={clean}
             >
-              {purchaseBusy ? "Guardando…" : "Confirmar compra parcial"}
+              {purchaseBusy
+                ? "Guardando…"
+                : purchaseConfirmation.isPartial
+                  ? "Confirmar compra parcial"
+                  : "Confirmar compra"}
             </button>
           </div>
         </Modal>
