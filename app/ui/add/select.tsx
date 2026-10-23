@@ -484,7 +484,7 @@ export default function Select({
                       </p>
                     </div>
                     <div
-                      className="flex shrink-0 items-center gap-1"
+                      className="flex shrink-0 items-center gap-1 rounded-lg border border-[lightgray]"
                       role="group"
                       aria-label={`Cantidad de ${product.name}`}
                     >
@@ -515,7 +515,7 @@ export default function Select({
                     </div>
                     <button
                       type="button"
-                      className="icon-button size-10 shrink-0 text-zinc-900"
+                      className="icon-button size-10 shrink-0 bg-zinc-700 text-white hover:bg-zinc-800"
                       aria-label={`Agregar ${product.name} a ${listName}`}
                       disabled={!!addingProductId}
                       onClick={() => void addMatchingProduct(product)}
