@@ -16,6 +16,9 @@ if (process.env.VERCEL_ENV === "production") {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    agentUpgrade: "security",
+  },
   async redirects() {
     return [
       { source: "/logistic", destination: "/", permanent: true },

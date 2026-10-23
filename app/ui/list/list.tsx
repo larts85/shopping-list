@@ -1,7 +1,12 @@
 "use client";
-import { getActiveListId, setActiveListId } from "@/app/lib/listClient";
+import {
+  clearActiveListId,
+  getActiveListId,
+  setActiveListId,
+} from "@/app/lib/listClient";
 import { listFetch } from "@/app/lib/listClient";
 import { useState, useEffect, useRef, useId } from "react";
+import { useRouter } from "next/navigation";
 import { ClipLoader } from "react-spinners";
 import {
   RiArrowLeftRightLine,
@@ -165,6 +170,7 @@ function ProvisionalInfo({ description }: { description: string }) {
 }
 
 export default function List() {
+  const router = useRouter();
   useEffect(() => {
     load();
   }, []);
@@ -173,6 +179,7 @@ export default function List() {
   const [canManageList, setCanManageList] = useState(false);
   const [householdName, setHouseholdName] = useState("");
   const [isAddItemsOpen, setIsAddItemsOpen] = useState(false);
+  const addProductSearchRef = useRef<HTMLInputElement>(null);
   const [movePrompt, setMovePrompt] = useState<{
     target: { itemId?: string; categoryId?: string };
     name: string;
@@ -789,6 +796,11 @@ export default function List() {
         );
       setPurchaseConfirmation(null);
       if (getActiveListId() !== purchaseConfirmation.listId) return;
+      if (result.completed) {
+        clearActiveListId();
+        router.push("/history");
+        return;
+      }
       setStatus(
         `Compra «${result.purchaseName}» guardada en el historial. Los pendientes siguen en el carrito activo.`,
       );
@@ -853,52 +865,6 @@ export default function List() {
           Tienes acceso de solo lectura a esta lista.
         </p>
       )}
-      {canEditList && (
-        <>
-          <div className="panel flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="font-semibold">¿Falta algún producto?</h2>
-              <p className="mt-1 text-sm text-zinc-500">
-                Se agregará a{" "}
-                <strong>{householdName || "tu lista activa"}</strong>.
-              </p>
-            </div>
-            <button
-              type="button"
-              className="btn-primary w-full sm:w-auto"
-              aria-expanded={isAddItemsOpen}
-              aria-controls="add-products-panel"
-              disabled={isLoading || pendingSaveCount > 0 || isSavingEdits}
-              onClick={() => setIsAddItemsOpen((open) => !open)}
-            >
-              {isAddItemsOpen ? "Cerrar" : "Agregar productos"}
-            </button>
-          </div>
-          {pendingSaveCount > 0 && (
-            <p className="text-sm text-zinc-500">
-              Espera a que se guarden los cambios antes de agregar productos.
-            </p>
-          )}
-          {isAddItemsOpen && (
-            <section
-              id="add-products-panel"
-              className="panel"
-              aria-label={`Agregar productos a ${householdName}`}
-            >
-              <Select
-                listName={householdName}
-                onAdded={async (message) => {
-                  await fetchPageData();
-                  setStatus(
-                    message ?? `Productos agregados a ${householdName}.`,
-                  );
-                  setIsAddItemsOpen(false);
-                }}
-              />
-            </section>
-          )}
-        </>
-      )}
       <p className="text-sm text-zinc-500">
         Finaliza la compra para guardar los productos comprados en el historial.
         Los cambios se guardan automáticamente; al volver a esta pestaña se
@@ -943,6 +909,20 @@ export default function List() {
               {boughtCount === 1 ? "comprado" : "comprados"}
             </p>
             <div className="flex flex-wrap gap-2">
+              {canEditList && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  aria-expanded={isAddItemsOpen}
+                  aria-controls="add-products-panel"
+                  disabled={
+                    isLoading || pendingSaveCount > 0 || isSavingEdits
+                  }
+                  onClick={() => setIsAddItemsOpen((open) => !open)}
+                >
+                  {isAddItemsOpen ? "Cerrar" : "Agregar productos"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={openPurchaseConfirmation}
@@ -959,6 +939,36 @@ export default function List() {
               </button>
             </div>
           </div>
+          {canEditList && pendingSaveCount > 0 && (
+            <p className="mt-3 text-sm text-zinc-500">
+              Espera a que se guarden los cambios antes de agregar productos.
+            </p>
+          )}
+          {canEditList && isAddItemsOpen && (
+            <Modal
+              isOpen
+              title="Agregar productos"
+              size="xl"
+              initialFocusRef={addProductSearchRef}
+              onClose={() => setIsAddItemsOpen(false)}
+            >
+              <Select
+                listName={householdName}
+                existingProductIds={products
+                  .map((product) => product.id_product)
+                  .filter((id): id is string => !!id)}
+                searchInputRef={addProductSearchRef}
+                onClose={() => setIsAddItemsOpen(false)}
+                onAdded={async (message, keepOpen) => {
+                  await fetchPageData();
+                  setStatus(
+                    message ?? `Productos agregados a ${householdName}.`,
+                  );
+                  if (!keepOpen) setIsAddItemsOpen(false);
+                }}
+              />
+            </Modal>
+          )}
           {!canManageList && boughtCount > 0 && (
             <p className="mt-3 text-sm text-zinc-500">
               Solo el propietario puede finalizar la compra. Los productos
@@ -976,13 +986,6 @@ export default function List() {
           <p className="mt-2">
             Agrega los productos que necesitas para tu próxima compra.
           </p>
-          <button
-            type="button"
-            className="btn-primary mt-6"
-            onClick={() => setIsAddItemsOpen(true)}
-          >
-            Agregar productos
-          </button>
         </div>
       )}
       {categories

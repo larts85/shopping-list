@@ -445,7 +445,7 @@ export async function removeCartItems(target: {
 export async function getMoveTargets(scope?: string) {
   return withHousehold(async (db, source, email) => {
     const { rows } = await db.query(
-      "select h.id,h.name from households h join household_members m on m.household_id=h.id where m.email=$1 and h.id<>$2 order by h.name,h.id",
+      "select h.id,h.name from households h join household_members m on m.household_id=h.id where m.email=$1 and h.id<>$2 and h.status='active' order by h.name,h.id",
       [email, source],
     );
     return rows as { id: string; name: string }[];
@@ -479,7 +479,7 @@ export async function moveCartItems(input: {
       [source, targetId],
     );
     const targetAccess = await db.query(
-      "select 1 from household_members where household_id=$1 and email=$2 for update",
+      "select 1 from household_members m join households h on h.id=m.household_id where m.household_id=$1 and m.email=$2 and h.status='active' for update of m",
       [targetId, email],
     );
     requireRow(targetAccess.rowCount);
