@@ -88,12 +88,12 @@ export async function ensureHousehold(
   email: string,
 ): Promise<string> {
   const current = await db.query(
-    "select p.household_id from user_preferences p join household_members m on m.household_id=p.household_id and m.email=p.email where p.email=$1",
+    "select p.household_id from user_preferences p join household_members m on m.household_id=p.household_id and m.email=p.email join households h on h.id=p.household_id and h.status='active' where p.email=$1",
     [email],
   );
   if (current.rowCount) return current.rows[0].household_id;
   const existing = await db.query(
-    "select h.id from households h join household_members m on m.household_id=h.id where m.email=$1 order by (h.owner_email=$1) desc,h.created_at limit 1",
+    "select h.id from households h join household_members m on m.household_id=h.id where m.email=$1 and h.status='active' order by (h.owner_email=$1) desc,h.created_at limit 1",
     [email],
   );
   if (existing.rowCount) {
@@ -112,6 +112,7 @@ export async function ensureHousehold(
 export async function withHousehold<T>(
   run: (db: PoolClient, household: string, email: string) => Promise<T>,
   scope?: string,
+  options: { allowCompleted?: boolean } = {},
 ) {
   const requestedScope =
     scope ?? (await headers()).get("X-List-ID") ?? undefined;
@@ -143,6 +144,18 @@ export async function withHousehold<T>(
         "No tienes acceso a esta lista. Inicia sesión con el correo invitado o pide al propietario que te invite.",
         403,
       );
+    if (!options.allowCompleted) {
+      const list = await db.query(
+        "select status from households where id=$1",
+        [household],
+      );
+      requireRow(list.rowCount);
+      if (list.rows[0].status !== "active")
+        throw new DataError(
+          "Esta lista ya fue completada y solo está disponible en Historial.",
+          410,
+        );
+    }
     return run(db, household, email);
   });
 }
@@ -177,6 +190,7 @@ export async function householdRole(
 export async function withListEditor<T>(
   run: (db: PoolClient, household: string, email: string) => Promise<T>,
   scope?: string,
+  options: { allowCompleted?: boolean } = {},
 ) {
   return withHousehold(async (db, h, email) => {
     if (!canManageHousehold(await householdRole(db, h, email)))
@@ -185,7 +199,7 @@ export async function withListEditor<T>(
         403,
       );
     return run(db, h, email);
-  }, scope);
+  }, scope, options);
 }
 
 // Item edits require the explicit editor role; viewers remain read-only.
