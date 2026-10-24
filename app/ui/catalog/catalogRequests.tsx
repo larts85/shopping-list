@@ -95,6 +95,33 @@ export default function CatalogRequests() {
       setBusy(false);
     }
   }
+  async function review(
+    ids: string[],
+    decision: "approve" | "reject",
+    successMessage: string,
+  ) {
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await (ids.length === 1
+        ? reviewCatalogRequest(ids[0], decision)
+        : reviewCatalogRequests(ids, decision));
+      setRequests((current) =>
+        current.map((request) =>
+          ids.includes(request.id)
+            ? { ...request, status: decision === "approve" ? "approved" : "rejected" }
+            : request,
+        ),
+      );
+      setSelectedRequestIds((current) => current.filter((id) => !ids.includes(id)));
+      setMessage(successMessage);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo actualizar la solicitud.");
+    } finally {
+      setBusy(false);
+    }
+  }
   const pendingRequests = requests.filter(
     (request) => request.status === "pending",
   );
@@ -256,10 +283,7 @@ export default function CatalogRequests() {
                 className="btn-primary"
                 disabled={busy}
                 onClick={() =>
-                  void run(
-                    () => reviewCatalogRequests(selectedRequestIds, "approve"),
-                    `${selectedRequestIds.length} solicitudes aprobadas.`,
-                  )
+                  void review(selectedRequestIds, "approve", `${selectedRequestIds.length} solicitudes aprobadas.`)
                 }
               >
                 {busy ? "Guardando…" : "Aprobar seleccionadas"}
@@ -268,10 +292,7 @@ export default function CatalogRequests() {
                 className="btn-secondary"
                 disabled={busy}
                 onClick={() =>
-                  void run(
-                    () => reviewCatalogRequests(selectedRequestIds, "reject"),
-                    `${selectedRequestIds.length} solicitudes rechazadas.`,
-                  )
+                  void review(selectedRequestIds, "reject", `${selectedRequestIds.length} solicitudes rechazadas.`)
                 }
               >
                 {busy ? "Guardando…" : "Rechazar seleccionadas"}
@@ -338,10 +359,7 @@ export default function CatalogRequests() {
                     className="btn-primary"
                     disabled={busy}
                     onClick={() =>
-                      void run(
-                        () => reviewCatalogRequest(r.id, "approve"),
-                        "Solicitud aprobada.",
-                      )
+                      void review([r.id], "approve", "Solicitud aprobada.")
                     }
                   >
                     Aprobar
@@ -350,10 +368,7 @@ export default function CatalogRequests() {
                     className="btn-secondary"
                     disabled={busy}
                     onClick={() =>
-                      void run(
-                        () => reviewCatalogRequest(r.id, "reject"),
-                        "Solicitud rechazada.",
-                      )
+                      void review([r.id], "reject", "Solicitud rechazada.")
                     }
                   >
                     Rechazar
@@ -367,10 +382,7 @@ export default function CatalogRequests() {
                       icon: RiCheckLine,
                       disabled: busy,
                       onSelect: () =>
-                        void run(
-                          () => reviewCatalogRequest(r.id, "approve"),
-                          "Solicitud aprobada.",
-                        ),
+                        void review([r.id], "approve", "Solicitud aprobada."),
                     },
                     {
                       label: "Rechazar solicitud",
@@ -378,10 +390,7 @@ export default function CatalogRequests() {
                       destructive: true,
                       disabled: busy,
                       onSelect: () =>
-                        void run(
-                          () => reviewCatalogRequest(r.id, "reject"),
-                          "Solicitud rechazada.",
-                        ),
+                        void review([r.id], "reject", "Solicitud rechazada."),
                     },
                   ]}
                 />

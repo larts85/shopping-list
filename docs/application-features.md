@@ -22,6 +22,7 @@ actualización.
 | Abrir una lista por slug             | Sí  | No                              |
 | Compartir una lista                  | Sí  | No                              |
 | Invitar miembros                     | Sí  | No                              |
+| Compartir invitaciones por WhatsApp, Telegram, correo o texto plano | Sí | No |
 | Aceptar invitaciones                 | Sí  | No                              |
 | Rechazar invitaciones                | Sí  | No                              |
 | Gestionar roles de propietario       | Sí  | No                              |
@@ -60,7 +61,7 @@ actualización.
 | Seleccionar categorías                | Sí  | No                       |
 | Administrar categorías                | Sí  | No                       |
 | Solicitar productos de catálogo          | Sí | No |
-| Revisar solicitudes de productos         | Sí | No |
+| Revisar solicitudes de productos (actualización inmediata del historial) | Sí | No |
 
 ## Compra
 
