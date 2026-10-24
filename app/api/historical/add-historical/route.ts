@@ -5,7 +5,9 @@ import { addHistorical } from "../../../actions/historical";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    return NextResponse.json(await addHistorical(body?.productIds));
+    return NextResponse.json(
+      await addHistorical(body?.productIds, body?.purchaseName),
+    );
   } catch (error) {
     return apiError(error);
   }

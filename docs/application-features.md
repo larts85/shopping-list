@@ -17,7 +17,7 @@ actualización.
 | Crear listas                         | Sí  | No                              |
 | Activar una lista                    | Sí  | No                              |
 | Cambiar de lista                     | Sí  | No                              |
-| Renombrar listas                     | Sí  | No                              |
+| Renombrar listas (propietario y editores) | Sí  | No                              |
 | Eliminar listas                      | Sí  | No                              |
 | Abrir una lista por slug             | Sí  | No                              |
 | Compartir una lista                  | Sí  | No                              |
@@ -72,7 +72,8 @@ actualización.
 | Registrar la unidad comprada            | Sí | Sí (`mark_item_purchased`) |
 | Registrar el precio de compra           | Sí | Sí (`mark_item_purchased`) |
 | Registrar la descripción de la compra  | Sí | Sí (`mark_item_purchased`) |
-| Completar una compra                    | Sí | No |
+| Completar compras parciales y totales (propietario y editores) | Sí | No |
+| Editar el nombre de una compra antes de archivarla | Sí | No |
 | Archivar el ciclo de una lista          | Sí | No |
 
 ## Carrito
@@ -95,7 +96,7 @@ actualización.
 | Paginar el historial de compras         | Sí | No |
 | Editar artículos del historial          | Sí | No |
 | Repetir una compra anterior             | Sí | No |
-| Consultar total y estadísticas de una compra (resumen, afinidad nutricional orientativa, categorías y unidades) | Sí | No |
+| Consultar total y estadísticas de una compra (resumen, perfiles nutricionales orientativos detallados, categorías y unidades) | Sí | No |
 
 ## Sugerencias
 

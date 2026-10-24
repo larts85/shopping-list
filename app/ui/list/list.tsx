@@ -768,7 +768,7 @@ export default function List() {
   };
 
   const openPurchaseConfirmation = async () => {
-    if (!canManageList || submitting.current || pendingSaveCount > 0) return;
+    if (!canEditList || submitting.current || pendingSaveCount > 0) return;
     const ids = Object.values(list)
       .flat()
       .filter((p) => p.comprado === "1")
@@ -844,6 +844,10 @@ export default function List() {
 
   const clean = async () => {
     if (submitting.current || !purchaseConfirmation?.ids.length) return;
+    if (!purchaseConfirmation.name.trim()) {
+      setError("El nombre de la compra es obligatorio.");
+      return;
+    }
     submitting.current = true;
     revision.current++;
     setPurchaseBusy(true);
@@ -857,7 +861,10 @@ export default function List() {
           "content-type": "application/json",
           "X-List-ID": purchaseConfirmation.listId,
         },
-        body: JSON.stringify({ productIds: purchaseConfirmation.ids }),
+        body: JSON.stringify({
+          productIds: purchaseConfirmation.ids,
+          purchaseName: purchaseConfirmation.name,
+        }),
       });
       const result = await response.json();
       if (!response.ok)
@@ -997,7 +1004,7 @@ export default function List() {
                 type="button"
                 onClick={openPurchaseConfirmation}
                 disabled={
-                  !canManageList ||
+                  !canEditList ||
                   purchaseBusy ||
                   boughtCount === 0 ||
                   pendingSaveCount > 0 ||
@@ -1063,11 +1070,11 @@ export default function List() {
               />
             </Modal>
           )}
-          {!canManageList && boughtCount > 0 && (
+          {!canEditList && boughtCount > 0 && (
             <p className="mt-3 text-sm text-zinc-500">
-              Solo el propietario puede finalizar la compra. Los productos
-              marcados como comprados seguirán en esta lista y no aparecerán en
-              Historial hasta que el propietario la finalice.
+              Solo el propietario o un editor puede finalizar la compra. Los
+              productos marcados como comprados seguirán en esta lista y no
+              aparecerán en Historial hasta que alguien con permisos la finalice.
             </p>
           )}
         </div>
@@ -1449,6 +1456,21 @@ export default function List() {
               ? "Finalizar compra parcial"
               : "Finalizar compra"}
           </h2>
+          <label className="mt-4 block text-sm font-medium">
+            Nombre de la compra
+            <input
+              className="field mt-2"
+              value={purchaseConfirmation.name}
+              maxLength={200}
+              required
+              disabled={purchaseBusy}
+              onChange={(event) =>
+                setPurchaseConfirmation((current) =>
+                  current ? { ...current, name: event.target.value } : current,
+                )
+              }
+            />
+          </label>
           <p className="mt-4">
             Los productos marcados como comprados (
             {purchaseConfirmation.ids.length}) se quitarán del carrito activo y
@@ -1466,7 +1488,7 @@ export default function List() {
             </p>
           )}
           <p className="mt-3 break-words">
-            Nombre en el historial:{" "}
+            Nombre final en el historial:{" "}
             <strong>
               {completedPurchaseName(purchaseConfirmation.name, new Date())}
             </strong>

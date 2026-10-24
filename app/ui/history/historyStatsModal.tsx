@@ -2,12 +2,18 @@
 
 import { useRef, useState } from "react";
 import { unitLabels } from "@/app/lib/units";
+import {
+  getNutritionProfile,
+  NUTRITION_DATA_NOTICE,
+  type NutritionNutrientKind,
+} from "@/data/nutrition-profiles";
 import Modal from "@/shared/components/ui/Modal";
 import {
   categoryTotals,
   formatCurrency,
   formatQuantity,
   groupTotal,
+  itemCategory,
   nutrientGroups,
   packageTotals,
   quantitySummary,
@@ -76,6 +82,68 @@ function ProgressList({
   );
 }
 
+const nutrientKinds: NutritionNutrientKind[] = [
+  "Macronutriente",
+  "Vitamina",
+  "Mineral",
+  "Compuesto bioactivo",
+];
+
+function NutritionDetailsTable({ items }: { items: HistoryItem[] }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <h3 className="font-semibold">Detalle orientativo por alimento</h3>
+        <p className="mt-1 text-sm text-zinc-500">
+          Se muestra el perfil de un alimento genérico; no son cantidades de la compra ni valores de etiqueta.
+        </p>
+      </div>
+      <div className="overflow-x-auto rounded-2xl border border-zinc-200">
+        <table className="min-w-[58rem] w-full text-left text-sm">
+          <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
+            <tr>
+              <th className="px-4 py-3 font-medium">Alimento</th>
+              {nutrientKinds.map((kind) => (
+                <th key={kind} className="px-4 py-3 font-medium">{kind}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100">
+            {items.map((item) => {
+              const profile = getNutritionProfile(
+                String(item.purchase.name ?? "Producto"),
+                itemCategory(item),
+              );
+              return (
+                <tr key={item.id} className="align-top">
+                  <th className="max-w-56 px-4 py-3 font-medium">
+                    <span className="block">{String(item.purchase.name ?? "Producto")}</span>
+                    <span className="mt-1 block text-xs font-normal text-zinc-500">{profile?.label ?? itemCategory(item)}</span>
+                  </th>
+                  {nutrientKinds.map((kind) => (
+                    <td key={kind} className="px-4 py-3 text-zinc-600">
+                      {profile
+                        ? profile.nutrients
+                            .filter((nutrient) => nutrient.kind === kind)
+                            .map((nutrient) => (
+                              <span key={nutrient.name} className="mb-1 block">
+                                <strong className="font-medium text-zinc-800">{nutrient.name}</strong>
+                                <span className="block text-xs text-zinc-500">{nutrient.note}</span>
+                              </span>
+                            ))
+                        : <span className="text-zinc-400">Perfil pendiente</span>}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function SummaryTab({ items }: { items: HistoryItem[] }) {
   const total = groupTotal(items);
   const quantity = quantitySummary(items);
@@ -123,7 +191,7 @@ function NutrientsTab({ items }: { items: HistoryItem[] }) {
   return (
     <div className="space-y-5">
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">
-        Clasificación orientativa basada en la categoría y el nombre del artículo. No reemplaza la información nutricional del envase ni calcula nutrientes reales.
+        {NUTRITION_DATA_NOTICE} La fuente ideal para una próxima integración es una base nutricional especializada, no Wikipedia.
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         {groups.map((group) => {
@@ -149,6 +217,7 @@ function NutrientsTab({ items }: { items: HistoryItem[] }) {
           );
         })}
       </div>
+      <NutritionDetailsTable items={items} />
     </div>
   );
 }
