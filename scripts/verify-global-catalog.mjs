@@ -1697,7 +1697,7 @@ try {
     "/api/historical/add-historical",
     "POST",
     { productIds: [list[0].id] },
-    outsider,
+    viewer,
     403,
     second,
   );
