@@ -95,6 +95,7 @@ actualización.
 | Paginar el historial de compras         | Sí | No |
 | Editar artículos del historial          | Sí | No |
 | Repetir una compra anterior             | Sí | No |
+| Consultar total y estadísticas de una compra (resumen, afinidad nutricional orientativa, categorías y unidades) | Sí | No |
 
 ## Sugerencias
 
