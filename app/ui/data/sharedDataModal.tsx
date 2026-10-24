@@ -17,7 +17,35 @@ export default function SharedDataModal({
   const [delivery, setDelivery] = useState("");
   const [link, setLink] = useState("");
   const [copied, setCopied] = useState(false);
-  const shareMessage = `Te compartí una lista de compras en Shopear. Para acceder, inicia sesión con ${email} y acepta la invitación. Luego podrás abrirla desde este enlace: ${link}`;
+  const plainMessage = [
+    "Invitación a una lista de compras en Shopear",
+    "",
+    `Te compartí una lista de compras. Inicia sesión en Shopear con ${email} y acepta la invitación.`,
+    "",
+    `Abrir invitación: ${link}`,
+  ].join("\n");
+  const whatsappMessage = [
+    "*Invitación a una lista de compras en Shopear*",
+    "",
+    `Te compartí una lista de compras. Inicia sesión en Shopear con *${email}* y acepta la invitación.`,
+    "",
+    `*Abrir invitación:* ${link}`,
+  ].join("\n");
+  const telegramMessage = [
+    "**Invitación a una lista de compras en Shopear**",
+    "",
+    `Te compartí una lista de compras. Inicia sesión en Shopear con **${email}** y acepta la invitación.`,
+  ].join("\n");
+  const emailSubject = "Invitación a una lista de compras";
+  const copyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(plainMessage);
+      setCopied(true);
+      setError("");
+    } catch {
+      setError("No pudimos copiar el mensaje.");
+    }
+  };
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -125,30 +153,41 @@ export default function SharedDataModal({
               Enlace para ingresar
               <input readOnly className="field mt-2" value={link} />
             </label>
-            <button
-              className="btn-secondary"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(shareMessage);
-                  setCopied(true);
-                } catch {
-                  setError("No pudimos copiar el mensaje.");
-                }
-              }}
-            >
-              {copied ? "Mensaje copiado" : "Copiar mensaje para compartir"}
-            </button>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Compartir invitación</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <a
+                  className="btn-secondary inline-flex"
+                  href={`https://wa.me/?text=${encodeURIComponent(whatsappMessage)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  WhatsApp
+                </a>
+                <a
+                  className="btn-secondary inline-flex"
+                  href={`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(telegramMessage)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Telegram
+                </a>
+                <a
+                  className="btn-secondary inline-flex"
+                  href={`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(plainMessage)}`}
+                >
+                  Correo
+                </a>
+                <button className="btn-secondary" onClick={() => void copyMessage()}>
+                  {copied ? "Texto copiado" : "Copiar texto plano"}
+                </button>
+              </div>
+            </div>
             {error && (
               <p role="alert" className="error-notice">
                 {error}
               </p>
             )}
-            <a
-              className="btn-secondary inline-flex"
-              href={`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("Invitación a una lista de compras")}&body=${encodeURIComponent(shareMessage)}`}
-            >
-              Preparar correo en mi aplicación
-            </a>
             <button className="btn-primary" onClick={() => onClose(true)}>
               Listo
             </button>
