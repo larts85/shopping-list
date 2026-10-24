@@ -917,6 +917,14 @@ try {
     "insert into preview_lists.shopping_list(id,list_id,id_product) values('editor-pending-scope',$1,'editor-pending-product')",
     [homeB],
   );
+  await db.query(
+    "insert into preview_lists.catalog_products(id,name,id_category,unit) values('editor-purchase-product','Compra del editor',$1,'un')",
+    [cartCategory],
+  );
+  await db.query(
+    "insert into preview_lists.shopping_list(id,list_id,id_product,cantidad,medida,precio,comprado,unit) values('editor-purchase-scope',$1,'editor-purchase-product',1,1,10,true,'un')",
+    [homeB],
+  );
   await req(
     "/api/lists",
     "POST",
@@ -930,7 +938,7 @@ try {
   await req(
     "/api/historical/add-historical",
     "POST",
-    { productIds: ["cart-other-scope"], purchaseName: "Compra del editor" },
+    { productIds: ["editor-purchase-scope"], purchaseName: "Compra del editor" },
     outsider,
     200,
     homeB,
