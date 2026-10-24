@@ -191,7 +191,7 @@
 - Architecture fully documented
 - Security audit report created
 - README fully updated
-- Cursor rules established
+- Shared AI Assistant workflows established
 
 #### Testing: 0%
 

@@ -17,7 +17,8 @@
     "verify:lists": "node --env-file=.env scripts/verify-lists.mjs",
     "verify:catalog": "node scripts/verify-global-catalog.mjs",
     "verify:auth": "node --experimental-strip-types scripts/verify-google-supabase.mjs",
-    "verify:invitations": "node --experimental-strip-types scripts/verify-invitation-delivery.mjs"
+    "verify:invitations": "node --experimental-strip-types scripts/verify-invitation-delivery.mjs",
+    "verify:feature-docs": "node scripts/verify-feature-docs.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.3",

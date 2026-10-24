@@ -58,7 +58,7 @@ serializada y no retrocede el alias a un deployment anterior. No modifica protec
 `main` es la rama de Production configurada en Vercel; el repositorio no tiene `master`.
 La asignación automática de dominios de Production está habilitada. Un merge a `main` construye
 Production y publica el dominio `https://project-qoqim.vercel.app` si el build finaliza correctamente.
-El release se crea desde `develop` hacia `main`, siguiendo `.cursor/commands/release.md`.
+El release se crea desde `develop` hacia `main`, siguiendo `.ai-assistant/commands/release.md`.
 
 Callback de Production: `https://project-qoqim.vercel.app/api/auth/callback/google`.
 Las cuatro variables de autenticación y base de datos configuradas en Preview requieren
