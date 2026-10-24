@@ -22,6 +22,7 @@ actualización.
 | Abrir una lista por slug             | Sí  | No                              |
 | Compartir una lista                  | Sí  | No                              |
 | Invitar miembros                     | Sí  | No                              |
+| Compartir invitaciones por WhatsApp, Telegram, correo o texto plano | Sí | No |
 | Aceptar invitaciones                 | Sí  | No                              |
 | Rechazar invitaciones                | Sí  | No                              |
 | Gestionar roles de propietario       | Sí  | No                              |
@@ -45,6 +46,7 @@ actualización.
 | Editar la unidad de un artículo          | Sí | No |
 | Editar los detalles de un artículo       | Sí | No |
 | Editar artículos en lote                 | Sí | No |
+| Agregar descripciones a artículos en lote | Sí | No |
 | Desmarcar productos                      | Sí | No |
 | Eliminar productos de una lista          | Sí | No |
 | Mover artículos a otra lista             | Sí | No |
@@ -59,7 +61,7 @@ actualización.
 | Seleccionar categorías                | Sí  | No                       |
 | Administrar categorías                | Sí  | No                       |
 | Solicitar productos de catálogo          | Sí | No |
-| Revisar solicitudes de productos         | Sí | No |
+| Revisar solicitudes de productos (actualización inmediata del historial) | Sí | No |
 
 ## Compra
 
@@ -93,6 +95,7 @@ actualización.
 | Paginar el historial de compras         | Sí | No |
 | Editar artículos del historial          | Sí | No |
 | Repetir una compra anterior             | Sí | No |
+| Consultar total y estadísticas de una compra (resumen, afinidad nutricional orientativa, categorías y unidades) | Sí | No |
 
 ## Sugerencias
 

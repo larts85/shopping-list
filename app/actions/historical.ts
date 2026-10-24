@@ -93,10 +93,11 @@ export async function getHistorical(page = 0) {
   return transaction(email, async (db) => {
     const { rows } = await db.query(
       `select i.id,i.list_id as list_id,h.name as list_name,h.owner_email,
-              i.purchase,i.purchased_at
+              i.purchase,i.purchased_at,c.name as purchase_category_name
        from historical i
        join lists h on h.id=i.list_id
        join list_members m on m.list_id=i.list_id and m.email=$1
+       left join catalog_categories c on c.id=i.purchase->>'id_category'
        order by i.purchased_at desc,i.id desc limit 51 offset $2`,
       [email, page * 50],
     );
@@ -107,7 +108,14 @@ export async function getHistorical(page = 0) {
         listId: r.list_id as string,
         listName: r.list_name as string,
         canEdit: r.owner_email === email,
-        purchase: r.purchase as Record<string, string | number | null>,
+        purchase: {
+          ...(r.purchase as Record<string, string | number | null>),
+          category_name:
+            (r.purchase as Record<string, string | number | null>)
+              .category_name ??
+            r.purchase_category_name ??
+            null,
+        },
         purchasedAt: r.purchased_at.toISOString() as string,
       })),
     };
@@ -171,15 +179,23 @@ export async function updateHistoricalItem(
     const listRecord = await db.query("select name from lists where id=$1", [
       listId,
     ]);
+    const categoryRecord = await db.query(
+      "select name from catalog_categories where id=$1",
+      [result.rows[0].purchase?.id_category],
+    );
+    const purchase = result.rows[0].purchase as Record<
+      string,
+      string | number | null
+    >;
     return {
       id: result.rows[0].id as string,
       listId,
       listName: listRecord.rows[0]?.name as string,
       canEdit: true,
-      purchase: result.rows[0].purchase as Record<
-        string,
-        string | number | null
-      >,
+      purchase: {
+        ...purchase,
+        category_name: purchase.category_name ?? categoryRecord.rows[0]?.name ?? null,
+      },
       purchasedAt: (result.rows[0].purchased_at as Date).toISOString(),
     };
   }, scope, { allowCompleted: true });
