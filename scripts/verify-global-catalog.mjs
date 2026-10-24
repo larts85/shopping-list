@@ -1792,7 +1792,7 @@ try {
   assert.equal(
     (await req("/api/lists", "GET", undefined, user, 200, second))
       . list.name,
-    "Otra lista",
+    "No permitido",
   );
   await req(
     "/api/lists",
