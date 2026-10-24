@@ -13,7 +13,7 @@ export function Authenticate({ returnTo }: { returnTo?: string }) {
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="text-center">
         <h1 className="text-2xl font-semibold leading-tight tracking-tight text-gray-900">
-          Tu hogar, organizado.
+          Tus listas, organizadas.
         </h1>
         <CardDescription className="text-gray-600">
           Una lista clara. Compras más simples.

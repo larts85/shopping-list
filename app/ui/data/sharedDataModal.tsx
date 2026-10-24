@@ -1,8 +1,8 @@
 "use client";
 import { getActiveListId } from "@/app/lib/listClient";
 import { useState } from "react";
-import { shareHousehold } from "../../actions/households";
-import type { HouseholdAccessRole } from "@/app/lib/database";
+import { shareList } from "../../actions/lists";
+import type { ListAccessRole } from "@/app/lib/database";
 export default function SharedDataModal({
   isOpen,
   onClose,
@@ -11,7 +11,7 @@ export default function SharedDataModal({
   onClose: (shared?: boolean) => void;
 }) {
   const [email, setEmail] = useState("");
-  const [accessRole, setAccessRole] = useState<HouseholdAccessRole | "">("");
+  const [accessRole, setAccessRole] = useState<ListAccessRole | "">("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [delivery, setDelivery] = useState("");
@@ -42,7 +42,7 @@ export default function SharedDataModal({
               setBusy(true);
               setError("");
               try {
-                const result = await shareHousehold(
+                const result = await shareList(
                   email,
                   getActiveListId(),
                   accessRole,
@@ -80,7 +80,7 @@ export default function SharedDataModal({
               <select
                 className="field mt-2"
                 value={accessRole}
-                onChange={(event) => setAccessRole(event.target.value as HouseholdAccessRole | "")}
+                onChange={(event) => setAccessRole(event.target.value as ListAccessRole | "")}
                 required
                 disabled={busy}
               >

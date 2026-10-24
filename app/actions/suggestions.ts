@@ -1,10 +1,10 @@
 "use server";
 import {
-  withHousehold,
+  withList,
   withListItemEditor,
   withListEditor,
-  canManageHousehold,
-  householdRole,
+  canManageList,
+  listRole,
   text,
   positive,
   requireRow,
@@ -61,13 +61,13 @@ export async function submitSuggestion(
       requireRow(
         (
           await db.query(
-            "select 1 from shopping_list where household_id=$1 and id_product=$2 and not comprado",
+            "select 1 from shopping_list where list_id=$1 and id_product=$2 and not comprado",
             [h, productId],
           )
         ).rowCount,
       );
     await db.query(
-      "insert into list_suggestions(household_id,email,kind,product_id,quantity,unit,note) values($1,$2,$3,$4,$5,$6,$7)",
+      "insert into list_suggestions(list_id,email,kind,product_id,quantity,unit,note) values($1,$2,$3,$4,$5,$6,$7)",
       [
         h,
         email,
@@ -83,11 +83,11 @@ export async function submitSuggestion(
 export async function getSuggestions(
   scope?: string,
 ): Promise<ListSuggestion[]> {
-  return withHousehold(async (db, h, email) => {
-    const canReviewAll = canManageHousehold(await householdRole(db, h, email));
+  return withList(async (db, h, email) => {
+    const canReviewAll = canManageList(await listRole(db, h, email));
     return (
       await db.query(
-        "select s.id,s.email,s.kind,s.product_id,p.name,s.quantity,s.unit,s.note,s.status,s.created_at,s.reviewed_by from list_suggestions s join catalog_products p on p.id=s.product_id where s.household_id=$1 and ($2 or s.email=$3) order by s.created_at desc,s.id desc limit 100",
+        "select s.id,s.email,s.kind,s.product_id,p.name,s.quantity,s.unit,s.note,s.status,s.created_at,s.reviewed_by from list_suggestions s join catalog_products p on p.id=s.product_id where s.list_id=$1 and ($2 or s.email=$3) order by s.created_at desc,s.id desc limit 100",
         [h, canReviewAll, email],
       )
     ).rows.map((r) => ({
@@ -106,7 +106,7 @@ export async function reviewSuggestion(
     throw new DataError("Decisión inválida");
   await withListEditor(async (db, h, email) => {
     const result = await db.query(
-      "select s.*,p.available_units as product_available_units from list_suggestions s join catalog_products p on p.id=s.product_id where s.household_id=$1 and s.id::text=$2 for update of s",
+      "select s.*,p.available_units as product_available_units from list_suggestions s join catalog_products p on p.id=s.product_id where s.list_id=$1 and s.id::text=$2 for update of s",
       [h, text(id)],
     );
     requireRow(result.rowCount);
@@ -117,7 +117,7 @@ export async function reviewSuggestion(
       requireRow(
         (
           await db.query(
-            "select 1 from household_members where household_id=$1 and email=$2",
+            "select 1 from list_members where list_id=$1 and email=$2",
             [h, s.email],
           )
         ).rowCount,
@@ -128,7 +128,7 @@ export async function reviewSuggestion(
         if (
           (
             await db.query(
-              "select 1 from shopping_list where household_id=$1 and id_product=$2",
+              "select 1 from shopping_list where list_id=$1 and id_product=$2",
               [h, s.product_id],
             )
           ).rowCount
@@ -137,14 +137,14 @@ export async function reviewSuggestion(
             "El producto ya está en la lista; revisa la sugerencia",
           );
         await db.query(
-          "insert into shopping_list(household_id,id_product,cantidad,medida,unit) values($1,$2,$3,1,$4)",
+          "insert into shopping_list(list_id,id_product,cantidad,medida,unit) values($1,$2,$3,1,$4)",
           [h, s.product_id, positive(s.quantity), s.unit],
         );
       } else if (s.kind === "quantity")
         requireRow(
           (
             await db.query(
-              "update shopping_list set cantidad=$3,medida=1,unit=$4 where household_id=$1 and id_product=$2 and not comprado",
+              "update shopping_list set cantidad=$3,medida=1,unit=$4 where list_id=$1 and id_product=$2 and not comprado",
               [h, s.product_id, positive(s.quantity), s.unit],
             )
           ).rowCount,
@@ -153,19 +153,19 @@ export async function reviewSuggestion(
         requireRow(
           (
             await db.query(
-              "delete from shopping_list where household_id=$1 and id_product=$2 and not comprado",
+              "delete from shopping_list where list_id=$1 and id_product=$2 and not comprado",
               [h, s.product_id],
             )
           ).rowCount,
         );
       if (s.kind === "add" || s.kind === "remove")
         await db.query(
-          "insert into list_selections(household_id,product_id,checked) values($1,$2,$3) on conflict(household_id,product_id) do update set checked=excluded.checked",
+          "insert into list_selections(list_id,product_id,checked) values($1,$2,$3) on conflict(list_id,product_id) do update set checked=excluded.checked",
           [h, s.product_id, s.kind === "add"],
         );
     }
     await db.query(
-      "update list_suggestions set status=$3,reviewed_at=now(),reviewed_by=$4 where household_id=$1 and id=$2",
+      "update list_suggestions set status=$3,reviewed_at=now(),reviewed_by=$4 where list_id=$1 and id=$2",
       [h, s.id, decision === "approve" ? "approved" : "rejected", email],
     );
   }, scope);

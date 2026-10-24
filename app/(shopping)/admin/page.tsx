@@ -4,7 +4,7 @@ export default function Admin() {
     <main>
       <h1 className="page-heading">Todo en su lugar.</h1>
       <p className="page-description">
-        Organiza el catálogo de tu hogar para armar tus próximas compras en
+        Organiza el catálogo para armar tus próximas listas de compras en
         menos tiempo.
       </p>
       <div className="mt-8 grid gap-4 lg:grid-cols-2">

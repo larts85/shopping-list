@@ -2,21 +2,23 @@ import { NextResponse } from "next/server";
 import { apiError } from "@/app/lib/apiError";
 import { DataError } from "@/app/lib/database";
 import {
-  getHouseholdData,
+  getListData,
   getHomeLists,
   resolveListSlug,
-  createHousehold,
-  deleteHousehold,
-  shareHousehold,
+  createList,
+  deleteList,
+  shareList,
   acceptInvitation,
   declineInvitation,
-  switchHousehold,
+  switchList,
   changeMemberRole,
   revokeAccess,
-  renameHousehold,
-  suggestHouseholdName,
-  reviewHouseholdName,
-} from "@/app/actions/households";
+  renameList,
+  suggestListName,
+  leaveList,
+  suggestListDeletion,
+  reviewListName,
+} from "@/app/actions/lists";
 
 export async function GET(request: Request) {
   try {
@@ -25,7 +27,7 @@ export async function GET(request: Request) {
       return NextResponse.json(await getHomeLists());
     const slug = url.searchParams.get("slug");
     return NextResponse.json(
-      slug !== null ? await resolveListSlug(slug) : await getHouseholdData(),
+      slug !== null ? await resolveListSlug(slug) : await getListData(),
     );
   } catch (e) {
     return apiError(e, request);
@@ -37,14 +39,14 @@ export async function POST(request: Request) {
     let result: unknown;
     switch (b.action) {
       case "create": {
-        const created = await createHousehold(b.name, b.activate !== false);
+        const created = await createList(b.name, b.activate !== false);
         return NextResponse.json({ result: created.id, slug: created.slug });
       }
       case "delete":
-        await deleteHousehold(b.id);
+        await deleteList(b.id);
         break;
       case "share": {
-        const shared = await shareHousehold(b.email, undefined, b.role);
+        const shared = await shareList(b.email, undefined, b.role);
         if (shared.status === "error") throw new DataError(shared.error);
         result = {
           delivery: shared.delivery,
@@ -61,7 +63,7 @@ export async function POST(request: Request) {
         await declineInvitation(b.id);
         break;
       case "switch":
-        await switchHousehold(b.id);
+        await switchList(b.id);
         break;
       case "role":
         await changeMemberRole();
@@ -70,13 +72,19 @@ export async function POST(request: Request) {
         await revokeAccess(b.email);
         break;
       case "suggest-name":
-        await suggestHouseholdName(b.name);
+        await suggestListName(b.name);
         break;
       case "review-name":
-        await reviewHouseholdName(b.id, b.decision);
+        await reviewListName(b.id, b.decision);
         break;
       case "rename":
-        await renameHousehold(b.name);
+        await renameList(b.name);
+        break;
+      case "leave":
+        await leaveList(b.id);
+        break;
+      case "suggest-delete":
+        await suggestListDeletion(b.id);
         break;
       default:
         return NextResponse.json({ error: "Acción inválida" }, { status: 400 });

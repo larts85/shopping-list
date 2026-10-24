@@ -14,7 +14,7 @@
     "deps:install": "node scripts/check-dependencies.mjs && yarn install --frozen-lockfile --ignore-scripts --non-interactive",
     "deps:check": "node scripts/check-dependencies.mjs",
     "verify:supabase": "node --env-file=.env scripts/verify-supabase.mjs",
-    "verify:households": "node --env-file=.env scripts/verify-households.mjs",
+    "verify:lists": "node --env-file=.env scripts/verify-lists.mjs",
     "verify:catalog": "node scripts/verify-global-catalog.mjs",
     "verify:auth": "node --experimental-strip-types scripts/verify-google-supabase.mjs",
     "verify:invitations": "node --experimental-strip-types scripts/verify-invitation-delivery.mjs",

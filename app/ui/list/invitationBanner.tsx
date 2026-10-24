@@ -6,7 +6,7 @@ import {
   getPendingInvitations,
   acceptInvitation,
   declineInvitation,
-} from "@/app/actions/households";
+} from "@/app/actions/lists";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
 import ConfirmModal from "@/shared/components/ui/ConfirmModal";
 import { RiCheckLine, RiCloseLine } from "react-icons/ri";
@@ -50,7 +50,6 @@ export default function InvitationBanner() {
       setInvites(await getPendingInvitations());
       if (accepted) {
         setActiveListId(accepted.id);
-        window.dispatchEvent(new Event("active-list-changed"));
         router.push(`/lists/${accepted.slug}`);
         router.refresh();
       }
