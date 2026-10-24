@@ -15,6 +15,8 @@ import {
   revokeAccess,
   renameHousehold,
   suggestHouseholdName,
+  leaveHousehold,
+  suggestHouseholdDeletion,
   reviewHouseholdName,
 } from "@/app/actions/households";
 
@@ -77,6 +79,12 @@ export async function POST(request: Request) {
         break;
       case "rename":
         await renameHousehold(b.name);
+        break;
+      case "leave":
+        await leaveHousehold(b.id);
+        break;
+      case "suggest-delete":
+        await suggestHouseholdDeletion(b.id);
         break;
       default:
         return NextResponse.json({ error: "Acción inválida" }, { status: 400 });

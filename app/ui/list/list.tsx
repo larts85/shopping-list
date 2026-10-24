@@ -214,6 +214,8 @@ export default function List() {
   const [pendingSaveCount, setPendingSaveCount] = useState(0);
   const [isSavingEdits, setIsSavingEdits] = useState(false);
   const [autoSaveError, setAutoSaveError] = useState("");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const pendingProductUpdates = useRef<Record<string, PendingProductUpdate>>(
     {},
   );
@@ -772,6 +774,18 @@ export default function List() {
     }
   };
 
+  async function applyBulkAction(action: "remove" | "buy" | "description") {
+    if (!selectedIds.length) return;
+    const description = action === "description" ? window.prompt("Descripción (reemplazará las existentes):", "") : undefined;
+    if (action === "description" && description === null) return;
+    if (action === "remove" && !window.confirm(`¿Eliminar ${selectedIds.length} artículos del carrito?`)) return;
+    const response = await listFetch("/api/list/bulk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids: selectedIds, action, description }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "No pudimos aplicar la acción.");
+    setSelectedIds([]); setSelectionMode(false); await fetchList();
+    setStatus(action === "buy" ? "Artículos marcados como comprados." : action === "remove" ? "Artículos eliminados del carrito." : "Descripción actualizada.");
+  }
+
   const clean = async () => {
     if (submitting.current || !purchaseConfirmation?.ids.length) return;
     submitting.current = true;
@@ -923,6 +937,11 @@ export default function List() {
                   {isAddItemsOpen ? "Cerrar" : "Agregar productos"}
                 </button>
               )}
+              {canEditList && (
+                <button type="button" className={selectionMode ? "btn-primary" : "btn-secondary"} onClick={() => { setSelectionMode((v) => !v); setSelectedIds([]); }}>
+                  {selectionMode ? "Cancelar selección" : "Seleccionar"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={openPurchaseConfirmation}
@@ -939,6 +958,16 @@ export default function List() {
               </button>
             </div>
           </div>
+          {selectionMode && selectedIds.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+              <span className="mr-2 text-sm font-medium">{selectedIds.length} seleccionados</span>
+              <button className="btn-secondary" onClick={() => void applyBulkAction("buy")}>Marcar comprados</button>
+              <button className="btn-secondary" onClick={() => void applyBulkAction("description")}>Agregar descripción</button>
+              <button className="btn-secondary text-red-700" onClick={() => void applyBulkAction("remove")}>Eliminar</button>
+              <button className="btn-secondary" onClick={async () => { const target = window.prompt("ID de la lista de destino:"); if (!target) return; const response = await listFetch("/api/list/cart-items", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetHouseholdId: target, itemIds: selectedIds }) }); const result = await response.json(); if (!response.ok) { setError(result.error || "No pudimos mover los artículos."); return; } setSelectedIds([]); setSelectionMode(false); await fetchList(); setStatus(`${result.moved} artículos movidos.`); }}>Mover a otra lista</button>
+              <button className="btn-secondary" onClick={() => { const ids = selectedIds; setSelectionMode(false); setPurchaseConfirmation({ ids, isPartial: true, name: householdName, listId: getActiveListId() || "" }); }}>Finalizar compra parcial</button>
+            </div>
+          )}
           {canEditList && pendingSaveCount > 0 && (
             <p className="mt-3 text-sm text-zinc-500">
               Espera a que se guarden los cambios antes de agregar productos.
@@ -1114,12 +1143,12 @@ export default function List() {
                           onClick={() => handleOpenModal(product)}
                           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg text-left text-sm hover:text-zinc-500 sm:gap-3"
                         >
-                          <span
+                          {selectionMode ? <input type="checkbox" aria-label={`Seleccionar ${product.name}`} checked={selectedIds.includes(product.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, product.id] : current.filter((id) => id !== product.id))} /> : <span
                             aria-hidden="true"
                             className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${product.comprado === "1" ? "border-zinc-900 bg-zinc-900 text-xs text-white" : "border-zinc-300"}`}
                           >
                             {product.comprado === "1" ? "✓" : ""}
-                          </span>
+                          </span>}
                           <span
                             className={`min-w-0 flex-1 break-words ${product.comprado === "1" ? "text-zinc-500 line-through" : "font-medium"}`}
                           >

@@ -115,6 +115,20 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
       setDeletingId("");
     }
   }
+  async function sharedListAction(list: Data["lists"][number], action: "leave" | "suggest-delete") {
+    if (action === "leave" && !window.confirm(`¿Dejar de ver y participar en «${list.name}»?`)) return;
+    if (action === "suggest-delete" && !window.confirm(`¿Sugerir al propietario eliminar «${list.name}»?`)) return;
+    setRespondingId(list.id);
+    try {
+      const response = await fetch("/api/households", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, id: list.id }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No pudimos actualizar la lista.");
+      const wasActive = getActiveListId() === list.id;
+      setData((previous) => previous ? { ...previous, lists: previous.lists.filter((item) => item.id !== list.id) } : previous);
+      if (wasActive) { clearActiveListId(); window.dispatchEvent(new Event("active-list-changed")); router.push("/"); }
+    } catch (error) { setNotificationError(error instanceof Error ? error.message : "No pudimos actualizar la lista."); }
+    finally { setRespondingId(""); }
+  }
   function openList(list: Data["lists"][number]) {
     setActiveListId(list.id);
     window.dispatchEvent(new Event("active-list-changed"));
@@ -271,7 +285,10 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
                             onSelect: () => setListToDelete(list),
                           },
                         ]
-                      : []),
+                      : [
+                          { label: "Dejar de ver y participar", icon: RiDeleteBin6Line, destructive: true, disabled: !!respondingId, onSelect: () => void sharedListAction(list, "leave") },
+                          { label: "Sugerir eliminar esta lista", icon: RiDeleteBin6Line, disabled: !!respondingId, onSelect: () => void sharedListAction(list, "suggest-delete") },
+                        ]),
                   ]}
                 />
               </div>
