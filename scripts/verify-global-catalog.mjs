@@ -909,6 +909,10 @@ try {
     "update preview_lists.list_members set role='list_editor' where list_id=$1 and email=$2",
     [homeB, outsider],
   );
+  await db.query(
+    "insert into preview_lists.shopping_list(id,list_id,id_product) values('editor-pending-scope',$1,$2)",
+    [homeB, original.id_product],
+  );
   await req(
     "/api/lists",
     "POST",
