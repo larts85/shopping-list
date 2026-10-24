@@ -20,7 +20,7 @@ export default async function Layout({
       <div
         id="main-content"
         tabIndex={-1}
-        className="mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-12"
+        className="mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-6"
       >
         <ListAccessProvider>{children}</ListAccessProvider>
       </div>
@@ -28,4 +28,4 @@ export default async function Layout({
   );
 }
 
-Layout.displayName = 'Layout';
+Layout.displayName = "Layout";

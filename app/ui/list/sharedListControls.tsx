@@ -3,11 +3,7 @@ import Link from "next/link";
 import { getActiveListId } from "@/app/lib/listClient";
 import { useEffect, useState } from "react";
 import { RiPencilLine } from "react-icons/ri";
-import {
-  getListData,
-  renameList,
-  suggestListName,
-} from "@/app/actions/lists";
+import { getListData, renameList, suggestListName } from "@/app/actions/lists";
 import Modal from "@/shared/components/ui/Modal";
 import SharedDataModal from "../data/sharedDataModal";
 type Data = Awaited<ReturnType<typeof getListData>>;
@@ -44,9 +40,11 @@ export default function SharedListControls({
     try {
       if (data.canManageList) {
         await renameList(name, getActiveListId());
-        setData((current) => current
-          ? { ...current,  list: { ...current. list, name: name.trim() } }
-          : current);
+        setData((current) =>
+          current
+            ? { ...current, list: { ...current.list, name: name.trim() } }
+            : current,
+        );
         setNameMessage("Se actualizó el nombre de la lista.");
       } else {
         await suggestListName(name, getActiveListId());
@@ -56,7 +54,9 @@ export default function SharedListControls({
       window.dispatchEvent(new Event("active-list-changed"));
     } catch (cause) {
       setNameError(
-        cause instanceof Error ? cause.message : "No se pudo guardar el nombre.",
+        cause instanceof Error
+          ? cause.message
+          : "No se pudo guardar el nombre.",
       );
     } finally {
       setNameBusy(false);
@@ -90,20 +90,45 @@ export default function SharedListControls({
           {error}
         </p>
       )}
-      {nameMessage && <p role="status" className="text-sm text-emerald-700">{nameMessage}</p>}
+      {nameMessage && (
+        <p role="status" className="text-sm text-emerald-700">
+          {nameMessage}
+        </p>
+      )}
       {data && (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-0">
             <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-xl font-semibold">{data. list.name}</h2>
+              <div>
+                <h2 className="text-xl font-semibold">{data.list.name}</h2>
+                <p className="text-sm text-zinc-500 block">
+                  {data.memberCount}{" "}
+                  {data.memberCount === 1 ? "persona tiene" : "personas tienen"}{" "}
+                  acceso.{" "}
+                  {data.canManageList
+                    ? "Puedes gestionar esta lista."
+                    : data.canEditList
+                      ? "Puedes editar artículos y sugerir un nombre al propietario."
+                      : "Tienes acceso de solo lectura a esta lista."}
+                </p>
+              </div>
+
               {data.canEditList && (
                 <button
                   type="button"
-                  aria-label={data.canManageList ? "Editar nombre de la lista" : "Proponer nombre de la lista"}
-                  title={data.canManageList ? "Editar nombre de la lista" : "Proponer nombre de la lista"}
+                  aria-label={
+                    data.canManageList
+                      ? "Editar nombre de la lista"
+                      : "Proponer nombre de la lista"
+                  }
+                  title={
+                    data.canManageList
+                      ? "Editar nombre de la lista"
+                      : "Proponer nombre de la lista"
+                  }
                   className="flex size-9 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-700"
                   onClick={() => {
-                    setName(data. list.name);
+                    setName(data.list.name);
                     setNameError("");
                     setNameMessage("");
                     setNameOpen(true);
@@ -127,16 +152,6 @@ export default function SharedListControls({
               </Link>
             </div>
           </div>
-          <p className="text-sm text-zinc-500">
-            {data.memberCount}{" "}
-            {data.memberCount === 1 ? "persona tiene" : "personas tienen"}{" "}
-            acceso.{" "}
-            {data.canManageList
-              ? "Puedes gestionar esta lista."
-              : data.canEditList
-                ? "Puedes editar artículos y sugerir un nombre al propietario."
-                : "Tienes acceso de solo lectura a esta lista."}
-          </p>
         </>
       )}
       {open && (
@@ -153,18 +168,31 @@ export default function SharedListControls({
         <Modal
           isOpen
           onClose={() => !nameBusy && setNameOpen(false)}
-          title={data.canManageList ? "Editar nombre de la lista" : "Proponer nombre de la lista"}
+          title={
+            data.canManageList
+              ? "Editar nombre de la lista"
+              : "Proponer nombre de la lista"
+          }
         >
           <h2 className="mb-3 text-xl font-semibold">
-            {data.canManageList ? "Editar nombre de la lista" : "Proponer nombre"}
+            {data.canManageList
+              ? "Editar nombre de la lista"
+              : "Proponer nombre"}
           </h2>
           {!data.canManageList && (
             <p className="mb-4 text-sm text-zinc-600">
               El propietario revisará tu sugerencia antes de cambiar el nombre.
             </p>
           )}
-          {nameError && <p role="alert" className="error-notice mb-4">{nameError}</p>}
-          <form className="space-y-4" onSubmit={(event) => void saveName(event)}>
+          {nameError && (
+            <p role="alert" className="error-notice mb-4">
+              {nameError}
+            </p>
+          )}
+          <form
+            className="space-y-4"
+            onSubmit={(event) => void saveName(event)}
+          >
             <label className="block text-sm font-medium">
               Nombre de la lista
               <input
@@ -201,4 +229,4 @@ export default function SharedListControls({
   );
 }
 
-SharedListControls.displayName = 'SharedListControls';
+SharedListControls.displayName = "SharedListControls";
