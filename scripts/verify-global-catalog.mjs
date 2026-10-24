@@ -1723,7 +1723,7 @@ try {
     "/api/households",
     "POST",
     { action: "suggest-name", name: "Other list" },
-    outsider,
+    viewer,
     403,
     homeB,
   );
