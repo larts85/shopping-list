@@ -442,6 +442,32 @@ export async function removeCartItems(target: {
   });
 }
 
+export async function bulkUpdateCartItems(input: {
+  ids: unknown;
+  action: unknown;
+  description?: unknown;
+}): Promise<void> {
+  if (!input || !Array.isArray(input.ids) || input.ids.length < 1 || input.ids.length > 500)
+    throw new DataError("Selecciona al menos un artículo");
+  const ids = input.ids.map(text);
+  const action = input.action;
+  if (!["remove", "buy", "description"].includes(String(action)))
+    throw new DataError("Acción masiva inválida");
+  if (action === "description" && (typeof input.description !== "string" || input.description.trim().length > 500))
+    throw new DataError("La descripción no puede superar los 500 caracteres");
+  await withListItemEditor(async (db, h) => {
+    const rows = await db.query("select id,comprado from shopping_list where household_id=$1 and id=any($2::text[]) for update", [h, ids]);
+    if (rows.rowCount !== ids.length) throw new DataError("Uno o más artículos ya no están disponibles");
+    if (action === "remove") {
+      await db.query("delete from shopping_list where household_id=$1 and id=any($2::text[])", [h, ids]);
+    } else if (action === "buy") {
+      await db.query("update shopping_list set comprado=true where household_id=$1 and id=any($2::text[])", [h, ids]);
+    } else {
+      await db.query("update shopping_list set description=$3 where household_id=$1 and id=any($2::text[])", [h, ids, String(input.description).trim()]);
+    }
+  });
+}
+
 export async function getMoveTargets(scope?: string) {
   return withHousehold(async (db, source, email) => {
     const { rows } = await db.query(
@@ -455,14 +481,16 @@ export async function getMoveTargets(scope?: string) {
 export async function moveCartItems(input: {
   targetHouseholdId: string;
   itemId?: string;
+  itemIds?: string[];
   /** @deprecated Older clients use productId for the shopping_list row ID. */
   productId?: string;
   categoryId?: string;
 }): Promise<{ moved: number; merged: number }> {
   const itemIdValue = input?.itemId ?? input?.productId;
+  const itemIds = input?.itemIds?.map(text);
   if (
     !input ||
-    Boolean(itemIdValue) === Boolean(input.categoryId) ||
+    (!itemIds?.length && Boolean(itemIdValue) === Boolean(input.categoryId)) ||
     (input.itemId && input.productId)
   )
     throw new DataError("Indica un artículo o una categoría");
@@ -491,9 +519,9 @@ export async function moveCartItems(input: {
               l.cantidad,l.medida,l.precio,l.comprado,l.unit,
               coalesce(p.id_category,l.provisional_category_id) id_category
        from shopping_list l left join catalog_products p on p.id=l.id_product
-       where l.household_id=$1 and ${sourceItemId ? "l.id=$2 and not l.comprado" : "coalesce(p.id_category,l.provisional_category_id)=$2"}
+       where l.household_id=$1 and ${itemIds?.length ? "l.id=any($2::text[])" : sourceItemId ? "l.id=$2 and not l.comprado" : "coalesce(p.id_category,l.provisional_category_id)=$2"}
        order by l.id for update of l`,
-      [source, sourceItemId ?? sourceCategoryId],
+      [source, itemIds?.length ? itemIds : sourceItemId ?? sourceCategoryId],
     );
     requireRow(rows.rowCount);
     if (rows.rows.some((row) => row.comprado))

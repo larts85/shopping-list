@@ -392,6 +392,30 @@ export async function revokeAccess(
   }, scope);
 }
 
+export async function leaveHousehold(scope?: string): Promise<void> {
+  await withHousehold(async (db, h, email) => {
+    const owner = await db.query("select owner_email from households where id=$1", [h]);
+    requireRow(owner.rowCount);
+    if (owner.rows[0].owner_email === email)
+      throw new DataError("El propietario no puede abandonar su propia lista");
+    await db.query("delete from user_preferences where household_id=$1 and email=$2", [h, email]);
+    requireRow((await db.query("delete from household_members where household_id=$1 and email=$2", [h, email])).rowCount);
+  }, scope);
+}
+
+export async function suggestHouseholdDeletion(scope?: string): Promise<void> {
+  await withListItemEditor(async (db, h, email) => {
+    const owner = await db.query("select owner_email from households where id=$1", [h]);
+    requireRow(owner.rowCount);
+    if (owner.rows[0].owner_email === email)
+      throw new DataError("El propietario puede eliminar la lista directamente");
+    await db.query(
+      "insert into household_deletion_suggestions(household_id,email) values($1,$2) on conflict (household_id,email) do update set status='pending',created_at=now()",
+      [h, email],
+    );
+  }, scope);
+}
+
 // Only return list metadata after membership or an invitation for this identity.
 export async function resolveListSlug(
   slug: string,
