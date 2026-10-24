@@ -45,6 +45,7 @@ actualización.
 | Editar la unidad de un artículo          | Sí | No |
 | Editar los detalles de un artículo       | Sí | No |
 | Editar artículos en lote                 | Sí | No |
+| Agregar descripciones a artículos en lote | Sí | No |
 | Desmarcar productos                      | Sí | No |
 | Eliminar productos de una lista          | Sí | No |
 | Mover artículos a otra lista             | Sí | No |
