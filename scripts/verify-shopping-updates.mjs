@@ -1,2 +1,2 @@
-// Global catalog regression supersedes fixtures tied to household catalogs.
+// Global catalog regression supersedes fixtures tied to  list catalogs.
 import "./verify-global-catalog.mjs";

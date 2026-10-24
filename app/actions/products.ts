@@ -1,6 +1,6 @@
 "use server";
 import {
-  withHousehold,
+  withList,
   withListItemEditor,
   withListEditor,
   withCatalog,
@@ -25,11 +25,11 @@ export interface EditProductParams {
   availableUnits?: Unit[];
 }
 export async function getProducts(scope?: string): Promise<Product[]> {
-  const products = await withHousehold(
+  const products = await withList(
     async (db, h) =>
       (
         await db.query(
-          "select p.id,p.name,p.id_category,coalesce(s.checked,false) checked,p.unit,p.available_units from catalog_products p left join list_selections s on s.product_id=p.id and s.household_id=$1 where not p.archived order by p.name,p.id",
+          "select p.id,p.name,p.id_category,coalesce(s.checked,false) checked,p.unit,p.available_units from catalog_products p left join list_selections s on s.product_id=p.id and s.list_id=$1 where not p.archived order by p.name,p.id",
           [h],
         )
       ).rows,
@@ -257,7 +257,7 @@ async function selectProduct(
     ).rowCount,
   );
   await db.query(
-    "insert into list_selections(household_id,product_id,checked) values($1,$2,$3) on conflict(household_id,product_id) do update set checked=excluded.checked",
+    "insert into list_selections(list_id,product_id,checked) values($1,$2,$3) on conflict(list_id,product_id) do update set checked=excluded.checked",
     [h, id, checked],
   );
 }
@@ -281,7 +281,7 @@ export async function editCheckedProducts(products: Product[]): Promise<void> {
 export async function unCheckProducts(): Promise<void> {
   await withListEditor(async (db, h) => {
     await db.query(
-      "update list_selections set checked=false where household_id=$1 and product_id in(select id_product from shopping_list where household_id=$1 and comprado)",
+      "update list_selections set checked=false where list_id=$1 and product_id in(select id_product from shopping_list where list_id=$1 and comprado)",
       [h],
     );
   });

@@ -3,7 +3,7 @@ import { defaultListName } from "../lib/listName";
 import { listShareUrl } from "../lib/listShareUrl";
 import { deliverInvitation } from "../lib/invitationDelivery";
 import {
-  withHousehold,
+  withList,
   withListItemEditor,
   withListEditor,
   identity,
@@ -11,12 +11,12 @@ import {
   text,
   DataError,
   requireRow,
-  householdRole,
-  canManageHousehold,
-  canEditHousehold,
+  listRole,
+  canManageList,
+  canEditList,
   appRole,
   type MemberRole,
-  type HouseholdAccessRole,
+  type ListAccessRole,
 } from "../lib/database";
 export async function getPendingInvitations() {
   const { email } = await identity();
@@ -25,33 +25,33 @@ export async function getPendingInvitations() {
     async (db) =>
       (
         await db.query(
-          "select i.id,h.name,h.owner_email,i.role from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email) order by h.name,i.id",
+          "select i.id,h.name,h.owner_email,i.role from list_invitations i join lists h on h.id=i.list_id where i.email=$1 and h.status='active' and not exists (select 1 from list_members m where m.list_id=i.list_id and m.email=i.email) order by h.name,i.id",
           [email],
         )
-      ).rows as { id: string; name: string; owner_email: string; role: HouseholdAccessRole }[],
+      ).rows as { id: string; name: string; owner_email: string; role: ListAccessRole }[],
   );
 }
-export async function getHouseholdData(scope?: string) {
-  return withHousehold(async (db, h, email) => {
-    const role = await householdRole(db, h, email);
-    const canManageList = canManageHousehold(role);
+export async function getListData(scope?: string) {
+  return withList(async (db, h, email) => {
+    const role = await listRole(db, h, email);
+    const canManage = canManageList(role);
     return {
       email,
       role: await appRole(db, email),
-      canEditList: canEditHousehold(role),
-      canManageList,
-      householdRole: role,
+      canEditList: canEditList(role),
+      canManageList: canManage,
+      listRole: role,
       memberCount: Number(
         (
           await db.query(
-            "select count(*) from household_members where household_id=$1",
+            "select count(*) from list_members where list_id=$1",
             [h],
           )
         ).rows[0].count,
       ),
-      household: (
+       list: (
         await db.query(
-          "select id,slug,name,owner_email from households where id=$1",
+          "select id,slug,name,owner_email from lists where id=$1",
           [h],
         )
       ).rows[0] as {
@@ -61,17 +61,17 @@ export async function getHouseholdData(scope?: string) {
         owner_email: string;
       },
       members:
-        canManageList
+        canManage
           ? ((
               await db.query(
-                "select m.email,case when m.email=h.owner_email then 'owner' else m.role end role from household_members m join households h on h.id=m.household_id where h.id=$1 order by m.email",
+                "select m.email,case when m.email=h.owner_email then 'owner' else m.role end role from list_members m join lists h on h.id=m.list_id where h.id=$1 order by m.email",
                 [h],
               )
             ).rows as { email: string; role: MemberRole }[])
           : [],
-      households: (
+      lists: (
         await db.query(
-          "select h.id,h.slug,h.name,h.owner_email from households h join household_members m on m.household_id=h.id where m.email=$1 order by h.created_at,h.id",
+          "select h.id,h.slug,h.name,h.owner_email from lists h join list_members m on m.list_id=h.id where m.email=$1 and h.status='active' order by h.created_at,h.id",
           [email],
         )
       ).rows as {
@@ -82,19 +82,19 @@ export async function getHouseholdData(scope?: string) {
       }[],
       invitations: (
         await db.query(
-          "select i.id,h.name,h.owner_email,i.role from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email)",
+          "select i.id,h.name,h.owner_email,i.role from list_invitations i join lists h on h.id=i.list_id where i.email=$1 and h.status='active' and not exists (select 1 from list_members m where m.list_id=i.list_id and m.email=i.email)",
           [email],
         )
         ).rows as {
         id: string;
         name: string;
         owner_email: string;
-          role: HouseholdAccessRole;
+          role: ListAccessRole;
       }[],
       nameSuggestions: (
         await db.query(
-          "select id,email,name,status from list_name_suggestions where household_id=$1 and ($2 or email=$3) order by created_at desc,id desc limit 100",
-          [h, canManageList, email],
+          "select id,email,name,status from list_name_suggestions where list_id=$1 and ($2 or email=$3) order by created_at desc,id desc limit 100",
+          [h, canManage, email],
         )
       ).rows as {
         id: string;
@@ -103,13 +103,13 @@ export async function getHouseholdData(scope?: string) {
         status: "pending" | "approved" | "rejected";
       }[],
       pending:
-        canManageList
+        canManage
           ? ((
               await db.query(
-                "select i.id,i.email,i.role from household_invitations i where i.household_id=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email)",
+                "select i.id,i.email,i.role from list_invitations i join lists h on h.id=i.list_id where i.list_id=$1 and h.status='active' and not exists (select 1 from list_members m where m.list_id=i.list_id and m.email=i.email)",
                 [h],
               )
-            ).rows as { id: string; email: string; role: HouseholdAccessRole }[])
+            ).rows as { id: string; email: string; role: ListAccessRole }[])
           : [],
     };
   }, scope);
@@ -119,31 +119,31 @@ export async function getHomeLists() {
   return transaction(email, async (db) => {
     const role = await appRole(db, email);
     const lists = await db.query(
-      "select h.id,h.slug,h.name,h.owner_email from households h join household_members m on m.household_id=h.id where m.email=$1 order by h.created_at,h.id",
+      "select h.id,h.slug,h.name,h.owner_email from lists h join list_members m on m.list_id=h.id where m.email=$1 and h.status='active' order by h.created_at,h.id",
       [email],
     );
     const invitations = await db.query(
-      "select i.id,h.slug,h.name,h.owner_email from household_invitations i join households h on h.id=i.household_id where i.email=$1 and not exists (select 1 from household_members m where m.household_id=i.household_id and m.email=i.email) order by h.created_at,i.id",
+      "select i.id,h.slug,h.name,h.owner_email from list_invitations i join lists h on h.id=i.list_id where i.email=$1 and h.status='active' and not exists (select 1 from list_members m where m.list_id=i.list_id and m.email=i.email) order by h.created_at,i.id",
       [email],
     );
     const pendingNameSuggestions = await db.query(
-      `select s.id,s.household_id,h.name as list_name,h.slug,s.name,s.email
-       from list_name_suggestions s join households h on h.id=s.household_id
-       where h.owner_email=$1 and s.status='pending'
+      `select s.id,s.list_id,h.name as list_name,h.slug,s.name,s.email
+       from list_name_suggestions s join lists h on h.id=s.list_id
+       where h.owner_email=$1 and h.status='active' and s.status='pending'
        order by s.created_at desc,s.id desc limit 100`,
       [email],
     );
     const pendingListSuggestions = await db.query(
-      `select s.household_id,count(*)::int as count
-       from list_suggestions s join households h on h.id=s.household_id
-       where s.status='pending' and (
+      `select s.list_id,count(*)::int as count
+       from list_suggestions s join lists h on h.id=s.list_id
+       where h.status='active' and s.status='pending' and (
          h.owner_email=$1 or s.email=$1
        )
          and exists (
-           select 1 from household_members m
-           where m.household_id=s.household_id and m.email=$1
+           select 1 from list_members m
+           where m.list_id=s.list_id and m.email=$1
          )
-       group by s.household_id`,
+       group by s.list_id`,
       [email],
     );
     const pendingCatalogRequests = await db.query(
@@ -166,14 +166,14 @@ export async function getHomeLists() {
       }[],
       pendingNameSuggestions: pendingNameSuggestions.rows as {
         id: string;
-        household_id: string;
+        list_id: string;
         list_name: string;
         slug: string;
         name: string;
         email: string;
       }[],
       pendingListSuggestions: pendingListSuggestions.rows as {
-        household_id: string;
+        list_id: string;
         count: number;
       }[],
       pendingCatalogRequests: Number(pendingCatalogRequests.rows[0].count),
@@ -181,7 +181,7 @@ export async function getHomeLists() {
   });
 }
 
-export async function createHousehold(
+export async function createList(
   name?: string,
   activate = true,
 ): Promise<{ id: string; slug: string }> {
@@ -191,52 +191,52 @@ export async function createHousehold(
     const {
       rows: [home],
     } = await db.query(
-      "insert into households(owner_email,name) values($1,$2) returning id,slug",
+      "insert into lists(owner_email,name) values($1,$2) returning id,slug",
       [email, label],
     );
     await db.query(
-      "insert into household_members(household_id,email,role) values($1,$2,'list_editor')",
+      "insert into list_members(list_id,email,role) values($1,$2,'list_editor')",
       [home.id, email],
     );
     if (activate)
       await db.query(
-        "insert into user_preferences(email,household_id) values($1,$2) on conflict(email) do update set household_id=excluded.household_id",
+        "insert into user_preferences(email,list_id) values($1,$2) on conflict(email) do update set list_id=excluded.list_id",
         [email, home.id],
       );
     return home as { id: string; slug: string };
   });
 }
-export async function deleteHousehold(id: string): Promise<void> {
-  const householdId = text(id);
-  await withHousehold(async (db, household, email) => {
+export async function deleteList(id: string): Promise<void> {
+  const  listId = text(id);
+  await withList(async (db,  list, email) => {
     const owned = await db.query(
-      "select 1 from households where id=$1 and owner_email=$2 for update",
-      [household, email],
+      "select 1 from lists where id=$1 and owner_email=$2 for update",
+      [ list, email],
     );
     if (!owned.rowCount)
       throw new DataError("Solo el propietario puede eliminar esta lista", 403);
-    await db.query("delete from user_preferences where household_id=$1", [
-      household,
+    await db.query("delete from user_preferences where list_id=$1", [
+       list,
     ]);
     requireRow(
       (
-        await db.query("delete from households where id=$1", [household])
+        await db.query("delete from lists where id=$1", [ list])
       ).rowCount,
     );
-  }, householdId);
+  },  listId);
 }
-export async function renameHousehold(
+export async function renameList(
   name: string,
   scope?: string,
 ): Promise<void> {
   await withListEditor(async (db, h) => {
-    await db.query("update households set name=$2 where id=$1", [
+    await db.query("update lists set name=$2 where id=$1", [
       h,
       text(name),
     ]);
   }, scope);
 }
-export async function shareHousehold(
+export async function shareList(
   recipient: string,
   scope: string | undefined,
   accessRole: unknown,
@@ -247,7 +247,7 @@ export async function shareHousehold(
       delivery: "not_configured" | "sent" | "failed";
       email: string;
       slug: string;
-      accessRole: HouseholdAccessRole;
+      accessRole: ListAccessRole;
     }
 > {
   const email = text(recipient).toLowerCase();
@@ -255,25 +255,25 @@ export async function shareHousehold(
     throw new DataError("Email inválido");
   if (accessRole !== "list_viewer" && accessRole !== "list_editor")
     throw new DataError("Tipo de acceso inválido");
-  const selectedRole = accessRole as HouseholdAccessRole;
+  const selectedRole = accessRole as ListAccessRole;
   const list = await withListEditor(async (db, h) => {
     if (
       (
         await db.query(
-          "select 1 from household_members where household_id=$1 and email=$2",
+          "select 1 from list_members where list_id=$1 and email=$2",
           [h, email],
         )
       ).rowCount
     )
       return { status: "already_member" as const };
     await db.query(
-      "insert into household_invitations(household_id,email,role) values($1,$2,$3) on conflict(household_id,email) do update set role=excluded.role",
+      "insert into list_invitations(list_id,email,role) values($1,$2,$3) on conflict(list_id,email) do update set role=excluded.role",
       [h, email, selectedRole],
     );
     return {
       status: "invite" as const,
       accessRole: selectedRole,
-      list: (await db.query("select name,slug from households where id=$1", [h]))
+      list: (await db.query("select name,slug from lists where id=$1", [h]))
         .rows[0] as { name: string; slug: string },
     };
   }, scope);
@@ -304,23 +304,23 @@ export async function acceptInvitation(
   const { email } = await identity();
   return transaction(email, async (db) => {
     const invite = await db.query(
-      "select i.household_id,h.slug,i.role from household_invitations i join households h on h.id=i.household_id where i.id::text=$1 and i.email=$2",
+      "select i.list_id,h.slug,i.role from list_invitations i join lists h on h.id=i.list_id where i.id::text=$1 and i.email=$2 and h.status='active'",
       [text(id), email],
     );
     requireRow(invite.rowCount);
-    const h = invite.rows[0].household_id;
+    const h = invite.rows[0].list_id;
     await db.query("select pg_advisory_xact_lock(hashtextextended($1,1))", [h]);
     const lockedInvite = await db.query(
-      "select role from household_invitations where id::text=$1 and email=$2 for update",
+      "select i.role from list_invitations i join lists h on h.id=i.list_id where i.id::text=$1 and i.email=$2 and h.status='active' for update of i",
       [id, email],
     );
     requireRow(lockedInvite.rowCount);
     await db.query(
-      "insert into household_members(household_id,email,role) values($1,$2,$3) on conflict do nothing",
+      "insert into list_members(list_id,email,role) values($1,$2,$3) on conflict do nothing",
       [h, email, lockedInvite.rows[0].role],
     );
     await db.query(
-      "delete from household_invitations where id::text=$1 and email=$2",
+      "delete from list_invitations where id::text=$1 and email=$2",
       [id, email],
     );
     return { id: h, slug: invite.rows[0].slug };
@@ -332,26 +332,26 @@ export async function declineInvitation(id: string): Promise<void> {
     requireRow(
       (
         await db.query(
-          "delete from household_invitations where id::text=$1 and email=$2",
+          "delete from list_invitations where id::text=$1 and email=$2",
           [text(id), email],
         )
       ).rowCount,
     );
   });
 }
-export async function switchHousehold(id: string): Promise<void> {
+export async function switchList(id: string): Promise<void> {
   const { email } = await identity();
   await transaction(email, async (db) => {
     requireRow(
       (
         await db.query(
-          "select 1 from household_members where household_id::text=$1 and email=$2",
+          "select 1 from list_members m join lists h on h.id=m.list_id where m.list_id::text=$1 and m.email=$2 and h.status='active'",
           [text(id), email],
         )
       ).rowCount,
     );
     await db.query(
-      "insert into user_preferences(email,household_id) values($1,$2) on conflict(email) do update set household_id=excluded.household_id",
+      "insert into user_preferences(email,list_id) values($1,$2) on conflict(email) do update set list_id=excluded.list_id",
       [email, id],
     );
   });
@@ -370,24 +370,48 @@ export async function revokeAccess(
     const target = text(recipient).toLowerCase();
     if (target === email)
       throw new DataError("No puedes quitar tu propio acceso");
-    const household = await db.query(
-      "select owner_email from households where id=$1",
+    const  list = await db.query(
+      "select owner_email from lists where id=$1",
       [h],
     );
-    requireRow(household.rowCount);
-    if (target === household.rows[0].owner_email)
+    requireRow( list.rowCount);
+    if (target ===  list.rows[0].owner_email)
       throw new DataError("No puedes quitar el acceso del propietario");
     await db.query(
-      "delete from user_preferences where household_id=$1 and email=$2",
+      "delete from user_preferences where list_id=$1 and email=$2",
       [h, target],
     );
     await db.query(
-      "delete from household_members where household_id=$1 and email=$2",
+      "delete from list_members where list_id=$1 and email=$2",
       [h, target],
     );
     await db.query(
-      "delete from household_invitations where household_id=$1 and email=$2",
+      "delete from list_invitations where list_id=$1 and email=$2",
       [h, target],
+    );
+  }, scope);
+}
+
+export async function leaveList(scope?: string): Promise<void> {
+  await withList(async (db, h, email) => {
+    const owner = await db.query("select owner_email from lists where id=$1", [h]);
+    requireRow(owner.rowCount);
+    if (owner.rows[0].owner_email === email)
+      throw new DataError("El propietario no puede abandonar su propia lista");
+    await db.query("delete from user_preferences where list_id=$1 and email=$2", [h, email]);
+    requireRow((await db.query("delete from list_members where list_id=$1 and email=$2", [h, email])).rowCount);
+  }, scope);
+}
+
+export async function suggestListDeletion(scope?: string): Promise<void> {
+  await withListItemEditor(async (db, h, email) => {
+    const owner = await db.query("select owner_email from lists where id=$1", [h]);
+    requireRow(owner.rowCount);
+    if (owner.rows[0].owner_email === email)
+      throw new DataError("El propietario puede eliminar la lista directamente");
+    await db.query(
+      "insert into  list_deletion_suggestions(list_id,email) values($1,$2) on conflict (list_id,email) do update set status='pending',created_at=now()",
+      [h, email],
     );
   }, scope);
 }
@@ -397,7 +421,7 @@ export async function resolveListSlug(
   slug: string,
 ): Promise<
   | { kind: "member"; id: string }
-  | { kind: "invitation"; invitationId: string; name: string; owner: string; role: HouseholdAccessRole }
+  | { kind: "invitation"; invitationId: string; name: string; owner: string; role: ListAccessRole }
 > {
   if (!/^lista-[0-9a-f]{32}$/.test(slug))
     throw new DataError("Enlace de lista inválido", 400);
@@ -405,10 +429,10 @@ export async function resolveListSlug(
   return transaction(email, async (db) => {
     const result = await db.query(
       `select h.id,h.name,h.owner_email,m.email as member,i.id as invitation,i.role as invitation_role
-       from households h
-       left join household_members m on m.household_id=h.id and m.email=$2
-       left join household_invitations i on i.household_id=h.id and i.email=$2
-       where h.slug=$1 and (m.email is not null or i.id is not null)`,
+       from lists h
+       left join list_members m on m.list_id=h.id and m.email=$2
+       left join list_invitations i on i.list_id=h.id and i.email=$2
+       where h.slug=$1 and h.status='active' and (m.email is not null or i.id is not null)`,
       [slug, email],
     );
     if (!result.rowCount)
@@ -424,25 +448,25 @@ export async function resolveListSlug(
           invitationId: list.invitation,
           name: list.name,
           owner: list.owner_email,
-          role: list.invitation_role as HouseholdAccessRole,
+          role: list.invitation_role as ListAccessRole,
         };
   });
 }
 
-export async function suggestHouseholdName(
+export async function suggestListName(
   name: string,
   scope?: string,
 ): Promise<void> {
   const label = text(name);
   await withListItemEditor(async (db, h, email) => {
     await db.query(
-      "insert into list_name_suggestions(household_id,email,name) values($1,$2,$3)",
+      "insert into list_name_suggestions(list_id,email,name) values($1,$2,$3)",
       [h, email, label],
     );
   }, scope);
 }
 
-export async function reviewHouseholdName(
+export async function reviewListName(
   id: string,
   decision: "approve" | "reject",
   scope?: string,
@@ -451,7 +475,7 @@ export async function reviewHouseholdName(
     throw new DataError("Decisión inválida");
   await withListEditor(async (db, h, email) => {
     const suggestion = await db.query(
-      "select email,name,status from list_name_suggestions where household_id=$1 and id::text=$2 for update",
+      "select email,name,status from list_name_suggestions where list_id=$1 and id::text=$2 for update",
       [h, text(id)],
     );
     requireRow(suggestion.rowCount);
@@ -462,18 +486,18 @@ export async function reviewHouseholdName(
       requireRow(
         (
           await db.query(
-          "select 1 from household_members where household_id=$1 and email=$2",
+          "select 1 from list_members where list_id=$1 and email=$2",
             [h, proposed.email],
           )
         ).rowCount,
       );
-      await db.query("update households set name=$2 where id=$1", [
+      await db.query("update lists set name=$2 where id=$1", [
         h,
         text(proposed.name),
       ]);
     }
     await db.query(
-      "update list_name_suggestions set status=$3,reviewed_by=$4,reviewed_at=now() where household_id=$1 and id::text=$2",
+      "update list_name_suggestions set status=$3,reviewed_by=$4,reviewed_at=now() where list_id=$1 and id::text=$2",
       [h, id, decision === "approve" ? "approved" : "rejected", email],
     );
   }, scope);

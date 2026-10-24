@@ -18,7 +18,7 @@ export default function CreateListModal({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/households", {
+      const response = await fetch("/api/lists", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -30,7 +30,6 @@ export default function CreateListModal({
       if (!response.ok)
         throw new Error(result.error || "No pudimos crear la lista.");
       setActiveListId(result.result);
-      window.dispatchEvent(new Event("active-list-changed"));
       onClose();
       router.push(`/lists/${result.slug}`);
       router.refresh();

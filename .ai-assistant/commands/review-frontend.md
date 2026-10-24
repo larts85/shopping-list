@@ -1,5 +1,8 @@
 # Frontend review
 
+Confirm that any changed capability is represented in
+`docs/application-features.md` under the correct entity.
+
 Review the requested Home Logistics UI changes.
 
 Read the root `AGENTS.md` for the current repository context.

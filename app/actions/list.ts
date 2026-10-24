@@ -1,15 +1,15 @@
 "use server";
 import {
-  withHousehold,
+  withList,
   withListItemEditor,
   withListEditor,
-  canManageHousehold,
-  canEditHousehold,
+  canManageList,
+  canEditList,
   text,
   positive,
   requireRow,
   DataError,
-  householdRole,
+  listRole,
   type MemberRole,
 } from "../lib/database";
 import {
@@ -29,13 +29,13 @@ import type { Category, IList } from "../lib/types";
 export async function addList(): Promise<void> {
   await withListItemEditor(async (db, h) => {
     await db.query(
-      "insert into shopping_list(household_id,id_product,unit) select $1,p.id,p.unit from catalog_products p join list_selections s on s.product_id=p.id where s.household_id=$1 and s.checked and not p.archived on conflict(household_id,id_product) do nothing",
+      "insert into shopping_list(list_id,id_product,unit) select $1,p.id,p.unit from catalog_products p join list_selections s on s.product_id=p.id where s.list_id=$1 and s.checked and not p.archived on conflict(list_id,id_product) do nothing",
       [h],
     );
   });
 }
 export async function getList(scope?: string): Promise<IList[]> {
-  return withHousehold(async (db, h) => {
+  return withList(async (db, h) => {
     const { rows } = await db.query(
       `select l.*,coalesce(p.name,l.provisional_name) name,
         coalesce(p.id_category,l.provisional_category_id) id_category,
@@ -48,7 +48,7 @@ export async function getList(scope?: string): Promise<IList[]> {
        left join catalog_products p on p.id=l.id_product
        left join catalog_categories c on c.id=coalesce(p.id_category,l.provisional_category_id)
        left join catalog_requests cr on cr.id=l.catalog_request_id
-       where l.household_id=$1 order by name,l.id`,
+       where l.list_id=$1 order by name,l.id`,
       [h],
     );
     const currency = (n: number) =>
@@ -119,7 +119,7 @@ export async function setBought(
        from shopping_list l
        left join catalog_products p on p.id=l.id_product
        left join catalog_categories c on c.id=coalesce(p.id_category,l.provisional_category_id)
-       where l.household_id=$1 and l.id=$2`,
+       where l.list_id=$1 and l.id=$2`,
       [h, text(id)],
     );
     requireRow(product.rowCount);
@@ -142,7 +142,7 @@ export async function setBought(
              description=case when $8::boolean then $9::text else description end,
              provisional_available_units=case when id_product is null and $6::text is not null
                then array[$6::text] else provisional_available_units end
-           where household_id=$1 and id=$2`,
+           where list_id=$1 and id=$2`,
           [
             h,
             text(id),
@@ -191,7 +191,7 @@ export async function updateListItemDetails(
 
   await withListItemEditor(async (db, h, email) => {
     const product = await db.query(
-      "select l.comprado,l.cantidad,l.precio,l.unit,p.unit product_unit,coalesce(p.available_units,l.provisional_available_units) available_units from shopping_list l left join catalog_products p on p.id=l.id_product where l.household_id=$1 and l.id=$2 for update of l",
+      "select l.comprado,l.cantidad,l.precio,l.unit,p.unit product_unit,coalesce(p.available_units,l.provisional_available_units) available_units from shopping_list l left join catalog_products p on p.id=l.id_product where l.list_id=$1 and l.id=$2 for update of l",
       [h, rowId],
     );
     requireRow(product.rowCount);
@@ -200,7 +200,7 @@ export async function updateListItemDetails(
     if (
       bought &&
       editingPurchase &&
-      !canManageHousehold(await householdRole(db, h, email))
+      !canManageList(await listRole(db, h, email))
     )
       throw new DataError("Solo el propietario puede editar los datos de compra", 403);
     if (bought && hasCantidad && cantidad === null)
@@ -236,7 +236,7 @@ export async function updateListItemDetails(
                  else (case when $4 then $5 else cantidad end)*
                    (case when $8 then $9 else precio end) end
                else precio_total end
-           where household_id=$1 and id=$2`,
+           where list_id=$1 and id=$2`,
           [
             h,
             rowId,
@@ -266,14 +266,14 @@ export async function getListProductsByCategories(): Promise<
   );
 }
 export async function getListPageData(scope?: string): Promise<{
-  household: { id: string; name: string };
+  activeList: { id: string; name: string };
   canEditList: boolean;
   canManageList: boolean;
   list: Record<string, IList[]>;
   categories: Category[];
 }> {
-  return withHousehold(async (db, household, email) => {
-    const [listRows, categoryRows, householdRows] = await Promise.all([
+  return withList(async (db, listId, email) => {
+    const [itemRows, categoryRows, listMetaRows] = await Promise.all([
       db.query(
         `select l.*,coalesce(p.name,l.provisional_name) name,
           coalesce(p.id_category,l.provisional_category_id) id_category,
@@ -285,8 +285,8 @@ export async function getListPageData(scope?: string): Promise<{
          left join catalog_products p on p.id=l.id_product
          left join catalog_categories c on c.id=coalesce(p.id_category,l.provisional_category_id)
          left join catalog_requests cr on cr.id=l.catalog_request_id
-         where l.household_id=$1 order by name,l.id`,
-        [household],
+         where l.list_id=$1 order by name,l.id`,
+        [listId],
       ),
       db.query(
         "select id,name from catalog_categories where not archived order by name,id",
@@ -294,9 +294,9 @@ export async function getListPageData(scope?: string): Promise<{
       db.query(
         `select h.id,h.name,h.owner_email=$2 as can_manage,
           case when h.owner_email=$2 then 'owner' else m.role end as member_role
-         from households h join household_members m on m.household_id=h.id and m.email=$2
+         from lists h join list_members m on m.list_id=h.id and m.email=$2
          where h.id=$1`,
-        [household, email],
+        [listId, email],
       ),
     ]);
     const currency = (n: number) =>
@@ -304,7 +304,7 @@ export async function getListPageData(scope?: string): Promise<{
         style: "currency",
         currency: "ARS",
       }).format(n);
-    const grouped = listRows.rows.map((r) => ({
+    const grouped = itemRows.rows.map((r) => ({
       id: r.id,
       id_product: r.id_product,
       name: r.name,
@@ -340,14 +340,14 @@ export async function getListPageData(scope?: string): Promise<{
       catalogRequestStatus: r.catalog_request_status,
     }));
     return {
-      household: {
-        id: householdRows.rows[0].id,
-        name: householdRows.rows[0].name,
+      activeList: {
+        id: listMetaRows.rows[0].id,
+        name: listMetaRows.rows[0].name,
       },
-      canEditList: canEditHousehold(
-        householdRows.rows[0].member_role as MemberRole,
+      canEditList: canEditList(
+        listMetaRows.rows[0].member_role as MemberRole,
       ),
-      canManageList: householdRows.rows[0].can_manage,
+      canManageList: listMetaRows.rows[0].can_manage,
       list: grouped.reduce(
         (a, product) => {
           (a[product.id_category] ||= []).push(product);
@@ -365,7 +365,7 @@ export async function shoppingList(): Promise<IList[]> {
 export async function deleteShoppingList(): Promise<void> {
   await withListEditor(async (db, h) => {
     await db.query(
-      "delete from shopping_list where household_id=$1 and comprado",
+      "delete from shopping_list where list_id=$1 and comprado",
       [h],
     );
   });
@@ -392,7 +392,7 @@ export async function updateMultipleProducts(
          from shopping_list l
          left join catalog_products p on p.id=l.id_product
          left join catalog_categories c on c.id=coalesce(p.id_category,l.provisional_category_id)
-         where l.household_id=$1 and l.id=$2`,
+         where l.list_id=$1 and l.id=$2`,
         [h, p.id],
       );
       requireRow(product.rowCount);
@@ -412,7 +412,7 @@ export async function updateMultipleProducts(
             `update shopping_list set cantidad=$3,medida=$4,unit=coalesce($5,unit),
                provisional_available_units=case when id_product is null and $5::text is not null
                  then array[$5::text] else provisional_available_units end
-             where household_id=$1 and id=$2`,
+             where list_id=$1 and id=$2`,
             [h, p.id, p.cantidad, p.medida, p.unit ?? null],
           )
         ).rowCount,
@@ -431,21 +431,47 @@ export async function removeCartItems(target: {
   await withListItemEditor(async (db, h) => {
     // Remove only cart rows and their local selections, never global catalog rows.
     const removed = await db.query(
-      `delete from shopping_list l where l.household_id=$1 and ${target.productId ? "l.id=$2" : "(l.id_product in (select id from catalog_products where id_category=$2) or l.provisional_category_id=$2)"} returning id_product`,
+      `delete from shopping_list l where l.list_id=$1 and ${target.productId ? "l.id=$2" : "(l.id_product in (select id from catalog_products where id_category=$2) or l.provisional_category_id=$2)"} returning id_product`,
       [h, id],
     );
     requireRow(removed.rowCount);
     await db.query(
-      "delete from list_selections where household_id=$1 and product_id=any($2::text[])",
+      "delete from list_selections where list_id=$1 and product_id=any($2::text[])",
       [h, removed.rows.map((row) => row.id_product)],
     );
   });
 }
 
+export async function bulkUpdateCartItems(input: {
+  ids: unknown;
+  action: unknown;
+  description?: unknown;
+}): Promise<void> {
+  if (!input || !Array.isArray(input.ids) || input.ids.length < 1 || input.ids.length > 500)
+    throw new DataError("Selecciona al menos un artículo");
+  const ids = input.ids.map(text);
+  const action = input.action;
+  if (!["remove", "buy", "description"].includes(String(action)))
+    throw new DataError("Acción masiva inválida");
+  if (action === "description" && (typeof input.description !== "string" || input.description.trim().length > 500))
+    throw new DataError("La descripción no puede superar los 500 caracteres");
+  await withListItemEditor(async (db, h) => {
+    const rows = await db.query("select id,comprado from shopping_list where list_id=$1 and id=any($2::text[]) for update", [h, ids]);
+    if (rows.rowCount !== ids.length) throw new DataError("Uno o más artículos ya no están disponibles");
+    if (action === "remove") {
+      await db.query("delete from shopping_list where list_id=$1 and id=any($2::text[])", [h, ids]);
+    } else if (action === "buy") {
+      await db.query("update shopping_list set comprado=true where list_id=$1 and id=any($2::text[])", [h, ids]);
+    } else {
+      await db.query("update shopping_list set description=$3 where list_id=$1 and id=any($2::text[])", [h, ids, String(input.description).trim()]);
+    }
+  });
+}
+
 export async function getMoveTargets(scope?: string) {
-  return withHousehold(async (db, source, email) => {
+  return withList(async (db, source, email) => {
     const { rows } = await db.query(
-      "select h.id,h.name from households h join household_members m on m.household_id=h.id where m.email=$1 and h.id<>$2 order by h.name,h.id",
+      "select h.id,h.name from lists h join list_members m on m.list_id=h.id where m.email=$1 and h.id<>$2 and h.status='active' order by h.name,h.id",
       [email, source],
     );
     return rows as { id: string; name: string }[];
@@ -453,20 +479,22 @@ export async function getMoveTargets(scope?: string) {
 }
 
 export async function moveCartItems(input: {
-  targetHouseholdId: string;
+  targetListId: string;
   itemId?: string;
+  itemIds?: string[];
   /** @deprecated Older clients use productId for the shopping_list row ID. */
   productId?: string;
   categoryId?: string;
 }): Promise<{ moved: number; merged: number }> {
   const itemIdValue = input?.itemId ?? input?.productId;
+  const itemIds = input?.itemIds?.map(text);
   if (
     !input ||
-    Boolean(itemIdValue) === Boolean(input.categoryId) ||
+    (!itemIds?.length && Boolean(itemIdValue) === Boolean(input.categoryId)) ||
     (input.itemId && input.productId)
   )
     throw new DataError("Indica un artículo o una categoría");
-  const targetId = text(input.targetHouseholdId).toLowerCase();
+  const targetId = text(input.targetListId).toLowerCase();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId))
     throw new DataError("Lista de destino inválida");
   const sourceItemId = itemIdValue ? text(itemIdValue) : undefined;
@@ -479,7 +507,7 @@ export async function moveCartItems(input: {
       [source, targetId],
     );
     const targetAccess = await db.query(
-      "select 1 from household_members where household_id=$1 and email=$2 for update",
+      "select 1 from list_members m join lists h on h.id=m.list_id where m.list_id=$1 and m.email=$2 and h.status='active' for update of m",
       [targetId, email],
     );
     requireRow(targetAccess.rowCount);
@@ -491,9 +519,9 @@ export async function moveCartItems(input: {
               l.cantidad,l.medida,l.precio,l.comprado,l.unit,
               coalesce(p.id_category,l.provisional_category_id) id_category
        from shopping_list l left join catalog_products p on p.id=l.id_product
-       where l.household_id=$1 and ${sourceItemId ? "l.id=$2 and not l.comprado" : "coalesce(p.id_category,l.provisional_category_id)=$2"}
+       where l.list_id=$1 and ${itemIds?.length ? "l.id=any($2::text[])" : sourceItemId ? "l.id=$2 and not l.comprado" : "coalesce(p.id_category,l.provisional_category_id)=$2"}
        order by l.id for update of l`,
-      [source, sourceItemId ?? sourceCategoryId],
+      [source, itemIds?.length ? itemIds : sourceItemId ?? sourceCategoryId],
     );
     requireRow(rows.rowCount);
     if (rows.rows.some((row) => row.comprado))
@@ -503,12 +531,12 @@ export async function moveCartItems(input: {
     for (const row of rows.rows) {
       const existing = row.id_product
         ? await db.query(
-            "select id,cantidad,unit,comprado from shopping_list where household_id=$1 and id_product=$2 for update",
+            "select id,cantidad,unit,comprado from shopping_list where list_id=$1 and id_product=$2 for update",
             [targetId, row.id_product],
           )
         : await db.query(
             `select id,cantidad,unit,comprado from shopping_list
-             where household_id=$1 and id_product is null and provisional_category_id=$2
+             where list_id=$1 and id_product is null and provisional_category_id=$2
                and lower(trim(provisional_name))=lower(trim($3)) for update`,
             [targetId, row.provisional_category_id, row.provisional_name],
           );
@@ -519,13 +547,13 @@ export async function moveCartItems(input: {
         if (target.unit !== row.unit)
           throw new DataError("El artículo ya existe con otra unidad en el destino", 409);
         await db.query(
-          "update shopping_list set cantidad=$3 where household_id=$1 and id=$2",
+          "update shopping_list set cantidad=$3 where list_id=$1 and id=$2",
           [targetId, target.id, Number(target.cantidad ?? 0) + Number(row.cantidad ?? 0)],
         );
         merged++;
       } else {
         await db.query(
-          `insert into shopping_list(household_id,id_product,cantidad,medida,precio,comprado,unit,
+          `insert into shopping_list(list_id,id_product,cantidad,medida,precio,comprado,unit,
              provisional_name,provisional_category_id,provisional_created_by,
              provisional_available_units,catalog_request_id)
            values($1,$2,$3,$4,$5,false,$6,$7,$8,$9,$10,$11)`,
@@ -546,7 +574,7 @@ export async function moveCartItems(input: {
       }
     }
     await db.query(
-      "delete from shopping_list where household_id=$1 and id=any($2::text[])",
+      "delete from shopping_list where list_id=$1 and id=any($2::text[])",
       [source, rows.rows.map((row) => row.id)],
     );
     const productIds = rows.rows
@@ -554,11 +582,11 @@ export async function moveCartItems(input: {
       .filter((id): id is string => id !== null);
     if (productIds.length) {
       await db.query(
-        "delete from list_selections where household_id=$1 and product_id=any($2::text[])",
+        "delete from list_selections where list_id=$1 and product_id=any($2::text[])",
         [source, productIds],
       );
       await db.query(
-        "insert into list_selections(household_id,product_id,checked) select $1,product_id,true from unnest($2::text[]) product_id on conflict(household_id,product_id) do update set checked=true",
+        "insert into list_selections(list_id,product_id,checked) select $1,product_id,true from unnest($2::text[]) product_id on conflict(list_id,product_id) do update set checked=true",
         [targetId, productIds],
       );
     }
@@ -572,7 +600,7 @@ export async function unmarkCartItem(id: string): Promise<void> {
     requireRow(
       (
         await db.query(
-          "update shopping_list set comprado=false where household_id=$1 and id=$2",
+          "update shopping_list set comprado=false where list_id=$1 and id=$2",
           [h, productId],
         )
       ).rowCount,
@@ -648,12 +676,12 @@ export async function bulkAddToList(
 
       if (productId) {
         await db.query(
-          "insert into list_selections(household_id, product_id, checked) values($1, $2, true) on conflict(household_id, product_id) do update set checked = true",
+          "insert into list_selections(list_id, product_id, checked) values($1, $2, true) on conflict(list_id, product_id) do update set checked = true",
           [h, productId],
         );
         await db.query(
-          `insert into shopping_list(household_id,id_product,cantidad,medida,unit)
-           values($1,$2,$3,1,$4) on conflict(household_id,id_product)
+          `insert into shopping_list(list_id,id_product,cantidad,medida,unit)
+           values($1,$2,$3,1,$4) on conflict(list_id,id_product)
            do update set cantidad=case when shopping_list.comprado then shopping_list.cantidad else excluded.cantidad end`,
           [h, productId, cantidad, requestedUnit],
         );
@@ -688,7 +716,7 @@ export async function bulkAddToList(
           catalogRequestId = null;
         }
         const provisional = await db.query(
-          "select id,provisional_available_units from shopping_list where household_id=$1 and id_product is null and provisional_category_id=$2 and lower(trim(provisional_name))=lower(trim($3)) for update",
+          "select id,provisional_available_units from shopping_list where list_id=$1 and id_product is null and provisional_category_id=$2 and lower(trim(provisional_name))=lower(trim($3)) for update",
           [h, idCategory, name],
         );
         const availableUnits = [
@@ -704,7 +732,7 @@ export async function bulkAddToList(
               unit=case when comprado then unit else $4 end,
               provisional_available_units=$5,
               catalog_request_id=coalesce($6,catalog_request_id)
-             where household_id=$1 and id=$2`,
+             where list_id=$1 and id=$2`,
             [
               h,
               provisional.rows[0].id,
@@ -716,7 +744,7 @@ export async function bulkAddToList(
           );
         } else {
           await db.query(
-            `insert into shopping_list(household_id,id_product,cantidad,medida,unit,
+            `insert into shopping_list(list_id,id_product,cantidad,medida,unit,
               provisional_name,provisional_category_id,provisional_created_by,
               provisional_available_units,catalog_request_id)
              values($1,null,$2,1,$3,$4,$5,$6,$7,$8)`,

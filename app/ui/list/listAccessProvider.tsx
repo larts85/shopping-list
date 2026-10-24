@@ -4,19 +4,19 @@ import Link from "next/link";
 import InvitationBanner from "./invitationBanner";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import type { resolveListSlug } from "@/app/actions/households";
+import type { resolveListSlug } from "@/app/actions/lists";
 import {
   acceptInvitation,
   declineInvitation,
-} from "@/app/actions/households";
-import { getHouseholdData } from "@/app/actions/households";
+} from "@/app/actions/lists";
+import { getListData } from "@/app/actions/lists";
 import { getActiveListId, setActiveListId } from "@/app/lib/listClient";
 
 async function resolveLinkedList(
   slug: string,
 ): Promise<Awaited<ReturnType<typeof resolveListSlug>>> {
   const response = await fetch(
-    `/api/households?slug=${encodeURIComponent(slug)}`,
+    `/api/lists?slug=${encodeURIComponent(slug)}`,
     { cache: "no-store" },
   );
   const result = await response.json();
@@ -69,25 +69,25 @@ export default function ListAccessProvider({
         }
         if (linked?.kind === "member") {
           // The list page fetches page-data next, which revalidates membership
-          // before returning any rows. Avoid loading household metadata here;
+          // before returning any rows. Avoid loading  list metadata here;
           // this provider does not use it for a slug-backed list.
           setActiveListId(linked.id);
           setReadyPath(pathname);
           return;
         }
         const active = getActiveListId();
-        let response = await fetch("/api/households", {
+        let response = await fetch("/api/lists", {
           cache: "no-store",
           headers: active ? { "X-List-ID": active } : {},
         });
         if (!response.ok && active)
-          response = await fetch("/api/households", { cache: "no-store" });
+          response = await fetch("/api/lists", { cache: "no-store" });
         const result = await response.json();
         if (!response.ok)
           throw new Error(result.error || "No pudimos cargar tus listas.");
-        const data: Awaited<ReturnType<typeof getHouseholdData>> = result;
+        const data: Awaited<ReturnType<typeof getListData>> = result;
         if (cancelled) return;
-        setActiveListId(data.household.id);
+        setActiveListId(data. list.id);
         setReadyPath(pathname);
         setError("");
       } catch (error) {

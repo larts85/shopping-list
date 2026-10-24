@@ -158,7 +158,7 @@ const CATEGORY_RULES: CategoryRule[] = [
       /\boleo calcareo\w*/,
     ],
   },
-  // 4. Kitchen tools, textiles, furniture, household goods -> Hogar
+  // 4. Kitchen tools, textiles, furniture and domestic goods -> Hogar
   // After Limpieza/Aseo so "detergente para vajilla" maps to Limpieza not Hogar
   {
     target: "hogar",

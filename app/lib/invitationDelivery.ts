@@ -1,10 +1,10 @@
-import type { HouseholdAccessRole } from "./database";
+import type { ListAccessRole } from "./database";
 export type InvitationDelivery = "not_configured" | "sent" | "failed";
 export interface InvitationMessage {
   email: string;
   name: string;
   url: string;
-  accessRole: HouseholdAccessRole;
+  accessRole: ListAccessRole;
   apiKey?: string;
   from?: string;
   gmailUser?: string;
@@ -15,6 +15,7 @@ export interface SmtpMessage {
   to: string;
   subject: string;
   text: string;
+  html?: string;
 }
 export type SmtpSender = (
   message: SmtpMessage,
@@ -57,7 +58,18 @@ export async function deliverInvitation(
   const access = message.accessRole === "list_editor"
     ? "Tendrás acceso de editor: podrás editar artículos y enviar sugerencias. El cierre de compras y la administración de accesos quedan reservados al propietario."
     : "Tendrás acceso de solo lectura: podrás consultar la lista y su historial, pero no editar artículos ni enviar sugerencias.";
-  const content = `Te invitaron a la lista «${message.name}». ${access} Inicia sesión con este correo y acepta la invitación: ${message.url}`;
+  const content = [
+    `Te invitaron a la lista «${message.name}».`,
+    "",
+    access,
+    "",
+    `1. Inicia sesión en Shopear con este correo: ${message.email}`,
+    "2. Abre el enlace y acepta la invitación:",
+    message.url,
+  ].join("\n");
+  const escapeHtml = (value: string) =>
+    value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;");
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.5;color:#27272a"><h2 style="color:#18181b">Invitación a una lista de compras</h2><p>Te invitaron a la lista <strong>${escapeHtml(message.name)}</strong>.</p><p>${escapeHtml(access)}</p><ol><li>Inicia sesión en Shopear con este correo: <strong>${escapeHtml(message.email)}</strong></li><li>Abre el enlace y acepta la invitación:</li></ol><p><a href="${escapeHtml(message.url)}" style="color:#be123c">Abrir invitación</a></p></div>`;
   if (
     (!message.apiKey || !message.from) &&
     message.gmailUser &&
@@ -65,7 +77,7 @@ export async function deliverInvitation(
   ) {
     try {
       return (await sendSmtp(
-        { from: message.gmailUser, to: message.email, subject, text: content },
+        { from: message.gmailUser, to: message.email, subject, text: content, html },
         { user: message.gmailUser, pass: message.gmailPassword },
       ))
         ? "sent"
@@ -87,6 +99,7 @@ export async function deliverInvitation(
         to: [message.email],
         subject,
         text: content,
+        html,
       }),
       signal: AbortSignal.timeout(10000),
     });

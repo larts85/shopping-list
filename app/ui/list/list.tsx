@@ -1,14 +1,21 @@
 "use client";
-import { getActiveListId, setActiveListId } from "@/app/lib/listClient";
+import {
+  clearActiveListId,
+  getActiveListId,
+  setActiveListId,
+} from "@/app/lib/listClient";
 import { listFetch } from "@/app/lib/listClient";
 import { useState, useEffect, useRef, useId } from "react";
+import { useRouter } from "next/navigation";
 import { ClipLoader } from "react-spinners";
 import {
   RiArrowLeftRightLine,
   RiDeleteBin6Line,
   RiErrorWarningLine,
+  RiInformationLine,
   RiMore2Fill,
 } from "react-icons/ri";
+import type { IconType } from "react-icons";
 import { createPortal } from "react-dom";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
 import Modal from "@/shared/components/ui/Modal";
@@ -25,7 +32,7 @@ import {
   type Unit,
 } from "@/app/lib/units";
 import SharedListControls from "./sharedListControls";
-import { getHouseholdData } from "@/app/actions/households";
+import { getListData } from "@/app/actions/lists";
 import { Category } from "@/app/lib/types";
 import Select from "@/app/ui/add/select";
 
@@ -37,13 +44,21 @@ interface MoveTarget {
 interface PendingProductUpdate {
   key: string;
   id: string;
-  householdId?: string;
+   listId?: string;
   cantidad: number;
   unit: Unit;
   version: number;
 }
 
-function ProvisionalInfo({ description }: { description: string }) {
+function InfoTooltip({
+  description,
+  label = "Información",
+  icon: Icon = RiInformationLine,
+}: {
+  description: string;
+  label?: string;
+  icon?: IconType;
+}) {
   const tooltipId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -102,7 +117,7 @@ function ProvisionalInfo({ description }: { description: string }) {
       <button
         ref={triggerRef}
         type="button"
-        aria-label="Información del producto provisional"
+        aria-label={label}
         aria-describedby={open ? tooltipId : undefined}
         aria-expanded={open}
         className="flex size-8 shrink-0 touch-manipulation items-center justify-center rounded-full text-amber-700 hover:bg-amber-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
@@ -132,7 +147,7 @@ function ProvisionalInfo({ description }: { description: string }) {
           }
         }}
       >
-        <RiErrorWarningLine aria-hidden="true" size={18} />
+        <Icon aria-hidden="true" size={18} />
       </button>
       {open &&
         position &&
@@ -165,14 +180,16 @@ function ProvisionalInfo({ description }: { description: string }) {
 }
 
 export default function List() {
+  const router = useRouter();
   useEffect(() => {
     load();
   }, []);
 
   const [canEditList, setCanEditList] = useState(false);
   const [canManageList, setCanManageList] = useState(false);
-  const [householdName, setHouseholdName] = useState("");
+  const [ listName, setListName] = useState("");
   const [isAddItemsOpen, setIsAddItemsOpen] = useState(false);
+  const addProductSearchRef = useRef<HTMLInputElement>(null);
   const [movePrompt, setMovePrompt] = useState<{
     target: { itemId?: string; categoryId?: string };
     name: string;
@@ -199,13 +216,21 @@ export default function List() {
   const submitting = useRef(false);
   const [purchaseConfirmation, setPurchaseConfirmation] = useState<{
     ids: string[];
+    isPartial: boolean;
     name: string;
     listId: string;
   } | null>(null);
   const [purchaseBusy, setPurchaseBusy] = useState(false);
+  const [bulkDescription, setBulkDescription] = useState<{
+    ids: string[];
+    value: string;
+  } | null>(null);
+  const [bulkDescriptionBusy, setBulkDescriptionBusy] = useState(false);
   const [pendingSaveCount, setPendingSaveCount] = useState(0);
   const [isSavingEdits, setIsSavingEdits] = useState(false);
   const [autoSaveError, setAutoSaveError] = useState("");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const pendingProductUpdates = useRef<Record<string, PendingProductUpdate>>(
     {},
   );
@@ -273,10 +298,10 @@ export default function List() {
       if (!pageResponse.ok) throw new Error("Error fetching list data");
       const pageData = await pageResponse.json();
       if (startedAtRevision !== revision.current) return;
-      setActiveListId(pageData.household.id);
+      setActiveListId(pageData.activeList.id);
       setCanEditList(pageData.canEditList);
       setCanManageList(pageData.canManageList);
-      setHouseholdName(pageData.household.name);
+      setListName(pageData.activeList.name);
       setList(pageData.list);
       setCategories(pageData.categories);
     } catch {
@@ -322,6 +347,7 @@ export default function List() {
       "/api/list/get-list-products-by-categories",
       {
         method: "GET",
+        cache: "no-store",
         headers: {
           "content-type": "application/json",
         },
@@ -363,13 +389,13 @@ export default function List() {
     }
   }
 
-  async function performMove(targetHouseholdId: string) {
+  async function performMove(targetListId: string) {
     if (!movePrompt) return;
     const selectedListId = getActiveListId();
     const response = await listFetch("/api/list/cart-items", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...movePrompt.target, targetHouseholdId }),
+      body: JSON.stringify({ ...movePrompt.target, targetListId }),
     });
     const result = await response.json();
     if (!response.ok)
@@ -388,13 +414,13 @@ export default function List() {
     }
   }
 
-  async function confirmMove(targetHouseholdId: string) {
+  async function confirmMove(targetListId: string) {
     if (!movePrompt || moveBusy) return;
     setMoveBusy(true);
     setError("");
     submitting.current = true;
     try {
-      await performMove(targetHouseholdId);
+      await performMove(targetListId);
     } catch (error) {
       setError(
         error instanceof Error
@@ -419,7 +445,7 @@ export default function List() {
     submitting.current = true;
     let createdName = "";
     try {
-      const response = await listFetch("/api/households", {
+      const response = await listFetch("/api/lists", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "create", name, activate: false }),
@@ -452,12 +478,12 @@ export default function List() {
     product: IList,
     changes: { cantidad?: number; unit?: Unit },
   ) {
-    const householdId = getActiveListId();
-    const key = `${householdId ?? ""}:${product.id}`;
+    const  listId = getActiveListId();
+    const key = `${ listId ?? ""}:${product.id}`;
     const previous = pendingProductUpdates.current[key] ?? {
       key,
       id: product.id,
-      householdId,
+       listId,
       cantidad: Number(product.cantidad),
       unit: product.unit ?? "un",
       version: 0,
@@ -505,21 +531,21 @@ export default function List() {
     setStatus("Guardando cambios…");
     let succeeded = false;
     try {
-      const byHousehold = new Map<string, PendingProductUpdate[]>();
+      const byList = new Map<string, PendingProductUpdate[]>();
       for (const update of updates) {
-        const householdKey = update.householdId ?? "";
-        const group = byHousehold.get(householdKey) ?? [];
+        const  listKey = update. listId ?? "";
+        const group = byList.get( listKey) ?? [];
         group.push(update);
-        byHousehold.set(householdKey, group);
+        byList.set( listKey, group);
       }
 
       await Promise.all(
-        [...byHousehold.entries()].map(async ([householdKey, group]) => {
+        [...byList.entries()].map(async ([ listKey, group]) => {
           const response = await fetch("/api/list/update-multiple-products", {
             method: "PUT",
             headers: {
               "content-type": "application/json",
-              ...(householdKey ? { "X-List-ID": householdKey } : {}),
+              ...( listKey ? { "X-List-ID":  listKey } : {}),
             },
             body: JSON.stringify(
               group.map(({ id, cantidad, unit }) => ({
@@ -663,6 +689,14 @@ export default function List() {
   };
 
   const handleOpenModal = (list: IList) => {
+    if (selectionMode) {
+      setSelectedIds((current) =>
+        current.includes(list.id)
+          ? current.filter((id) => id !== list.id)
+          : [...current, list.id],
+      );
+      return;
+    }
     if (
       !canEditList ||
       isLoading ||
@@ -740,6 +774,7 @@ export default function List() {
       .filter((p) => p.comprado === "1")
       .map((p) => p.id);
     if (!ids.length) return;
+    const isPartial = ids.length < Object.values(list).flat().length;
     submitting.current = true;
     revision.current++;
     const confirmationRevision = revision.current;
@@ -747,12 +782,13 @@ export default function List() {
     setPurchaseBusy(true);
     setError("");
     try {
-      const data = await getHouseholdData(selectedListId);
+      const data = await getListData(selectedListId);
       if (confirmationRevision !== revision.current) return;
       setPurchaseConfirmation({
         ids,
-        name: data.household.name,
-        listId: data.household.id,
+        isPartial,
+        name: data. list.name,
+        listId: data. list.id,
       });
     } catch {
       setError("No pudimos preparar la compra parcial. Intenta nuevamente.");
@@ -761,6 +797,50 @@ export default function List() {
       setPurchaseBusy(false);
     }
   };
+
+  async function applyBulkAction(action: "remove" | "buy") {
+    if (!selectedIds.length) return;
+    const ids = Array.from(new Set(selectedIds));
+    if (action === "remove" && !window.confirm(`¿Eliminar ${ids.length} artículos del carrito?`)) return;
+    const response = await listFetch("/api/list/bulk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids, action }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "No pudimos aplicar la acción.");
+    setSelectedIds([]); setSelectionMode(false); await fetchList();
+    setStatus(action === "buy" ? "Artículos marcados como comprados." : action === "remove" ? "Artículos eliminados del carrito." : "Descripción actualizada.");
+  }
+
+  async function submitBulkDescription() {
+    if (!bulkDescription || bulkDescriptionBusy) return;
+    setBulkDescriptionBusy(true);
+    setError("");
+    try {
+      const response = await listFetch("/api/list/bulk", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ids: bulkDescription.ids,
+          action: "description",
+          description: bulkDescription.value,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error || "No pudimos actualizar la descripción.");
+      setBulkDescription(null);
+      setSelectedIds([]);
+      setSelectionMode(false);
+      await fetchList();
+      setStatus("Descripción actualizada.");
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos actualizar la descripción.",
+      );
+    } finally {
+      setBulkDescriptionBusy(false);
+    }
+  }
 
   const clean = async () => {
     if (submitting.current || !purchaseConfirmation?.ids.length) return;
@@ -786,6 +866,11 @@ export default function List() {
         );
       setPurchaseConfirmation(null);
       if (getActiveListId() !== purchaseConfirmation.listId) return;
+      if (result.completed) {
+        clearActiveListId();
+        router.push("/history");
+        return;
+      }
       setStatus(
         `Compra «${result.purchaseName}» guardada en el historial. Los pendientes siguen en el carrito activo.`,
       );
@@ -850,57 +935,6 @@ export default function List() {
           Tienes acceso de solo lectura a esta lista.
         </p>
       )}
-      {canEditList && (
-        <>
-          <div className="panel flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <h2 className="font-semibold">¿Falta algún producto?</h2>
-              <p className="mt-1 text-sm text-zinc-500">
-                Se agregará a{" "}
-                <strong>{householdName || "tu lista activa"}</strong>.
-              </p>
-            </div>
-            <button
-              type="button"
-              className="btn-primary w-full sm:w-auto"
-              aria-expanded={isAddItemsOpen}
-              aria-controls="add-products-panel"
-              disabled={isLoading || pendingSaveCount > 0 || isSavingEdits}
-              onClick={() => setIsAddItemsOpen((open) => !open)}
-            >
-              {isAddItemsOpen ? "Cerrar" : "Agregar productos"}
-            </button>
-          </div>
-          {pendingSaveCount > 0 && (
-            <p className="text-sm text-zinc-500">
-              Espera a que se guarden los cambios antes de agregar productos.
-            </p>
-          )}
-          {isAddItemsOpen && (
-            <section
-              id="add-products-panel"
-              className="panel"
-              aria-label={`Agregar productos a ${householdName}`}
-            >
-              <Select
-                listName={householdName}
-                onAdded={async (message) => {
-                  await fetchPageData();
-                  setStatus(
-                    message ?? `Productos agregados a ${householdName}.`,
-                  );
-                  setIsAddItemsOpen(false);
-                }}
-              />
-            </section>
-          )}
-        </>
-      )}
-      <p className="text-sm text-zinc-500">
-        Finaliza la compra para guardar los productos comprados en el historial.
-        Los cambios se guardan automáticamente; al volver a esta pestaña se
-        sincroniza la lista compartida.
-      </p>
       {error && (
         <div className="error-notice" role="alert">
           <p>{error}</p>
@@ -939,7 +973,26 @@ export default function List() {
               {products.length === 1 ? "producto" : "productos"} · {boughtCount}{" "}
               {boughtCount === 1 ? "comprado" : "comprados"}
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {canEditList && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  aria-expanded={isAddItemsOpen}
+                  aria-controls="add-products-panel"
+                  disabled={
+                    isLoading || pendingSaveCount > 0 || isSavingEdits
+                  }
+                  onClick={() => setIsAddItemsOpen((open) => !open)}
+                >
+                  {isAddItemsOpen ? "Cerrar" : "Agregar productos"}
+                </button>
+              )}
+              {canEditList && (
+                <button type="button" className={selectionMode ? "btn-primary" : "btn-secondary"} onClick={() => { setSelectionMode((v) => !v); setSelectedIds([]); }}>
+                  {selectionMode ? "Cancelar selección" : "Seleccionar"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={openPurchaseConfirmation}
@@ -954,8 +1007,62 @@ export default function List() {
               >
                 {purchaseActionLabel}
               </button>
+              <InfoTooltip
+                label="Información sobre la lista"
+                description="Finaliza la compra para guardar los productos comprados en el historial. Los cambios se guardan automáticamente; al volver a esta pestaña se sincroniza la lista compartida."
+              />
             </div>
           </div>
+          {selectionMode && selectedIds.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+              <span className="mr-2 text-sm font-medium">{new Set(selectedIds).size} seleccionados</span>
+              <button className="btn-secondary" onClick={() => void applyBulkAction("buy")}>Marcar comprados</button>
+              <button
+                className="btn-secondary"
+                onClick={() =>
+                  setBulkDescription({
+                    ids: Array.from(new Set(selectedIds)),
+                    value: "",
+                  })
+                }
+              >
+                Agregar descripción
+              </button>
+              <button className="btn-secondary text-red-700" onClick={() => void applyBulkAction("remove")}>Eliminar</button>
+              <button className="btn-secondary" onClick={async () => { const target = window.prompt("ID de la lista de destino:"); if (!target) return; const response = await listFetch("/api/list/cart-items", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetListId: target, itemIds: selectedIds }) }); const result = await response.json(); if (!response.ok) { setError(result.error || "No pudimos mover los artículos."); return; } setSelectedIds([]); setSelectionMode(false); await fetchList(); setStatus(`${result.moved} artículos movidos.`); }}>Mover a otra lista</button>
+              <button className="btn-secondary" onClick={() => { const ids = selectedIds; setSelectionMode(false); setPurchaseConfirmation({ ids, isPartial: true, name:  listName, listId: getActiveListId() || "" }); }}>Finalizar compra parcial</button>
+            </div>
+          )}
+          {canEditList && pendingSaveCount > 0 && (
+            <p className="mt-3 text-sm text-zinc-500">
+              Espera a que se guarden los cambios antes de agregar productos.
+            </p>
+          )}
+          {canEditList && isAddItemsOpen && (
+            <Modal
+              isOpen
+              title="Agregar productos"
+              size="xl"
+              initialFocusRef={addProductSearchRef}
+              onClose={() => setIsAddItemsOpen(false)}
+            >
+              <Select
+                listName={ listName}
+                existingProductIds={products
+                  .map((product) => product.id_product)
+                  .filter((id): id is string => !!id)}
+                searchInputRef={addProductSearchRef}
+                onClose={() => setIsAddItemsOpen(false)}
+                onAdded={async (message, keepOpen) => {
+                  await fetchPageData();
+                  setStatus(
+                    message ?? `Productos agregados a ${ listName}.`,
+                  );
+                  if (!keepOpen) setIsAddItemsOpen(false);
+                }}
+              />
+            </Modal>
+          )}
           {!canManageList && boughtCount > 0 && (
             <p className="mt-3 text-sm text-zinc-500">
               Solo el propietario puede finalizar la compra. Los productos
@@ -973,13 +1080,6 @@ export default function List() {
           <p className="mt-2">
             Agrega los productos que necesitas para tu próxima compra.
           </p>
-          <button
-            type="button"
-            className="btn-primary mt-6"
-            onClick={() => setIsAddItemsOpen(true)}
-          >
-            Agregar productos
-          </button>
         </div>
       )}
       {categories
@@ -1108,12 +1208,12 @@ export default function List() {
                           onClick={() => handleOpenModal(product)}
                           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg text-left text-sm hover:text-zinc-500 sm:gap-3"
                         >
-                          <span
+                          {selectionMode ? <input type="checkbox" aria-label={`Seleccionar ${product.name}`} checked={selectedIds.includes(product.id)} onChange={(event) => { event.stopPropagation(); setSelectedIds((current) => event.target.checked ? Array.from(new Set([...current, product.id])) : current.filter((id) => id !== product.id)); }} /> : <span
                             aria-hidden="true"
                             className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${product.comprado === "1" ? "border-zinc-900 bg-zinc-900 text-xs text-white" : "border-zinc-300"}`}
                           >
                             {product.comprado === "1" ? "✓" : ""}
-                          </span>
+                          </span>}
                           <span
                             className={`min-w-0 flex-1 break-words ${product.comprado === "1" ? "text-zinc-500 line-through" : "font-medium"}`}
                           >
@@ -1126,8 +1226,10 @@ export default function List() {
                           </span>
                         </button>
                         {product.isProvisional && (
-                          <ProvisionalInfo
-                            description={`Provisional · agregado por ${product.createdBy || "un miembro del hogar"}${
+                          <InfoTooltip
+                            label="Información del producto provisional"
+                            icon={RiErrorWarningLine}
+                            description={`Provisional · agregado por ${product.createdBy || "un miembro de la lista"}${
                               product.catalogRequestEmail
                                 ? ` · solicitud ${
                                     product.catalogRequestStatus === "approved"
@@ -1333,21 +1435,36 @@ export default function List() {
       {purchaseConfirmation && (
         <Modal
           isOpen
-          title="Finalizar compra parcial"
+          title={
+            purchaseConfirmation.isPartial
+              ? "Finalizar compra parcial"
+              : "Finalizar compra"
+          }
           onClose={() => {
             if (!submitting.current) setPurchaseConfirmation(null);
           }}
         >
-          <h2 className="text-xl font-semibold">Finalizar compra parcial</h2>
+          <h2 className="text-xl font-semibold">
+            {purchaseConfirmation.isPartial
+              ? "Finalizar compra parcial"
+              : "Finalizar compra"}
+          </h2>
           <p className="mt-4">
             Los productos marcados como comprados (
             {purchaseConfirmation.ids.length}) se quitarán del carrito activo y
             se guardarán como una compra/lista terminada en el historial.
           </p>
-          <p className="mt-3">
-            Los productos sin marcar seguirán en el carrito, que conservará su
-            nombre e identidad.
-          </p>
+          {purchaseConfirmation.isPartial ? (
+            <p className="mt-3">
+              Los productos sin marcar seguirán en el carrito, que conservará
+              su nombre e identidad.
+            </p>
+          ) : (
+            <p className="mt-3">
+              Todos los productos están marcados como comprados. La lista se
+              vaciará y la compra aparecerá en el historial.
+            </p>
+          )}
           <p className="mt-3 break-words">
             Nombre en el historial:{" "}
             <strong>
@@ -1374,7 +1491,11 @@ export default function List() {
               disabled={purchaseBusy}
               onClick={clean}
             >
-              {purchaseBusy ? "Guardando…" : "Confirmar compra parcial"}
+              {purchaseBusy
+                ? "Guardando…"
+                : purchaseConfirmation.isPartial
+                  ? "Confirmar compra parcial"
+                  : "Confirmar compra"}
             </button>
           </div>
         </Modal>
@@ -1494,6 +1615,56 @@ export default function List() {
                 : moveDestination === "__create_new__"
                   ? "Crear lista y mover"
                   : "Mover artículos"}
+            </button>
+          </div>
+        </Modal>
+      )}
+      {bulkDescription && (
+        <Modal
+          isOpen
+          title="Agregar descripción"
+          onClose={() => !bulkDescriptionBusy && setBulkDescription(null)}
+        >
+          <p className="text-sm text-zinc-600">
+            Se aplicará a {bulkDescription.ids.length === 1 ? "el artículo seleccionado" : `los ${bulkDescription.ids.length} artículos seleccionados`}.
+          </p>
+          <label className="mt-4 block text-sm font-medium" htmlFor="bulk-description">
+            Descripción
+            <textarea
+              id="bulk-description"
+              className="field mt-2 min-h-28 w-full resize-y"
+              value={bulkDescription.value}
+              onChange={(event) =>
+                setBulkDescription((current) =>
+                  current ? { ...current, value: event.target.value } : current,
+                )
+              }
+              maxLength={500}
+              autoFocus
+              disabled={bulkDescriptionBusy}
+            />
+          </label>
+          {error && (
+            <p role="alert" className="error-notice mt-4">
+              {error}
+            </p>
+          )}
+          <div className="mt-6 flex flex-wrap justify-end gap-3">
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={bulkDescriptionBusy}
+              onClick={() => setBulkDescription(null)}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={bulkDescriptionBusy}
+              onClick={() => void submitBulkDescription()}
+            >
+              {bulkDescriptionBusy ? "Guardando…" : "Guardar descripción"}
             </button>
           </div>
         </Modal>

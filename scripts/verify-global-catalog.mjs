@@ -18,6 +18,7 @@ const viewer = "viewer@example.invalid";
 const homeA = randomUUID(),
   homeB = randomUUID(),
   homeC = randomUUID();
+const completedFixtureList = randomUUID();
 const testPort = process.env.TEST_PORT || process.env.QA_HTTP_PORT || "2037";
 const databasePort = Number(
   process.env.TEST_DB_PORT || process.env.QA_DATABASE_PORT || 55437,
@@ -87,8 +88,16 @@ try {
     ["old-product", homeA, "Queso", "old-category", "kg", true],
   );
   await db.query(
+    "insert into preview_lists.products(id,household_id,name,id_category,unit,checked) values($1,$2,$3,$4,$5,$6)",
+    ["legacy-partial-product", homeB, "Producto pendiente", "user-category", "un", false],
+  );
+  await db.query(
     "insert into preview_lists.shopping_list(id,household_id,id_product,cantidad,medida,precio,comprado,unit) values($1,$2,$3,1,1,10,true,$4)",
     ["old-purchase", homeA, "old-product", "kg"],
+  );
+  await db.query(
+    "insert into preview_lists.shopping_list(id,household_id,id_product,unit) values($1,$2,$3,$4)",
+    ["legacy-partial-item", homeB, "legacy-partial-product", "un"],
   );
   await db.query(
     "insert into preview_lists.historical(household_id,purchase) values($1,$2)",
@@ -263,6 +272,87 @@ try {
       "preview_lists.",
     ),
   );
+  const listLifecycleMigration = migrationNames.find((n) =>
+    n.includes("list_lifecycle_status"),
+  );
+  assert.ok(listLifecycleMigration);
+  await db.query(
+    "insert into preview_lists.households(id,owner_email,name) values($1,$2,$3)",
+    [completedFixtureList, user, "Lista completada anterior a la migration"],
+  );
+  await db.query(
+    "insert into preview_lists.historical(household_id,purchase) values($1,$2)",
+    [completedFixtureList, JSON.stringify({ purchase_id: "legacy-purchase" })],
+  );
+  await db.exec(
+    readFileSync("supabase/migrations/" + listLifecycleMigration, "utf8").replaceAll(
+      "public.",
+      "preview_lists.",
+    ),
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select status from preview_lists.households where id=$1",
+        [completedFixtureList],
+      )
+    ).rows[0].status,
+    "completed",
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.households where status='completed'",
+      )
+    ).rows[0].n,
+    1,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select status from preview_lists.households where id=$1",
+        [homeB],
+      )
+    ).rows[0].status,
+    "active",
+  );
+  await db.query("delete from preview_lists.households where id=$1", [
+    completedFixtureList,
+  ]);
+  await db.query(
+    "delete from preview_lists.shopping_list where id='legacy-partial-item'",
+  );
+  await db.query(
+    "delete from preview_lists.list_selections where household_id=$1 and product_id='legacy-partial-product'",
+    [homeB],
+  );
+  await db.query(
+    "delete from preview_lists.products where id='legacy-partial-product'",
+  );
+  await db.query(
+    "delete from preview_lists.catalog_products where id='legacy-partial-product'",
+  );
+  const listExitMigration = migrationNames.find((n) =>
+    n.includes("shared_list_exit_suggestions"),
+  );
+  assert.ok(listExitMigration);
+  await db.exec(
+    readFileSync("supabase/migrations/" + listExitMigration, "utf8").replaceAll(
+      "public.",
+      "preview_lists.",
+    ),
+  );
+  const renameListsMigration = migrationNames.find((n) =>
+    n.includes("rename_households_to_lists"),
+  );
+  assert.ok(renameListsMigration);
+  await db.exec(
+    readFileSync("supabase/migrations/" + renameListsMigration, "utf8").replaceAll(
+      "public.",
+      "preview_lists.",
+    ),
+  );
+  checks++;
   const unitColumns = await db.query(
     "select table_name,domain_name from information_schema.columns where table_schema='preview_lists' and column_name='unit' order by table_name",
   );
@@ -320,12 +410,12 @@ try {
     authenticated_write: false,
   });
   checks++;
-  const slugs = (await db.query("select id,slug from preview_lists.households"))
+  const slugs = (await db.query("select id,slug from preview_lists.lists"))
     .rows;
   assert.equal(new Set(slugs.map((h) => h.slug)).size, 2);
   assert.ok(slugs.every((h) => /^lista-[0-9a-f]{32}$/.test(h.slug)));
   await assert.rejects(
-    db.query("update preview_lists.households set slug=$1 where id=$2", [
+    db.query("update preview_lists.lists set slug=$1 where id=$2", [
       slugs[0].slug,
       slugs[1].id,
     ]),
@@ -481,7 +571,7 @@ try {
   assert.equal(
     (
       await db.query(
-        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and provisional_name = any($2::text[])",
+        "select count(*)::int n from preview_lists.shopping_list where list_id=$1 and provisional_name = any($2::text[])",
         [homeA, bulkPayload.map((item) => item.name)],
       )
     ).rows[0].n,
@@ -492,7 +582,7 @@ try {
   const totalPriceItemId = randomUUID();
   await db.query(
     `insert into preview_lists.shopping_list(
-       id,household_id,id_product,cantidad,medida,precio,comprado,unit,
+       id,list_id,id_product,cantidad,medida,precio,comprado,unit,
        provisional_name,provisional_category_id,provisional_created_by,
        provisional_available_units
      ) values
@@ -622,7 +712,7 @@ try {
   const pendingPriceCompanionId = randomUUID();
   await db.query(
     `insert into preview_lists.shopping_list(
-       id,household_id,cantidad,medida,precio,comprado,unit,description,
+       id,list_id,cantidad,medida,precio,comprado,unit,description,
        provisional_name,provisional_category_id,provisional_created_by,
        provisional_available_units
      ) values
@@ -708,7 +798,7 @@ try {
   assert.equal(
     (
       await db.query(
-        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id=$2",
+        "select count(*)::int n from preview_lists.shopping_list where list_id=$1 and id=$2",
         [homeA, noPriceItemId],
       )
     ).rows[0].n,
@@ -717,7 +807,7 @@ try {
   assert.deepEqual(
     (
       await db.query(
-        "select comprado from preview_lists.shopping_list where household_id=$1 and id=$2",
+        "select comprado from preview_lists.shopping_list where list_id=$1 and id=$2",
         [homeA, pendingPriceCompanionId],
       )
     ).rows,
@@ -727,7 +817,7 @@ try {
   // Cart mutations must stay scoped and leave the global catalog untouched.
   const original = (
     await db.query(
-      "select id,id_product from preview_lists.shopping_list where household_id=$1",
+      "select id,id_product from preview_lists.shopping_list where list_id=$1",
       [homeA],
     )
   ).rows[0];
@@ -792,16 +882,16 @@ try {
     )
   ).rows[0].id_category;
   await db.query(
-    "insert into preview_lists.shopping_list(id,household_id,id_product) values('cart-other-scope',$1,$2)",
+    "insert into preview_lists.shopping_list(id,list_id,id_product) values('cart-other-scope',$1,$2)",
     [homeB, original.id_product],
   );
   // An accepted member can remove/unmark items but cannot finalize purchases.
   await db.query(
-    "insert into preview_lists.household_members(household_id,email) values($1,$2)",
+    "insert into preview_lists.list_members(list_id,email) values($1,$2)",
     [homeB, outsider],
   );
   await db.query(
-    "insert into preview_lists.list_selections(household_id,product_id,checked) values($1,$2,true) on conflict(household_id,product_id) do update set checked=true",
+    "insert into preview_lists.list_selections(list_id,product_id,checked) values($1,$2,true) on conflict(list_id,product_id) do update set checked=true",
     [homeB, original.id_product],
   );
   await db.query(
@@ -843,7 +933,7 @@ try {
   assert.equal(
     (
       await db.query(
-        "select count(*)::int n from preview_lists.list_selections where household_id=$1 and product_id=$2",
+        "select count(*)::int n from preview_lists.list_selections where list_id=$1 and product_id=$2",
         [homeB, original.id_product],
       )
     ).rows[0].n,
@@ -853,7 +943,7 @@ try {
   assert.equal(
     (
       await db.query(
-        "select count(*)::int n from preview_lists.shopping_list where household_id=$1",
+        "select count(*)::int n from preview_lists.shopping_list where list_id=$1",
         [homeB],
       )
     ).rows[0].n,
@@ -878,7 +968,7 @@ try {
     1,
   );
   await db.query(
-    "insert into preview_lists.shopping_list(id,household_id,id_product) values('cart-other-scope',$1,$2)",
+    "insert into preview_lists.shopping_list(id,list_id,id_product) values('cart-other-scope',$1,$2)",
     [homeB, original.id_product],
   );
   await req(
@@ -890,7 +980,7 @@ try {
     homeB,
   );
   await db.query(
-    "delete from preview_lists.household_members where household_id=$1 and email=$2",
+    "delete from preview_lists.list_members where list_id=$1 and email=$2",
     [homeB, outsider],
   );
   await req(
@@ -922,21 +1012,21 @@ try {
   );
   assert.equal(new URL(legacy.headers.get("location"), origin).search, "?qa=1");
   checks += 3;
-  await req("/api/households?view=home", "GET", undefined, "", 401);
+  await req("/api/lists?view=home", "GET", undefined, "", 401);
   const emptyHome = await req(
-    "/api/households?view=home",
+    "/api/lists?view=home",
     "GET",
     undefined,
     outsider,
   );
   assert.deepEqual(emptyHome.lists, []);
   assert.deepEqual(emptyHome.invitations, []);
-  await req("/api/households?view=home", "GET", undefined, outsider);
-  await req("/api/households", "GET", undefined, outsider, 409);
+  await req("/api/lists?view=home", "GET", undefined, outsider);
+  await req("/api/lists", "GET", undefined, outsider, 409);
   assert.equal(
     (
       await db.query(
-        "select count(*)::int n from preview_lists.households where owner_email=$1",
+        "select count(*)::int n from preview_lists.lists where owner_email=$1",
         [outsider],
       )
     ).rows[0].n,
@@ -944,27 +1034,27 @@ try {
   );
   checks += 3;
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "create", name: " " },
     outsider,
     400,
   );
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "create", name: "x".repeat(201) },
     outsider,
     400,
   );
   const recipientCreated = await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "create" },
     outsider,
   );
   const recipientHome = await req(
-    "/api/households?view=home",
+    "/api/lists?view=home",
     "GET",
     undefined,
     outsider,
@@ -976,11 +1066,11 @@ try {
     `Compras ${new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())}`,
   );
   checks += 3;
-  const linkedPath = `/api/households?slug=${linkedSlug}`;
+  const linkedPath = `/api/lists?slug=${linkedSlug}`;
   assert.deepEqual(await req(linkedPath), { kind: "member", id: homeB });
   await req(linkedPath, "GET", undefined, outsider, 403);
   await req(linkedPath, "GET", undefined, "", 401);
-  await req("/api/households?slug=invalid", "GET", undefined, user, 400);
+  await req("/api/lists?slug=invalid", "GET", undefined, user, 400);
   const redirect = await fetch(origin + `/lists/${linkedSlug}`, {
     redirect: "manual",
   });
@@ -1034,12 +1124,12 @@ try {
   ];
   for (const [path, method, body] of denied)
     await req(path, method, body, user, 403);
-  const own = await req("/api/households");
+  const own = await req("/api/lists");
   assert.equal(own.role, "user");
   assert.equal(own.canEditList, true);
   checks += 2;
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "role", email: outsider, role: "admin" },
     user,
@@ -1081,25 +1171,25 @@ try {
     400,
   );
   const second = (
-    await req("/api/households", "POST", {
+    await req("/api/lists", "POST", {
       action: "create",
       name: "Otra lista",
     })
   ).result;
   const homeAfterCreate = await req(
-    "/api/households?view=home",
+    "/api/lists?view=home",
     "GET",
     undefined,
     user,
   );
   assert.equal(homeAfterCreate.lists.length, 3);
-  assert.ok(homeAfterCreate.lists.some((household) => household.id === second));
+  assert.ok(homeAfterCreate.lists.some(( list) =>  list.id === second));
   const createdSlug = (
-    await db.query("select slug from preview_lists.households where id=$1", [
+    await db.query("select slug from preview_lists.lists where id=$1", [
       second,
     ])
   ).rows[0].slug;
-  assert.deepEqual(await req(`/api/households?slug=${createdSlug}`), {
+  assert.deepEqual(await req(`/api/lists?slug=${createdSlug}`), {
     kind: "member",
     id: second,
   });
@@ -1119,7 +1209,7 @@ try {
         undefined,
         user,
         200,
-        own.household.id,
+        own. list.id,
       )
     ).length,
     1,
@@ -1131,7 +1221,7 @@ try {
     undefined,
     outsider,
     403,
-    own.household.id,
+    own. list.id,
   );
   await req("/api/list/get-list", "GET", undefined, user, 400, "not-a-uuid");
   await req("/api/catalog-requests", "POST", {
@@ -1302,20 +1392,20 @@ try {
     404,
   );
   const sharing = await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "share", email: outsider, role: "list_editor" },
     user,
     200,
     second,
   );
-  const secondSlug = (await req("/api/households")).household.slug;
+  const secondSlug = (await req("/api/lists")). list.slug;
   assert.notEqual(secondSlug, linkedSlug);
   assert.equal(sharing.result.slug, secondSlug);
   assert.equal(sharing.result.role, "list_editor");
   checks++;
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "share", email: "missing-role@example.invalid" },
     user,
@@ -1323,25 +1413,25 @@ try {
     second,
   );
   const recipientBefore = await req(
-    "/api/households",
+    "/api/lists",
     "GET",
     undefined,
     outsider,
   );
-  assert.notEqual(recipientBefore.household.id, second);
+  assert.notEqual(recipientBefore. list.id, second);
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
-    { action: "switch", id: recipientBefore.household.id },
+    { action: "switch", id: recipientBefore. list.id },
     outsider,
   );
-  const ownerIndex = await req("/api/households?view=home");
+  const ownerIndex = await req("/api/lists?view=home");
   assert.equal(
     ownerIndex.lists.filter((list) => list.owner_email === user).length,
     2,
   );
   const pendingIndex = await req(
-    "/api/households?view=home",
+    "/api/lists?view=home",
     "GET",
     undefined,
     outsider,
@@ -1350,7 +1440,7 @@ try {
   assert.equal(pendingIndex.invitations.length, 1);
   assert.equal(pendingIndex.invitations[0].slug, secondSlug);
   checks += 4;
-  const sharedPath = `/api/households?slug=${secondSlug}`;
+  const sharedPath = `/api/lists?slug=${secondSlug}`;
   await req(
     "/api/products/edit-checked-product",
     "PUT",
@@ -1373,18 +1463,18 @@ try {
   assert.equal(invitationLink.role, "list_editor");
   await req(sharedPath, "GET", undefined, admin, 403);
   checks += 2;
-  const recipient = await req("/api/households", "GET", undefined, outsider);
+  const recipient = await req("/api/lists", "GET", undefined, outsider);
   assert.equal(recipient.invitations.length, 1);
   checks++;
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "accept", id: recipient.invitations[0].id },
     admin,
     404,
   );
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "accept", id: recipient.invitations[0].id },
     outsider,
@@ -1394,7 +1484,7 @@ try {
     id: second,
   });
   const duplicateShare = await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "share", email: outsider, role: "list_editor" },
     user,
@@ -1404,19 +1494,19 @@ try {
   assert.equal(duplicateShare.error, "La persona ya pertenece a la lista");
   checks++;
   const selectedShared = await req(
-    "/api/households",
+    "/api/lists",
     "GET",
     undefined,
     outsider,
     200,
     second,
   );
-  assert.equal(selectedShared.household.slug, secondSlug);
+  assert.equal(selectedShared. list.slug, secondSlug);
   checks++;
-  const unchangedOwn = await req("/api/households", "GET", undefined, outsider);
-  assert.equal(unchangedOwn.household.id, recipientBefore.household.id);
+  const unchangedOwn = await req("/api/lists", "GET", undefined, outsider);
+  assert.equal(unchangedOwn. list.id, recipientBefore. list.id);
   const acceptedIndex = await req(
-    "/api/households?view=home",
+    "/api/lists?view=home",
     "GET",
     undefined,
     outsider,
@@ -1430,7 +1520,7 @@ try {
   );
   checks += 4;
   const shared = await req(
-    "/api/households",
+    "/api/lists",
     "GET",
     undefined,
     outsider,
@@ -1440,10 +1530,10 @@ try {
   assert.equal(shared.role, "user");
   assert.equal(shared.canEditList, true);
   assert.equal(shared.canManageList, false);
-  assert.equal(shared.householdRole, "list_editor");
+  assert.equal(shared.listRole, "list_editor");
   checks += 4;
   const viewerShare = await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "share", email: viewer, role: "list_viewer" },
     user,
@@ -1453,7 +1543,7 @@ try {
   assert.equal(viewerShare.result.role, "list_viewer");
   const viewerInvitation = (
     await db.query(
-      "select id,role from preview_lists.household_invitations where household_id=$1 and email=$2",
+      "select id,role from preview_lists.list_invitations where list_id=$1 and email=$2",
       [second, viewer],
     )
   ).rows[0];
@@ -1462,7 +1552,7 @@ try {
   assert.equal(viewerInvitePreview.kind, "invitation");
   assert.equal(viewerInvitePreview.role, "list_viewer");
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "share", email: "another@example.invalid", role: "list_editor" },
     outsider,
@@ -1470,20 +1560,20 @@ try {
     second,
   );
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "accept", id: viewerInvitation.id },
     viewer,
   );
   const viewOnly = await req(
-    "/api/households",
+    "/api/lists",
     "GET",
     undefined,
     viewer,
     200,
     second,
   );
-  assert.equal(viewOnly.householdRole, "list_viewer");
+  assert.equal(viewOnly.listRole, "list_viewer");
   assert.equal(viewOnly.canEditList, false);
   assert.equal(viewOnly.canManageList, false);
   const viewerHistory = await req(
@@ -1496,7 +1586,7 @@ try {
   );
   assert.ok(viewerHistory.items.every((item) => item.canEdit === false));
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "suggest-name", name: "No permitido" },
     viewer,
@@ -1537,7 +1627,7 @@ try {
   assert.equal(
     (
       await db.query(
-        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id_product=$2",
+        "select count(*)::int n from preview_lists.shopping_list where list_id=$1 and id_product=$2",
         [second, newProduct.id],
       )
     ).rows[0].n,
@@ -1546,7 +1636,7 @@ try {
   assert.equal(
     (
       await db.query(
-        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id_product=$2",
+        "select count(*)::int n from preview_lists.shopping_list where list_id=$1 and id_product=$2",
         [homeB, newProduct.id],
       )
     ).rows[0].n,
@@ -1562,7 +1652,7 @@ try {
     second,
   );
   await db.query(
-    "delete from preview_lists.shopping_list where household_id=$1 and id_product=$2 and not comprado",
+    "delete from preview_lists.shopping_list where list_id=$1 and id_product=$2 and not comprado",
     [second, newProduct.id],
   );
   await req(
@@ -1599,7 +1689,7 @@ try {
   );
   checks++;
   const ownerAfterAcceptance = await req(
-    "/api/households",
+    "/api/lists",
     "GET",
     undefined,
     user,
@@ -1611,7 +1701,7 @@ try {
   assert.equal(
     (
       await db.query(
-        "select count(*)::int n from preview_lists.household_invitations where household_id=$1",
+        "select count(*)::int n from preview_lists.list_invitations where list_id=$1",
         [second],
       )
     ).rows[0].n,
@@ -1620,16 +1710,16 @@ try {
   checks += 3;
   // Stale invitation rows must not be rendered as pending for active members.
   await db.query(
-    "insert into preview_lists.household_invitations(household_id,email) values($1,$2)",
+    "insert into preview_lists.list_invitations(list_id,email) values($1,$2)",
     [second, outsider],
   );
   assert.equal(
-    (await req("/api/households", "GET", undefined, user, 200, second)).pending
+    (await req("/api/lists", "GET", undefined, user, 200, second)).pending
       .length,
     0,
   );
   assert.equal(
-    (await req("/api/households?view=home", "GET", undefined, outsider))
+    (await req("/api/lists?view=home", "GET", undefined, outsider))
       .invitations.length,
     0,
   );
@@ -1638,12 +1728,12 @@ try {
     "member",
   );
   await db.query(
-    "delete from preview_lists.household_invitations where household_id=$1 and email=$2",
+    "delete from preview_lists.list_invitations where list_id=$1 and email=$2",
     [second, outsider],
   );
   checks += 3;
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "rename", name: "No permitido" },
     outsider,
@@ -1651,7 +1741,7 @@ try {
     second,
   );
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "suggest-name", name: "Nombre propuesto" },
     outsider,
@@ -1659,15 +1749,15 @@ try {
     second,
   );
   const proposed = (
-    await req("/api/households", "GET", undefined, user, 200, second)
+    await req("/api/lists", "GET", undefined, user, 200, second)
   ).nameSuggestions[0];
   assert.equal(
-    (await req("/api/households", "GET", undefined, user, 200, second))
-      .household.name,
+    (await req("/api/lists", "GET", undefined, user, 200, second))
+      . list.name,
     "Otra lista",
   );
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "review-name", id: proposed.id, decision: "approve" },
     outsider,
@@ -1675,7 +1765,7 @@ try {
     second,
   );
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "review-name", id: proposed.id, decision: "approve" },
     user,
@@ -1683,7 +1773,7 @@ try {
     homeB,
   );
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "review-name", id: proposed.id, decision: "approve" },
     user,
@@ -1691,12 +1781,12 @@ try {
     second,
   );
   assert.equal(
-    (await req("/api/households", "GET", undefined, user, 200, second))
-      .household.name,
+    (await req("/api/lists", "GET", undefined, user, 200, second))
+      . list.name,
     "Nombre propuesto",
   );
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "review-name", id: proposed.id, decision: "approve" },
     user,
@@ -1704,7 +1794,7 @@ try {
     second,
   );
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "suggest-name", name: "" },
     outsider,
@@ -1712,7 +1802,7 @@ try {
     second,
   );
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "suggest-name", name: "Anonymous" },
     null,
@@ -1720,7 +1810,7 @@ try {
     second,
   );
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "suggest-name", name: "Other list" },
     viewer,
@@ -1728,7 +1818,7 @@ try {
     homeB,
   );
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "suggest-name", name: "Rechazar este nombre" },
     outsider,
@@ -1736,10 +1826,10 @@ try {
     second,
   );
   const rejected = (
-    await req("/api/households", "GET", undefined, user, 200, second)
+    await req("/api/lists", "GET", undefined, user, 200, second)
   ).nameSuggestions.find((s) => s.status === "pending");
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "review-name", id: rejected.id, decision: "reject" },
     user,
@@ -1747,8 +1837,8 @@ try {
     second,
   );
   assert.equal(
-    (await req("/api/households", "GET", undefined, user, 200, second))
-      .household.name,
+    (await req("/api/lists", "GET", undefined, user, 200, second))
+      . list.name,
     "Nombre propuesto",
   );
   checks++;
@@ -1804,7 +1894,7 @@ try {
   );
   checks += 3;
   await req(
-    "/api/households",
+    "/api/lists",
     "POST",
     { action: "revoke", email: outsider },
     user,
@@ -1819,14 +1909,14 @@ try {
     { idList: list[0].id, cantidad: 0.25, medida: 1, precio: 1000, unit: "kg" },
     user,
     200,
-    own.household.id,
+    own. list.id,
   );
-  const purchasedFraction = await req("/api/list/get-list", "GET", undefined, user, 200, own.household.id);
+  const purchasedFraction = await req("/api/list/get-list", "GET", undefined, user, 200, own. list.id);
   assert.equal(Number(purchasedFraction[0].cantidad), 0.25);
   const beforePartial = (
     await db.query(
-      "select name,slug from preview_lists.households where id=$1",
-      [own.household.id],
+      "select name,slug from preview_lists.lists where id=$1",
+      [own. list.id],
     )
   ).rows[0];
   await req(
@@ -1835,7 +1925,7 @@ try {
     { idProduct: newProduct.id, checked: true },
     user,
     200,
-    own.household.id,
+    own. list.id,
   );
   await req(
     "/api/list/add-list",
@@ -1843,7 +1933,7 @@ try {
     undefined,
     user,
     200,
-    own.household.id,
+    own. list.id,
   );
   const pendingItem = (
     await req(
@@ -1852,7 +1942,7 @@ try {
       undefined,
       user,
       200,
-      own.household.id,
+      own. list.id,
     )
   ).find((item) => item.id_product === newProduct.id);
   const partialBody = { productIds: [list[0].id] };
@@ -1862,7 +1952,7 @@ try {
     { productIds: [] },
     user,
     400,
-    own.household.id,
+    own. list.id,
   );
   await req(
     "/api/historical/add-historical",
@@ -1870,7 +1960,7 @@ try {
     { productIds: [list[0].id, list[0].id] },
     user,
     400,
-    own.household.id,
+    own. list.id,
   );
   await req(
     "/api/historical/add-historical",
@@ -1878,7 +1968,7 @@ try {
     { productIds: [pendingItem.id] },
     user,
     409,
-    own.household.id,
+    own. list.id,
   );
   await req(
     "/api/historical/add-historical",
@@ -1891,8 +1981,8 @@ try {
   // Force failure after snapshots and selections changed: everything must roll back.
   const historyBefore = (
     await db.query(
-      "select count(*)::int n from preview_lists.historical where household_id=$1",
-      [own.household.id],
+      "select count(*)::int n from preview_lists.historical where list_id=$1",
+      [own. list.id],
     )
   ).rows[0].n;
   await db.exec(`create function preview_lists.reject_partial_delete() returns trigger language plpgsql as $$ begin raise exception 'forced local rollback'; end $$;
@@ -1903,13 +1993,13 @@ try {
     partialBody,
     user,
     500,
-    own.household.id,
+    own. list.id,
   );
   assert.equal(
     (
       await db.query(
-        "select count(*)::int n from preview_lists.historical where household_id=$1",
-        [own.household.id],
+        "select count(*)::int n from preview_lists.historical where list_id=$1",
+        [own. list.id],
       )
     ).rows[0].n,
     historyBefore,
@@ -1917,8 +2007,8 @@ try {
   assert.equal(
     (
       await db.query(
-        "select checked from preview_lists.list_selections where household_id=$1 and product_id=$2",
-        [own.household.id, list[0].id_product],
+        "select checked from preview_lists.list_selections where list_id=$1 and product_id=$2",
+        [own. list.id, list[0].id_product],
       )
     ).rows[0].checked,
     true,
@@ -1926,8 +2016,8 @@ try {
   assert.equal(
     (
       await db.query(
-        "select count(*)::int n from preview_lists.shopping_list where household_id=$1 and id=$2",
-        [own.household.id, list[0].id],
+        "select count(*)::int n from preview_lists.shopping_list where list_id=$1 and id=$2",
+        [own. list.id, list[0].id],
       )
     ).rows[0].n,
     1,
@@ -1943,7 +2033,7 @@ try {
         headers: {
           cookie: await cookie(user),
           "content-type": "application/json",
-          "X-List-ID": own.household.id,
+          "X-List-ID": own. list.id,
         },
         body: JSON.stringify(partialBody),
       });
@@ -1952,6 +2042,16 @@ try {
   );
   assert.deepEqual(archiveResponses.map((r) => r.status).sort(), [200, 409]);
   const completed = archiveResponses.find((r) => r.status === 200).result;
+  assert.equal(completed.completed, false);
+  assert.equal(
+    (
+      await db.query(
+        "select status from preview_lists.lists where id=$1",
+        [own. list.id],
+      )
+    ).rows[0].status,
+    "active",
+  );
   assert.match(
     completed.purchaseName,
     /^Masaje lista \[\d{2}\/\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\]$/,
@@ -1959,8 +2059,8 @@ try {
   assert.deepEqual(
     (
       await db.query(
-        "select name,slug from preview_lists.households where id=$1",
-        [own.household.id],
+        "select name,slug from preview_lists.lists where id=$1",
+        [own. list.id],
       )
     ).rows[0],
     beforePartial,
@@ -1968,24 +2068,24 @@ try {
   assert.equal(
     (
       await db.query(
-        "select checked from preview_lists.list_selections where household_id=$1 and product_id=$2",
-        [own.household.id, pendingItem.id_product],
+        "select checked from preview_lists.list_selections where list_id=$1 and product_id=$2",
+        [own. list.id, pendingItem.id_product],
       )
     ).rows[0].checked,
     true,
   );
-  checks += 4;
+  checks += 6;
   const history = await req(
     "/api/historical/get-historical",
     "GET",
     undefined,
     user,
     200,
-    own.household.id,
+    own. list.id,
   );
   const archived = history.items.find((i) => i.purchase.name === "Queso");
   assert.ok(archived);
-  assert.equal(archived.listId, own.household.id);
+  assert.equal(archived.listId, own. list.id);
   assert.equal(archived.listName, beforePartial.name);
   assert.equal(archived.canEdit, true);
   assert.equal(archived.purchase.purchase_name, completed.purchaseName);
@@ -2013,7 +2113,7 @@ try {
     { id: archived.id, name: "Queso editado", description: "Sin sal", cantidad: 2, unit: "un", precio: 42 },
     user,
     200,
-    own.household.id,
+    own. list.id,
   );
   assert.equal(editedHistoryItem.purchase.name, "Queso editado");
   assert.equal(editedHistoryItem.purchase.description, "Sin sal");
@@ -2025,17 +2125,17 @@ try {
     { id: archived.id, name: "Queso", description: "", cantidad: 1, unit: "un", precio: -1 },
     user,
     400,
-    own.household.id,
+    own. list.id,
   );
   const otherHouseHistoryId = (
-    await db.query("select id from preview_lists.historical where household_id=$1 limit 1", [homeB])
+    await db.query("select id from preview_lists.historical where list_id=$1 limit 1", [homeB])
   ).rows[0].id;
   await db.query(
-    "insert into preview_lists.households(id,owner_email,name) values($1,$2,$3)",
+    "insert into preview_lists.lists(id,owner_email,name) values($1,$2,$3)",
     [homeC, outsider, "Otra lista"],
   );
   await db.query(
-    "insert into preview_lists.household_members(household_id,email) values($1,$2)",
+    "insert into preview_lists.list_members(list_id,email) values($1,$2)",
     [homeC, outsider],
   );
   await req(
@@ -2061,7 +2161,7 @@ try {
     undefined,
     user,
     200,
-    own.household.id,
+    own. list.id,
   );
   assert.deepEqual(
     remaining.map((item) => item.id),
@@ -2073,7 +2173,7 @@ try {
     { idList: pendingItem.id, cantidad: 2, medida: 1, precio: 0, unit: "un" },
     user,
     200,
-    own.household.id,
+    own. list.id,
   );
   await req(
     "/api/historical/add-historical",
@@ -2081,7 +2181,7 @@ try {
     partialBody,
     user,
     409,
-    own.household.id,
+    own. list.id,
   );
   assert.equal(
     (
@@ -2091,7 +2191,7 @@ try {
         undefined,
         user,
         200,
-        own.household.id,
+        own. list.id,
       )
     )[0].id,
     pendingItem.id,
@@ -2104,7 +2204,7 @@ try {
         undefined,
         user,
         200,
-        own.household.id,
+        own. list.id,
       )
     ).items.length,
     history.items.length,
@@ -2130,12 +2230,89 @@ try {
         undefined,
         user,
         200,
-        own.household.id,
+        own. list.id,
       )
     ).items.length,
     history.items.length,
   );
   checks++;
+  await db.query(
+    "insert into preview_lists.list_members(list_id,email,role) values($1,$2,'list_viewer')",
+    [own. list.id, viewer],
+  );
+  const finalPurchase = await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: [pendingItem.id] },
+    user,
+    200,
+    own. list.id,
+  );
+  assert.equal(finalPurchase.completed, true);
+  assert.equal(
+    (
+      await db.query(
+        "select status from preview_lists.lists where id=$1",
+        [own. list.id],
+      )
+    ).rows[0].status,
+    "completed",
+  );
+  for (const email of [user, viewer]) {
+    const cartIndex = await req(
+      "/api/lists?view=home",
+      "GET",
+      undefined,
+      email,
+    );
+    assert.ok(!cartIndex.lists.some((entry) => entry.id === own. list.id));
+    await req(
+      "/api/list/get-list",
+      "GET",
+      undefined,
+      email,
+      410,
+      own. list.id,
+    );
+  }
+  const sharedHistory = await req(
+    "/api/historical/get-historical",
+    "GET",
+    undefined,
+    viewer,
+  );
+  assert.ok(
+    sharedHistory.items.some(
+      (item) =>
+        item.listId === own. list.id &&
+        item.purchase.purchase_id === finalPurchase.purchaseId,
+    ),
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from preview_lists.user_preferences where list_id=$1",
+        [own. list.id],
+      )
+    ).rows[0].n,
+    0,
+  );
+  await req(
+    "/api/list/page-data",
+    "GET",
+    undefined,
+    user,
+    410,
+    own. list.id,
+  );
+  await req(
+    `/api/lists?slug=${beforePartial.slug}`,
+    "GET",
+    undefined,
+    user,
+    403,
+  );
+  checks += 8;
   await assert.rejects(() =>
     db.exec("insert into preview_lists.app_users(email,role) values('attacker@example.invalid','superuser')"),
   );

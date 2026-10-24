@@ -1,4 +1,4 @@
-> Actualización 10 octubre 2026: este documento conserva contexto histórico. La arquitectura vigente utiliza Supabase Postgres, autenticación Google con scopes básicos y hogares compartidos dentro de la aplicación. Sheets/Drive solo se leen durante la importación opcional; no hay Gmail ni almacenamiento operativo en Drive. Ver README.md y SUPABASE_VERIFICATION.md para estado y verificaciones actuales.
+> Actualización 10 octubre 2026: este documento conserva contexto histórico. La arquitectura vigente utiliza Supabase Postgres, autenticación Google con scopes básicos y listas compartidas dentro de la aplicación. Sheets/Drive solo se leen durante la importación opcional; no hay Gmail ni almacenamiento operativo en Drive. Ver README.md y SUPABASE_VERIFICATION.md para estado y verificaciones actuales.
 
 # Active Context: Home Logistics
 
@@ -37,7 +37,7 @@
 - `GOOGLE_AUTH.md`: Comprehensive Google authentication guide (with diagrams)
 - `SECURITY_AUDIT.md`: Detailed security audit report with remediation steps
 - `UPDATES.md`: Summary of all changes made in this session
-- `.cursorrules`: Cursor-specific project rules and patterns
+- `.ai-assistant/`: shared project workflows and rules
 - `.env.example`: Environment variable template
 - `README.md`: Completely rewritten with comprehensive setup guide
 
@@ -82,7 +82,7 @@
 - ✅ Setup guide for Google Cloud Console
 - ✅ Developer onboarding guide
 - ✅ Memory bank fully initialized
-- ✅ Cursor rules established
+- ✅ Shared AI Assistant workflows established
 
 ### Testing (Pending 🔄)
 
@@ -174,7 +174,7 @@ With documentation and security completed, the focus should shift to:
 - `GOOGLE_AUTH.md`
 - `SECURITY_AUDIT.md`
 - `UPDATES.md`
-- `.cursorrules`
+- `.ai-assistant/`
 - `.env.example`
 
 ### Modified:

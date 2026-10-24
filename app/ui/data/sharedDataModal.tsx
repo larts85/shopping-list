@@ -1,8 +1,8 @@
 "use client";
 import { getActiveListId } from "@/app/lib/listClient";
 import { useState } from "react";
-import { shareHousehold } from "../../actions/households";
-import type { HouseholdAccessRole } from "@/app/lib/database";
+import { shareList } from "../../actions/lists";
+import type { ListAccessRole } from "@/app/lib/database";
 export default function SharedDataModal({
   isOpen,
   onClose,
@@ -11,12 +11,41 @@ export default function SharedDataModal({
   onClose: (shared?: boolean) => void;
 }) {
   const [email, setEmail] = useState("");
-  const [accessRole, setAccessRole] = useState<HouseholdAccessRole | "">("");
+  const [accessRole, setAccessRole] = useState<ListAccessRole | "">("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [delivery, setDelivery] = useState("");
   const [link, setLink] = useState("");
   const [copied, setCopied] = useState(false);
+  const plainMessage = [
+    "Invitación a una lista de compras en Shopear",
+    "",
+    `Te compartí una lista de compras. Inicia sesión en Shopear con ${email} y acepta la invitación.`,
+    "",
+    `Abrir invitación: ${link}`,
+  ].join("\n");
+  const whatsappMessage = [
+    "*Invitación a una lista de compras en Shopear*",
+    "",
+    `Te compartí una lista de compras. Inicia sesión en Shopear con *${email}* y acepta la invitación.`,
+    "",
+    `*Abrir invitación:* ${link}`,
+  ].join("\n");
+  const telegramMessage = [
+    "**Invitación a una lista de compras en Shopear**",
+    "",
+    `Te compartí una lista de compras. Inicia sesión en Shopear con **${email}** y acepta la invitación.`,
+  ].join("\n");
+  const emailSubject = "Invitación a una lista de compras";
+  const copyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(plainMessage);
+      setCopied(true);
+      setError("");
+    } catch {
+      setError("No pudimos copiar el mensaje.");
+    }
+  };
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -41,7 +70,7 @@ export default function SharedDataModal({
               setBusy(true);
               setError("");
               try {
-                const result = await shareHousehold(
+                const result = await shareList(
                   email,
                   getActiveListId(),
                   accessRole,
@@ -79,7 +108,7 @@ export default function SharedDataModal({
               <select
                 className="field mt-2"
                 value={accessRole}
-                onChange={(event) => setAccessRole(event.target.value as HouseholdAccessRole | "")}
+                onChange={(event) => setAccessRole(event.target.value as ListAccessRole | "")}
                 required
                 disabled={busy}
               >
@@ -124,30 +153,41 @@ export default function SharedDataModal({
               Enlace para ingresar
               <input readOnly className="field mt-2" value={link} />
             </label>
-            <button
-              className="btn-secondary"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(link);
-                  setCopied(true);
-                } catch {
-                  setError("No pudimos copiar el enlace.");
-                }
-              }}
-            >
-              {copied ? "Enlace copiado" : "Copiar enlace de la invitación"}
-            </button>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Compartir invitación</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <a
+                  className="btn-secondary inline-flex"
+                  href={`https://wa.me/?text=${encodeURIComponent(whatsappMessage)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  WhatsApp
+                </a>
+                <a
+                  className="btn-secondary inline-flex"
+                  href={`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(telegramMessage)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Telegram
+                </a>
+                <a
+                  className="btn-secondary inline-flex"
+                  href={`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(plainMessage)}`}
+                >
+                  Correo
+                </a>
+                <button className="btn-secondary" onClick={() => void copyMessage()}>
+                  {copied ? "Texto copiado" : "Copiar texto plano"}
+                </button>
+              </div>
+            </div>
             {error && (
               <p role="alert" className="error-notice">
                 {error}
               </p>
             )}
-            <a
-              className="btn-secondary inline-flex"
-              href={`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent("Invitación a una lista de compras")}&body=${encodeURIComponent(`Te invité a mi lista de compras. Ingresa con este correo y acepta la invitación: ${link}`)}`}
-            >
-              Preparar correo en mi aplicación
-            </a>
             <button className="btn-primary" onClick={() => onClose(true)}>
               Listo
             </button>

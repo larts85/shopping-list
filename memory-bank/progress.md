@@ -1,4 +1,4 @@
-> Actualización 10 octubre 2026: este documento conserva contexto histórico. La arquitectura vigente utiliza Supabase Postgres, autenticación Google con scopes básicos y hogares compartidos dentro de la aplicación. Sheets/Drive solo se leen durante la importación opcional; no hay Gmail ni almacenamiento operativo en Drive. Ver README.md y SUPABASE_VERIFICATION.md para estado y verificaciones actuales.
+> Actualización 10 octubre 2026: este documento conserva contexto histórico. La arquitectura vigente utiliza Supabase Postgres, autenticación Google con scopes básicos y listas compartidas dentro de la aplicación. Sheets/Drive solo se leen durante la importación opcional; no hay Gmail ni almacenamiento operativo en Drive. Ver README.md y SUPABASE_VERIFICATION.md para estado y verificaciones actuales.
 
 # Progress: Home Logistics
 
@@ -191,7 +191,7 @@
 - Architecture fully documented
 - Security audit report created
 - README fully updated
-- Cursor rules established
+- Shared AI Assistant workflows established
 
 #### Testing: 0%
 

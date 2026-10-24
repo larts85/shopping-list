@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getActiveListId } from "@/app/lib/listClient";
-import type { getHomeLists } from "@/app/actions/households";
+import type { getHomeLists } from "@/app/actions/lists";
 import { getCurrentUser } from "@/app/actions/profile";
 
 const mainLinks = [
@@ -31,7 +31,7 @@ export default function NavLinks({ admin = false }: { admin?: boolean }) {
       try {
         const d = await getCurrentUser();
         if (active) setIsAdmin(d.role === "admin");
-        const response = await fetch("/api/households?view=home", {
+        const response = await fetch("/api/lists?view=home", {
           cache: "no-store",
         });
         if (response.ok) {
@@ -40,10 +40,10 @@ export default function NavLinks({ admin = false }: { admin?: boolean }) {
           const activeListId = getActiveListId();
           const activeListSuggestions =
             data.pendingListSuggestions.find(
-              (item) => item.household_id === activeListId,
+              (item) => item.list_id === activeListId,
             )?.count ?? 0;
           const activeNameSuggestions = data.pendingNameSuggestions.filter(
-            (item) => item.household_id === activeListId,
+            (item) => item.list_id === activeListId,
           ).length;
           if (active)
             setPendingByHref({

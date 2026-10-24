@@ -5,7 +5,7 @@ import {
   text,
   DataError,
   requireRow,
-  ensureHousehold,
+  ensureList,
 } from "../lib/database";
 import type { PoolClient } from "pg";
 import {
@@ -83,32 +83,32 @@ export async function submitCatalogRequest(
            and l.provisional_category_id=$2
            and lower(trim(l.provisional_name))=lower(trim($3))
            and exists (
-             select 1 from household_members m
-             where m.household_id=l.household_id and m.email=$4
+             select 1 from list_members m
+             where m.list_id=l.list_id and m.email=$4
            )`,
         [created.rows[0].id, category, name, email],
       );
 
-      let householdId: string;
+      let  listId: string;
       if (scope !== undefined) {
-        householdId = text(scope).toLowerCase();
+         listId = text(scope).toLowerCase();
         if (
           !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-            householdId,
+             listId,
           )
         )
           throw new DataError("Lista inválida");
         requireRow(
           (
             await db.query(
-              "select 1 from household_members where household_id=$1 and email=$2",
-              [householdId, email],
+              "select 1 from list_members where list_id=$1 and email=$2",
+              [ listId, email],
             )
           ).rowCount,
         );
       } else {
         try {
-          householdId = await ensureHousehold(db, email);
+           listId = await ensureList(db, email);
         } catch (error) {
           if (error instanceof DataError && error.status === 409)
             return { kind: input.kind, addedToList: false };
@@ -116,7 +116,7 @@ export async function submitCatalogRequest(
         }
       }
       await db.query("select pg_advisory_xact_lock(hashtextextended($1,1))", [
-        householdId,
+         listId,
       ]);
 
       const catalogProduct = await db.query(
@@ -131,41 +131,41 @@ export async function submitCatalogRequest(
       ) {
         const productId = catalogProduct.rows[0].id as string;
         await db.query(
-          "insert into list_selections(household_id,product_id,checked) values($1,$2,true) on conflict(household_id,product_id) do update set checked=true",
-          [householdId, productId],
+          "insert into list_selections(list_id,product_id,checked) values($1,$2,true) on conflict(list_id,product_id) do update set checked=true",
+          [ listId, productId],
         );
         await db.query(
-          `insert into shopping_list(household_id,id_product,cantidad,medida,precio,comprado,unit)
-           values($1,$2,1,1,0,false,$3) on conflict(household_id,id_product)
+          `insert into shopping_list(list_id,id_product,cantidad,medida,precio,comprado,unit)
+           values($1,$2,1,1,0,false,$3) on conflict(list_id,id_product)
            do update set comprado=false,precio=0`,
-          [householdId, productId, input.unit],
+          [ listId, productId, input.unit],
         );
         return { kind: input.kind, addedToList: true };
       }
 
       const provisional = await db.query(
         `select id from shopping_list
-         where household_id=$1 and id_product is null
+         where list_id=$1 and id_product is null
            and provisional_category_id=$2
            and lower(trim(provisional_name))=lower(trim($3)) for update`,
-        [householdId, category, name],
+        [ listId, category, name],
       );
       if (provisional.rowCount) {
         await db.query(
           `update shopping_list set catalog_request_id=coalesce(catalog_request_id,$3),
              comprado=false,precio=0
-           where household_id=$1 and id=$2`,
-          [householdId, provisional.rows[0].id, created.rows[0].id],
+           where list_id=$1 and id=$2`,
+          [ listId, provisional.rows[0].id, created.rows[0].id],
         );
       } else {
         await db.query(
           `insert into shopping_list(
-             household_id,id_product,cantidad,medida,precio,comprado,unit,
+             list_id,id_product,cantidad,medida,precio,comprado,unit,
              provisional_name,provisional_category_id,provisional_created_by,
              provisional_available_units,catalog_request_id
            ) values($1,null,1,1,0,false,$2,$3,$4,$5,$6,$7)`,
           [
-            householdId,
+             listId,
             input.unit,
             name,
             category,
@@ -294,7 +294,7 @@ async function reviewCatalogRequestInTransaction(
         ).rows[0].id;
       }
       const provisionalItems = await db.query(
-        "select id,household_id,unit,cantidad,comprado,provisional_available_units from shopping_list where catalog_request_id=$1 and id_product is null for update",
+        "select id,list_id,unit,cantidad,comprado,provisional_available_units from shopping_list where catalog_request_id=$1 and id_product is null for update",
         [request.id],
       );
       const requestedUnits = [
@@ -316,8 +316,8 @@ async function reviewCatalogRequestInTransaction(
       );
       for (const item of provisionalItems.rows) {
         const current = await db.query(
-          "select id,unit,comprado from shopping_list where household_id=$1 and id_product=$2 for update",
-          [item.household_id, resultId],
+          "select id,unit,comprado from shopping_list where list_id=$1 and id_product=$2 for update",
+          [item.list_id, resultId],
         );
         if (current.rowCount) {
           if (
@@ -326,8 +326,8 @@ async function reviewCatalogRequestInTransaction(
             item.unit === current.rows[0].unit
           ) {
             await db.query(
-              "update shopping_list set cantidad=coalesce(cantidad,0)+$3 where id=$1 and household_id=$2",
-              [current.rows[0].id, item.household_id, item.cantidad ?? 0],
+              "update shopping_list set cantidad=coalesce(cantidad,0)+$3 where id=$1 and list_id=$2",
+              [current.rows[0].id, item.list_id, item.cantidad ?? 0],
             );
             await db.query("delete from shopping_list where id=$1", [item.id]);
           }
@@ -341,8 +341,8 @@ async function reviewCatalogRequestInTransaction(
           [item.id, resultId],
         );
         await db.query(
-          "insert into list_selections(household_id,product_id,checked) values($1,$2,true) on conflict(household_id,product_id) do update set checked=true",
-          [item.household_id, resultId],
+          "insert into list_selections(list_id,product_id,checked) values($1,$2,true) on conflict(list_id,product_id) do update set checked=true",
+          [item.list_id, resultId],
         );
       }
     }

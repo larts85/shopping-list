@@ -1,17 +1,17 @@
-> Actualización 10 octubre 2026: este documento conserva contexto histórico. La arquitectura vigente utiliza Supabase Postgres, autenticación Google con scopes básicos y hogares compartidos dentro de la aplicación. Sheets/Drive solo se leen durante la importación opcional; no hay Gmail ni almacenamiento operativo en Drive. Ver README.md y SUPABASE_VERIFICATION.md para estado y verificaciones actuales.
+> Actualización 10 octubre 2026: este documento conserva contexto histórico. La arquitectura vigente utiliza Supabase Postgres, autenticación Google con scopes básicos y listas compartidas dentro de la aplicación. Sheets/Drive solo se leen durante la importación opcional; no hay Gmail ni almacenamiento operativo en Drive. Ver README.md y SUPABASE_VERIFICATION.md para estado y verificaciones actuales.
 
 # Project Brief: Home Logistics
 
 ## Project Overview
 
-Home Logistics is a Next.js web application designed to manage household shopping logistics through Google Drive and Google Sheets integration. The application provides a comprehensive solution for managing products, categories, shopping lists, and purchase history.
+Home Logistics is a Next.js web application designed to manage list shopping logistics through Google Drive and Google Sheets integration. The application provides a comprehensive solution for managing products, categories, shopping lists, and purchase history.
 
 ## Core Requirements
 
 ### Functionality
 
 1. **User Authentication**: Google OAuth 2.0 authentication with offline access
-2. **Product Management**: CRUD operations for household products
+2. **Product Management**: CRUD operations for list products
 3. **Category Management**: Organize products into categories
 4. **Shopping List**: Create and manage shopping lists with pricing and quantities
 5. **Historical Tracking**: Track purchase history over time
@@ -22,7 +22,7 @@ Home Logistics is a Next.js web application designed to manage household shoppin
 
 - Seamless Google authentication
 - Automatic data synchronization with Google Drive
-- User-friendly interface for managing household shopping
+- User-friendly interface for managing list shopping
 - Real-time data updates
 - Secure, user-owned data storage
 
@@ -57,7 +57,7 @@ Home Logistics is a Next.js web application designed to manage household shoppin
 
 1. Successful authentication with Google
 2. Reliable data persistence in Google Sheets
-3. Intuitive user interface for household management
+3. Intuitive user interface for list management
 4. Secure handling of user credentials
 5. Fast page loads and responsive UI
 

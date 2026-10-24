@@ -1,6 +1,6 @@
 "use client";
 
-import { getHouseholdData } from "@/app/actions/households";
+import { getListData } from "@/app/actions/lists";
 import { getActiveListId } from "@/app/lib/listClient";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -10,9 +10,9 @@ export default function RedirectToActiveList() {
 
   useEffect(() => {
     let cancelled = false;
-    void getHouseholdData(getActiveListId())
+    void getListData(getActiveListId())
       .then((data) => {
-        if (!cancelled) router.replace(`/lists/${data.household.slug}`);
+        if (!cancelled) router.replace(`/lists/${data. list.slug}`);
       })
       .catch(() => {
         if (!cancelled) router.replace("/");

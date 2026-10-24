@@ -8,22 +8,43 @@ import {
 } from "@/app/lib/units";
 import { useState, useEffect } from "react";
 import { ClipLoader } from "react-spinners";
-import { Category } from "@/app/lib/types";
+import type { Category, Product } from "@/app/lib/types";
 import BulkPaste from "./bulkPaste";
 import Autocomplete from "@/shared/components/ui/Autocomplete";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
+import { RiAddLine, RiCloseLine, RiSubtractLine } from "react-icons/ri";
+
+function normalizeSearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase();
+}
 
 interface SelectProps {
   listName: string;
-  onAdded: (status?: string) => Promise<void>;
+  existingProductIds: string[];
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
+  onAdded: (status?: string, keepOpen?: boolean) => Promise<void>;
+  onClose: () => void;
 }
 
-export default function Select({ listName, onAdded }: SelectProps) {
+export default function Select({
+  listName,
+  existingProductIds,
+  searchInputRef,
+  onAdded,
+  onClose,
+}: SelectProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [mode, setMode] = useState<"category" | "bulk">("category");
+  const [mode, setMode] = useState<"search" | "category" | "bulk">("search");
   const [selectedCategory, setSelectedCategoy] = useState<string>("");
-  const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [productSearch, setProductSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchError, setSearchError] = useState("");
+  const [addingProductId, setAddingProductId] = useState("");
+  const [addedProductIds, setAddedProductIds] = useState<string[]>([]);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [bulkProducts, setBulkProducts] = useState<Product[]>([]);
@@ -38,19 +59,25 @@ export default function Select({ listName, onAdded }: SelectProps) {
   const visibleProducts = products.filter((product) => {
     const matchesCategory =
       !selectedCategory || product.id_category === selectedCategory;
-    const matchesSearch = product.name
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLocaleLowerCase()
-      .includes(
-        productSearch
-          .trim()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toLocaleLowerCase(),
-      );
+    const matchesSearch = normalizeSearch(product.name).includes(
+      normalizeSearch(productSearch.trim()),
+    );
     return matchesCategory && matchesSearch;
   });
+  const searchMatches = searchQuery.trim()
+    ? products
+        .filter((product) =>
+          normalizeSearch(product.name).includes(
+            normalizeSearch(searchQuery.trim()),
+          ),
+        )
+        .filter(
+          (product) =>
+            !existingProductIds.includes(product.id) &&
+            !addedProductIds.includes(product.id),
+        )
+        .slice(0, 12)
+    : [];
 
   useEffect(() => {
     fetchCategories();
@@ -77,14 +104,6 @@ export default function Select({ listName, onAdded }: SelectProps) {
       setIsLoading(false);
     }
   }
-  interface Product {
-    id: string;
-    name: string;
-    id_category: string;
-    checked: boolean;
-    unit?: Unit;
-  }
-
   const categoryProducts = products.filter(
     (product) => product.id_category === selectedCategory,
   );
@@ -118,7 +137,6 @@ export default function Select({ listName, onAdded }: SelectProps) {
 
   const handleSelectChange = (categoryId: string) => {
     setSelectedCategoy(categoryId);
-    setSelectedProductId("");
     setProductSearch("");
     setProvisionalUnit("un");
   };
@@ -127,9 +145,54 @@ export default function Select({ listName, onAdded }: SelectProps) {
     const product = products.find((item) => item.id === productId);
     if (!product) return;
     setSelectedCategoy(product.id_category);
-    setSelectedProductId(product.id);
     setProductSearch(product.name);
     if (!product.checked) void handleProductChecked(product.id, true);
+  };
+
+  const changeSearchQuantity = (productId: string, amount: number) => {
+    setQuantities((previous) => ({
+      ...previous,
+      [productId]: Math.max(1, (previous[productId] ?? 1) + amount),
+    }));
+  };
+
+  const addMatchingProduct = async (product: Product) => {
+    if (addingProductId) return;
+    setAddingProductId(product.id);
+    setSearchError("");
+    const unit = product.unit ?? "un";
+    try {
+      const response = await listFetch("/api/list/bulk-add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify([
+          {
+            name: product.name,
+            idCategory: product.id_category,
+            cantidad: quantities[product.id] ?? 1,
+            unit,
+            availableUnits:
+              product.availableUnits?.length
+                ? product.availableUnits
+                : compatibleUnits(unit),
+          },
+        ]),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => null);
+        throw new Error(result?.error || "No pudimos agregar el producto.");
+      }
+      setAddedProductIds((previous) => [...previous, product.id]);
+      await onAdded(`“${product.name}” se agregó a ${listName}.`, true);
+    } catch (cause) {
+      setSearchError(
+        cause instanceof Error
+          ? cause.message
+          : "No pudimos agregar el producto.",
+      );
+    } finally {
+      setAddingProductId("");
+    }
   };
 
   const addProvisionalProduct = async () => {
@@ -281,15 +344,36 @@ export default function Select({ listName, onAdded }: SelectProps) {
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex items-start justify-between gap-4">
+        <div>
         <h2 className="text-lg font-semibold text-zinc-900">
           Agregar productos
         </h2>
         <p className="mt-1 text-sm text-zinc-500">
           Se agregarán a <strong className="text-zinc-700">{listName}</strong>.
         </p>
+        </div>
+        <button
+          type="button"
+          className="icon-button shrink-0"
+          aria-label="Cerrar selector de productos"
+          onClick={onClose}
+        >
+          <RiCloseLine aria-hidden="true" size={20} />
+        </button>
       </div>
       <div className="flex border-b border-zinc-200">
+        <button
+          type="button"
+          onClick={() => setMode("search")}
+          className={`min-h-11 border-b-2 px-5 py-2.5 text-sm font-medium transition-colors ${
+            mode === "search"
+              ? "border-zinc-900 font-semibold text-zinc-900"
+              : "border-transparent text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          Buscar producto
+        </button>
         <button
           type="button"
           onClick={() => setMode("category")}
@@ -326,6 +410,133 @@ export default function Select({ listName, onAdded }: SelectProps) {
           onRetryLoadProducts={fetchBulkProducts}
           onAdded={onAdded}
         />
+      ) : mode === "search" ? (
+        <div className="space-y-4">
+          {error && (
+            <div role="alert" className="error-notice">
+              <p>{error}</p>
+              <button
+                type="button"
+                className="btn-secondary mt-3"
+                onClick={() => {
+                  setError("");
+                  setIsLoading(true);
+                  void fetchCategories();
+                }}
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
+          <label
+            htmlFor="catalog-product-search"
+            className="block text-sm font-medium text-zinc-700"
+          >
+            Producto
+          </label>
+          <input
+            ref={searchInputRef}
+            id="catalog-product-search"
+            type="search"
+            className="field"
+            value={searchQuery}
+            onChange={(event) => {
+              setSearchQuery(event.target.value);
+              setSearchError("");
+            }}
+            placeholder="Escribe el nombre del producto"
+            autoComplete="off"
+          />
+          {searchError && (
+            <p role="alert" className="error-notice">
+              {searchError}
+            </p>
+          )}
+          {isLoading ? (
+            <div role="status" className="loading-state">
+              <ClipLoader size={24} color="#3f3f46" loading />
+              <span>Cargando productos…</span>
+            </div>
+          ) : error ? null : !searchQuery.trim() ? (
+            <div className="empty-state">
+              Escribe para ver coincidencias del catálogo.
+            </div>
+          ) : searchMatches.length > 0 ? (
+            <ul className="max-h-80 divide-y divide-zinc-100 overflow-y-auto rounded-xl border border-zinc-200">
+              {searchMatches.map((product) => {
+                const quantity = quantities[product.id] ?? 1;
+                const isAdding = addingProductId === product.id;
+                return (
+                  <li
+                    key={product.id}
+                    className="flex items-center gap-3 px-4 py-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-zinc-900">
+                        {product.name}
+                      </p>
+                      <p className="mt-0.5 text-xs text-zinc-500">
+                        {categories.find(
+                          (category) => category.id === product.id_category,
+                        )?.name ?? "Producto"}
+                        {" · "}
+                        {unitLabels[product.unit ?? "un"]}
+                      </p>
+                    </div>
+                    <div
+                      className="flex shrink-0 items-center gap-1 rounded-lg border border-[lightgray]"
+                      role="group"
+                      aria-label={`Cantidad de ${product.name}`}
+                    >
+                      <button
+                        type="button"
+                        className="icon-button size-9"
+                        aria-label={`Reducir cantidad de ${product.name}`}
+                        disabled={quantity <= 1 || !!addingProductId}
+                        onClick={() => changeSearchQuantity(product.id, -1)}
+                      >
+                        <RiSubtractLine aria-hidden="true" size={18} />
+                      </button>
+                      <span
+                        className="min-w-6 text-center text-sm tabular-nums"
+                        aria-live="polite"
+                      >
+                        {quantity}
+                      </span>
+                      <button
+                        type="button"
+                        className="icon-button size-9"
+                        aria-label={`Aumentar cantidad de ${product.name}`}
+                        disabled={!!addingProductId}
+                        onClick={() => changeSearchQuantity(product.id, 1)}
+                      >
+                        <RiAddLine aria-hidden="true" size={18} />
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className="icon-button size-10 shrink-0 bg-zinc-700 text-white hover:bg-zinc-800"
+                      aria-label={`Agregar ${product.name} a ${listName}`}
+                      disabled={!!addingProductId}
+                      onClick={() => void addMatchingProduct(product)}
+                    >
+                      {isAdding ? (
+                        <ClipLoader size={16} color="#3f3f46" loading />
+                      ) : (
+                        <RiAddLine aria-hidden="true" size={20} />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="empty-state">
+              No encontramos productos disponibles para agregar con ese nombre.
+              Puedes probar en la pestaña «Por categoría».
+            </div>
+          )}
+        </div>
       ) : (
         <>
           {error && (
@@ -368,7 +579,6 @@ export default function Select({ listName, onAdded }: SelectProps) {
                 }))}
                 onChange={(value) => {
                   setProductSearch(value);
-                  setSelectedProductId("");
                 }}
                 onSelect={(option) => handleProductSelect(option.value)}
                 placeholder="Busca un producto"
@@ -377,7 +587,7 @@ export default function Select({ listName, onAdded }: SelectProps) {
             </div>
             <button
               onClick={createList}
-              disabled={isLoading || isUpdating || (!selectedCategory && !selectedProductId)}
+              disabled={isLoading || isUpdating || selectedCount === 0}
               className="btn-primary"
             >
               Agregar a mi lista
