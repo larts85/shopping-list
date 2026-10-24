@@ -673,6 +673,14 @@ export default function List() {
   };
 
   const handleOpenModal = (list: IList) => {
+    if (selectionMode) {
+      setSelectedIds((current) =>
+        current.includes(list.id)
+          ? current.filter((id) => id !== list.id)
+          : [...current, list.id],
+      );
+      return;
+    }
     if (
       !canEditList ||
       isLoading ||
@@ -1143,7 +1151,7 @@ export default function List() {
                           onClick={() => handleOpenModal(product)}
                           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg text-left text-sm hover:text-zinc-500 sm:gap-3"
                         >
-                          {selectionMode ? <input type="checkbox" aria-label={`Seleccionar ${product.name}`} checked={selectedIds.includes(product.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, product.id] : current.filter((id) => id !== product.id))} /> : <span
+                          {selectionMode ? <input type="checkbox" aria-label={`Seleccionar ${product.name}`} checked={selectedIds.includes(product.id)} onChange={(event) => { event.stopPropagation(); setSelectedIds((current) => event.target.checked ? [...current, product.id] : current.filter((id) => id !== product.id)); }} /> : <span
                             aria-hidden="true"
                             className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${product.comprado === "1" ? "border-zinc-900 bg-zinc-900 text-xs text-white" : "border-zinc-300"}`}
                           >
