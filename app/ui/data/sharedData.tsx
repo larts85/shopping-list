@@ -5,16 +5,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import SharedDataModal from "./sharedDataModal";
 import {
-  getHouseholdData,
+  getListData,
   revokeAccess,
-  renameHousehold,
-  suggestHouseholdName,
-  reviewHouseholdName,
-} from "../../actions/households";
+  renameList,
+  suggestListName,
+  reviewListName,
+} from "../../actions/lists";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
 import ConfirmModal from "@/shared/components/ui/ConfirmModal";
 import { RiCheckLine, RiCloseLine, RiDeleteBin6Line } from "react-icons/ri";
-type Data = Awaited<ReturnType<typeof getHouseholdData>>;
+type Data = Awaited<ReturnType<typeof getListData>>;
 export default function SharedData() {
   const [data, setData] = useState<Data>();
   const [open, setOpen] = useState(false);
@@ -26,10 +26,10 @@ export default function SharedData() {
   const router = useRouter();
   async function load(resetName = true) {
     try {
-      const d = await getHouseholdData(getActiveListId());
+      const d = await getListData(getActiveListId());
       setData(d);
       setError("");
-      if (resetName) setName(d.household.name);
+      if (resetName) setName(d. list.name);
     } catch {
       setError("No se pudieron cargar los accesos.");
     }
@@ -83,20 +83,20 @@ export default function SharedData() {
       {data && (
         <>
           <p>
-            <strong>{data.household.name}</strong> · Propietario:{" "}
-            {data.household.owner_email}
+            <strong>{data. list.name}</strong> · Propietario:{" "}
+            {data. list.owner_email}
           </p>
           {data.role === "admin" && (
             <p>
               Rol en la aplicación: <strong>Administrador</strong>.
             </p>
           )}
-          {data.householdRole === "list_editor" && (
+          {data.listRole === "list_editor" && (
             <p>
               Rol en esta lista: <strong>Editor</strong>.
             </p>
           )}
-          {data.householdRole === "list_viewer" && (
+          {data.listRole === "list_viewer" && (
             <p>Rol en esta lista: <strong>Solo lectura</strong>.</p>
           )}
           {data.canEditList ? <form
@@ -105,8 +105,8 @@ export default function SharedData() {
               e.preventDefault();
               void run(() =>
                 manager
-                  ? renameHousehold(name, getActiveListId())
-                  : suggestHouseholdName(name, getActiveListId()),
+                  ? renameList(name, getActiveListId())
+                  : suggestListName(name, getActiveListId()),
               );
             }}
           >
@@ -163,7 +163,7 @@ export default function SharedData() {
                         disabled={busy}
                         onClick={() =>
                           void run(() =>
-                            reviewHouseholdName(
+                            reviewListName(
                               suggestion.id,
                               "approve",
                               getActiveListId(),
@@ -178,7 +178,7 @@ export default function SharedData() {
                         disabled={busy}
                         onClick={() =>
                           void run(() =>
-                            reviewHouseholdName(
+                            reviewListName(
                               suggestion.id,
                               "reject",
                               getActiveListId(),
@@ -198,7 +198,7 @@ export default function SharedData() {
                           disabled: busy,
                           onSelect: () =>
                             void run(() =>
-                              reviewHouseholdName(
+                              reviewListName(
                                 suggestion.id,
                                 "approve",
                                 getActiveListId(),
@@ -212,7 +212,7 @@ export default function SharedData() {
                           destructive: true,
                           onSelect: () =>
                             void run(() =>
-                              reviewHouseholdName(
+                              reviewListName(
                                 suggestion.id,
                                 "reject",
                                 getActiveListId(),
@@ -240,14 +240,14 @@ export default function SharedData() {
               >
                 <span>{m.email}</span>
                 <span>
-                  {m.email === data.household.owner_email
+                  {m.email === data. list.owner_email
                     ? "Propietario"
                     : m.role === "list_editor"
                       ? "Editor"
                       : "Solo lectura"}
                 </span>
                 {manager &&
-                  m.email !== data.household.owner_email &&
+                  m.email !== data. list.owner_email &&
                   m.email !== data.email && (
                   <>
                     <button

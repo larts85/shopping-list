@@ -4,13 +4,13 @@ import { getActiveListId } from "@/app/lib/listClient";
 import { useEffect, useState } from "react";
 import { RiPencilLine } from "react-icons/ri";
 import {
-  getHouseholdData,
-  renameHousehold,
-  suggestHouseholdName,
-} from "@/app/actions/households";
+  getListData,
+  renameList,
+  suggestListName,
+} from "@/app/actions/lists";
 import Modal from "@/shared/components/ui/Modal";
 import SharedDataModal from "../data/sharedDataModal";
-type Data = Awaited<ReturnType<typeof getHouseholdData>>;
+type Data = Awaited<ReturnType<typeof getListData>>;
 export default function SharedListControls({
   onSwitch,
 }: {
@@ -27,7 +27,7 @@ export default function SharedListControls({
   const [isLoading, setIsLoading] = useState(true);
   async function load() {
     try {
-      setData(await getHouseholdData(getActiveListId()));
+      setData(await getListData(getActiveListId()));
       setError("");
     } catch {
       setError("No pudimos cargar los accesos de la lista.");
@@ -43,13 +43,13 @@ export default function SharedListControls({
     setNameMessage("");
     try {
       if (data.canManageList) {
-        await renameHousehold(name, getActiveListId());
+        await renameList(name, getActiveListId());
         setData((current) => current
-          ? { ...current, household: { ...current.household, name: name.trim() } }
+          ? { ...current,  list: { ...current. list, name: name.trim() } }
           : current);
         setNameMessage("Se actualizó el nombre de la lista.");
       } else {
-        await suggestHouseholdName(name, getActiveListId());
+        await suggestListName(name, getActiveListId());
         setNameMessage("Se envió la sugerencia al propietario.");
       }
       setNameOpen(false);
@@ -95,7 +95,7 @@ export default function SharedListControls({
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-xl font-semibold">{data.household.name}</h2>
+              <h2 className="text-xl font-semibold">{data. list.name}</h2>
               {data.canEditList && (
                 <button
                   type="button"
@@ -103,7 +103,7 @@ export default function SharedListControls({
                   title={data.canManageList ? "Editar nombre de la lista" : "Proponer nombre de la lista"}
                   className="flex size-9 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-700"
                   onClick={() => {
-                    setName(data.household.name);
+                    setName(data. list.name);
                     setNameError("");
                     setNameMessage("");
                     setNameOpen(true);

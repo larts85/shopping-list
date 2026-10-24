@@ -5,7 +5,9 @@ export function getActiveListId(): string | undefined {
   return window.sessionStorage.getItem(key) || undefined;
 }
 export function setActiveListId(id: string) {
+  if (window.sessionStorage.getItem(key) === id) return;
   window.sessionStorage.setItem(key, id);
+  window.dispatchEvent(new Event("active-list-changed"));
 }
 export function clearActiveListId() {
   window.sessionStorage.removeItem(key);

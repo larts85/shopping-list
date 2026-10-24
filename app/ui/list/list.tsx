@@ -30,7 +30,7 @@ import {
   type Unit,
 } from "@/app/lib/units";
 import SharedListControls from "./sharedListControls";
-import { getHouseholdData } from "@/app/actions/households";
+import { getListData } from "@/app/actions/lists";
 import { Category } from "@/app/lib/types";
 import Select from "@/app/ui/add/select";
 
@@ -42,7 +42,7 @@ interface MoveTarget {
 interface PendingProductUpdate {
   key: string;
   id: string;
-  householdId?: string;
+   listId?: string;
   cantidad: number;
   unit: Unit;
   version: number;
@@ -177,7 +177,7 @@ export default function List() {
 
   const [canEditList, setCanEditList] = useState(false);
   const [canManageList, setCanManageList] = useState(false);
-  const [householdName, setHouseholdName] = useState("");
+  const [ listName, setListName] = useState("");
   const [isAddItemsOpen, setIsAddItemsOpen] = useState(false);
   const addProductSearchRef = useRef<HTMLInputElement>(null);
   const [movePrompt, setMovePrompt] = useState<{
@@ -283,10 +283,10 @@ export default function List() {
       if (!pageResponse.ok) throw new Error("Error fetching list data");
       const pageData = await pageResponse.json();
       if (startedAtRevision !== revision.current) return;
-      setActiveListId(pageData.household.id);
+      setActiveListId(pageData.activeList.id);
       setCanEditList(pageData.canEditList);
       setCanManageList(pageData.canManageList);
-      setHouseholdName(pageData.household.name);
+      setListName(pageData.activeList.name);
       setList(pageData.list);
       setCategories(pageData.categories);
     } catch {
@@ -373,13 +373,13 @@ export default function List() {
     }
   }
 
-  async function performMove(targetHouseholdId: string) {
+  async function performMove(targetListId: string) {
     if (!movePrompt) return;
     const selectedListId = getActiveListId();
     const response = await listFetch("/api/list/cart-items", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...movePrompt.target, targetHouseholdId }),
+      body: JSON.stringify({ ...movePrompt.target, targetListId }),
     });
     const result = await response.json();
     if (!response.ok)
@@ -398,13 +398,13 @@ export default function List() {
     }
   }
 
-  async function confirmMove(targetHouseholdId: string) {
+  async function confirmMove(targetListId: string) {
     if (!movePrompt || moveBusy) return;
     setMoveBusy(true);
     setError("");
     submitting.current = true;
     try {
-      await performMove(targetHouseholdId);
+      await performMove(targetListId);
     } catch (error) {
       setError(
         error instanceof Error
@@ -429,7 +429,7 @@ export default function List() {
     submitting.current = true;
     let createdName = "";
     try {
-      const response = await listFetch("/api/households", {
+      const response = await listFetch("/api/lists", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "create", name, activate: false }),
@@ -462,12 +462,12 @@ export default function List() {
     product: IList,
     changes: { cantidad?: number; unit?: Unit },
   ) {
-    const householdId = getActiveListId();
-    const key = `${householdId ?? ""}:${product.id}`;
+    const  listId = getActiveListId();
+    const key = `${ listId ?? ""}:${product.id}`;
     const previous = pendingProductUpdates.current[key] ?? {
       key,
       id: product.id,
-      householdId,
+       listId,
       cantidad: Number(product.cantidad),
       unit: product.unit ?? "un",
       version: 0,
@@ -515,21 +515,21 @@ export default function List() {
     setStatus("Guardando cambios…");
     let succeeded = false;
     try {
-      const byHousehold = new Map<string, PendingProductUpdate[]>();
+      const byList = new Map<string, PendingProductUpdate[]>();
       for (const update of updates) {
-        const householdKey = update.householdId ?? "";
-        const group = byHousehold.get(householdKey) ?? [];
+        const  listKey = update. listId ?? "";
+        const group = byList.get( listKey) ?? [];
         group.push(update);
-        byHousehold.set(householdKey, group);
+        byList.set( listKey, group);
       }
 
       await Promise.all(
-        [...byHousehold.entries()].map(async ([householdKey, group]) => {
+        [...byList.entries()].map(async ([ listKey, group]) => {
           const response = await fetch("/api/list/update-multiple-products", {
             method: "PUT",
             headers: {
               "content-type": "application/json",
-              ...(householdKey ? { "X-List-ID": householdKey } : {}),
+              ...( listKey ? { "X-List-ID":  listKey } : {}),
             },
             body: JSON.stringify(
               group.map(({ id, cantidad, unit }) => ({
@@ -758,13 +758,13 @@ export default function List() {
     setPurchaseBusy(true);
     setError("");
     try {
-      const data = await getHouseholdData(selectedListId);
+      const data = await getListData(selectedListId);
       if (confirmationRevision !== revision.current) return;
       setPurchaseConfirmation({
         ids,
         isPartial,
-        name: data.household.name,
-        listId: data.household.id,
+        name: data. list.name,
+        listId: data. list.id,
       });
     } catch {
       setError("No pudimos preparar la compra parcial. Intenta nuevamente.");
@@ -964,8 +964,8 @@ export default function List() {
               <button className="btn-secondary" onClick={() => void applyBulkAction("buy")}>Marcar comprados</button>
               <button className="btn-secondary" onClick={() => void applyBulkAction("description")}>Agregar descripción</button>
               <button className="btn-secondary text-red-700" onClick={() => void applyBulkAction("remove")}>Eliminar</button>
-              <button className="btn-secondary" onClick={async () => { const target = window.prompt("ID de la lista de destino:"); if (!target) return; const response = await listFetch("/api/list/cart-items", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetHouseholdId: target, itemIds: selectedIds }) }); const result = await response.json(); if (!response.ok) { setError(result.error || "No pudimos mover los artículos."); return; } setSelectedIds([]); setSelectionMode(false); await fetchList(); setStatus(`${result.moved} artículos movidos.`); }}>Mover a otra lista</button>
-              <button className="btn-secondary" onClick={() => { const ids = selectedIds; setSelectionMode(false); setPurchaseConfirmation({ ids, isPartial: true, name: householdName, listId: getActiveListId() || "" }); }}>Finalizar compra parcial</button>
+              <button className="btn-secondary" onClick={async () => { const target = window.prompt("ID de la lista de destino:"); if (!target) return; const response = await listFetch("/api/list/cart-items", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetListId: target, itemIds: selectedIds }) }); const result = await response.json(); if (!response.ok) { setError(result.error || "No pudimos mover los artículos."); return; } setSelectedIds([]); setSelectionMode(false); await fetchList(); setStatus(`${result.moved} artículos movidos.`); }}>Mover a otra lista</button>
+              <button className="btn-secondary" onClick={() => { const ids = selectedIds; setSelectionMode(false); setPurchaseConfirmation({ ids, isPartial: true, name:  listName, listId: getActiveListId() || "" }); }}>Finalizar compra parcial</button>
             </div>
           )}
           {canEditList && pendingSaveCount > 0 && (
@@ -982,7 +982,7 @@ export default function List() {
               onClose={() => setIsAddItemsOpen(false)}
             >
               <Select
-                listName={householdName}
+                listName={ listName}
                 existingProductIds={products
                   .map((product) => product.id_product)
                   .filter((id): id is string => !!id)}
@@ -991,7 +991,7 @@ export default function List() {
                 onAdded={async (message, keepOpen) => {
                   await fetchPageData();
                   setStatus(
-                    message ?? `Productos agregados a ${householdName}.`,
+                    message ?? `Productos agregados a ${ listName}.`,
                   );
                   if (!keepOpen) setIsAddItemsOpen(false);
                 }}
@@ -1162,7 +1162,7 @@ export default function List() {
                         </button>
                         {product.isProvisional && (
                           <ProvisionalInfo
-                            description={`Provisional · agregado por ${product.createdBy || "un miembro del hogar"}${
+                            description={`Provisional · agregado por ${product.createdBy || "un miembro de la lista"}${
                               product.catalogRequestEmail
                                 ? ` · solicitud ${
                                     product.catalogRequestStatus === "approved"
