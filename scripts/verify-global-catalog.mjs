@@ -885,9 +885,9 @@ try {
     "insert into preview_lists.shopping_list(id,list_id,id_product) values('cart-other-scope',$1,$2)",
     [homeB, original.id_product],
   );
-  // An accepted member can remove/unmark items but cannot finalize purchases.
+  // A viewer can remove/unmark items but cannot finalize purchases.
   await db.query(
-    "insert into preview_lists.list_members(list_id,email) values($1,$2)",
+    "insert into preview_lists.list_members(list_id,email,role) values($1,$2,'list_viewer')",
     [homeB, outsider],
   );
   await db.query(
@@ -903,6 +903,28 @@ try {
     { productIds: ["cart-other-scope"] },
     outsider,
     403,
+    homeB,
+  );
+  await db.query(
+    "update preview_lists.list_members set role='list_editor' where list_id=$1 and email=$2",
+    [homeB, outsider],
+  );
+  await req(
+    "/api/lists",
+    "POST",
+    { action: "rename", name: "Masaje lista editada" },
+    outsider,
+    200,
+    homeB,
+  );
+  const editorList = await req("/api/lists", "GET", undefined, outsider, 200, homeB);
+  assert.equal(editorList.list.name, "Masaje lista editada");
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: ["cart-other-scope"], purchaseName: "Compra del editor" },
+    outsider,
+    200,
     homeB,
   );
   await req(
