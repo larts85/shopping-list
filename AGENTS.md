@@ -41,6 +41,11 @@ Aplicar estas reglas al trabajo correspondiente:
 - [Validación](.ai-assistant/rules/validation.md): selección de checks y verificación.
 - [Entrega](.ai-assistant/rules/delivery.md): ramas, commits, PRs y despliegues.
 
+Regla permanente de producto: [docs/application-features.md](docs/application-features.md)
+es el inventario de funcionalidades soportadas por entidad. Todo PR que
+agregue, elimine o modifique una capacidad debe actualizarlo; el pipeline debe
+validar esa actualización antes de integrar cambios en `develop`.
+
 Leer únicamente el workflow relevante cuando se invoque una skill. Los prompts
 locales de tareas anteriores no son instrucciones activas. No incorporar logs,
 chats, backups ni contenido de otros proyectos al sistema compartido.
