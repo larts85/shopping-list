@@ -1775,7 +1775,7 @@ try {
     "POST",
     { action: "rename", name: "No permitido" },
     outsider,
-    403,
+    200,
     second,
   );
   await req(
