@@ -910,8 +910,12 @@ try {
     [homeB, outsider],
   );
   await db.query(
-    "insert into preview_lists.shopping_list(id,list_id,id_product) values('editor-pending-scope',$1,$2)",
-    [homeB, original.id_product],
+    "insert into preview_lists.catalog_products(id,name,id_category,unit) values('editor-pending-product','Editor pendiente',$1,'un')",
+    [cartCategory],
+  );
+  await db.query(
+    "insert into preview_lists.shopping_list(id,list_id,id_product) values('editor-pending-scope',$1,'editor-pending-product')",
+    [homeB],
   );
   await req(
     "/api/lists",
