@@ -1,5 +1,8 @@
 # Bug fixing
 
+If the fix changes an observable or MCP-visible capability, update
+`docs/application-features.md` and run `yarn verify:feature-docs`.
+
 Diagnose and resolve a Home Logistics issue.
 
 Read the root `AGENTS.md` for the current repository context.

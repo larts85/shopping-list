@@ -1,5 +1,8 @@
 # Commit, push and pull request
 
+Always run `yarn verify:feature-docs`; functional PRs must include the feature
+inventory update.
+
 Use this workflow when the user requests Git delivery for Home Logistics.
 
 1. Inspect the current branch, remote, working tree and diff. Preserve unrelated changes and stage specific task files. Use the existing task branch; for new feature work start from `develop` and use `feature/<name>` or `fix/<name>`.
