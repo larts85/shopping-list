@@ -61,9 +61,9 @@ The memory bank serves as the single source of truth for project context, allowi
   - Testing checklist
   - Future security recommendations
 
-### Cursor Rules
+### Shared assistant workflows
 
-- **File**: `.cursorrules`
+- **Location**: `.ai-assistant/`
 - **Content**:
   - Project-specific patterns
   - Architectural decisions
@@ -150,7 +150,7 @@ home-logistics/
 │   ├── techContext.md
 │   ├── activeContext.md
 │   └── progress.md
-├── .cursorrules
+├── .ai-assistant/
 ├── .env.example
 ├── GOOGLE_AUTH.md
 ├── SECURITY_AUDIT.md
@@ -312,7 +312,7 @@ All documentation is now available:
 3. **Project Context**: `memory-bank/` directory
 4. **Security**: `SECURITY_AUDIT.md`
 5. **Updates**: `UPDATES.md` (this file)
-6. **Development Guidelines**: `.cursorrules`
+6. **Development Guidelines**: `.ai-assistant/commands/` and `.ai-assistant/rules/`
 
 ## Conclusion
 

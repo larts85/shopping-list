@@ -1,5 +1,8 @@
 # Feature implementation
 
+For every capability added, removed or changed, update `docs/application-features.md`
+under the affected entity and run `yarn verify:feature-docs` before finishing.
+
 Implement the requested Home Logistics feature.
 
 Read the root `AGENTS.md` for the current repository context.
