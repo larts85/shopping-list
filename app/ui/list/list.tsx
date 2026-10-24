@@ -12,8 +12,10 @@ import {
   RiArrowLeftRightLine,
   RiDeleteBin6Line,
   RiErrorWarningLine,
+  RiInformationLine,
   RiMore2Fill,
 } from "react-icons/ri";
+import type { IconType } from "react-icons";
 import { createPortal } from "react-dom";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
 import Modal from "@/shared/components/ui/Modal";
@@ -48,7 +50,15 @@ interface PendingProductUpdate {
   version: number;
 }
 
-function ProvisionalInfo({ description }: { description: string }) {
+function InfoTooltip({
+  description,
+  label = "Información",
+  icon: Icon = RiInformationLine,
+}: {
+  description: string;
+  label?: string;
+  icon?: IconType;
+}) {
   const tooltipId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -107,7 +117,7 @@ function ProvisionalInfo({ description }: { description: string }) {
       <button
         ref={triggerRef}
         type="button"
-        aria-label="Información del producto provisional"
+        aria-label={label}
         aria-describedby={open ? tooltipId : undefined}
         aria-expanded={open}
         className="flex size-8 shrink-0 touch-manipulation items-center justify-center rounded-full text-amber-700 hover:bg-amber-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
@@ -137,7 +147,7 @@ function ProvisionalInfo({ description }: { description: string }) {
           }
         }}
       >
-        <RiErrorWarningLine aria-hidden="true" size={18} />
+        <Icon aria-hidden="true" size={18} />
       </button>
       {open &&
         position &&
@@ -211,6 +221,11 @@ export default function List() {
     listId: string;
   } | null>(null);
   const [purchaseBusy, setPurchaseBusy] = useState(false);
+  const [bulkDescription, setBulkDescription] = useState<{
+    ids: string[];
+    value: string;
+  } | null>(null);
+  const [bulkDescriptionBusy, setBulkDescriptionBusy] = useState(false);
   const [pendingSaveCount, setPendingSaveCount] = useState(0);
   const [isSavingEdits, setIsSavingEdits] = useState(false);
   const [autoSaveError, setAutoSaveError] = useState("");
@@ -332,6 +347,7 @@ export default function List() {
       "/api/list/get-list-products-by-categories",
       {
         method: "GET",
+        cache: "no-store",
         headers: {
           "content-type": "application/json",
         },
@@ -782,16 +798,48 @@ export default function List() {
     }
   };
 
-  async function applyBulkAction(action: "remove" | "buy" | "description") {
+  async function applyBulkAction(action: "remove" | "buy") {
     if (!selectedIds.length) return;
-    const description = action === "description" ? window.prompt("Descripción (reemplazará las existentes):", "") : undefined;
-    if (action === "description" && description === null) return;
-    if (action === "remove" && !window.confirm(`¿Eliminar ${selectedIds.length} artículos del carrito?`)) return;
-    const response = await listFetch("/api/list/bulk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids: selectedIds, action, description }) });
+    const ids = Array.from(new Set(selectedIds));
+    if (action === "remove" && !window.confirm(`¿Eliminar ${ids.length} artículos del carrito?`)) return;
+    const response = await listFetch("/api/list/bulk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids, action }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "No pudimos aplicar la acción.");
     setSelectedIds([]); setSelectionMode(false); await fetchList();
     setStatus(action === "buy" ? "Artículos marcados como comprados." : action === "remove" ? "Artículos eliminados del carrito." : "Descripción actualizada.");
+  }
+
+  async function submitBulkDescription() {
+    if (!bulkDescription || bulkDescriptionBusy) return;
+    setBulkDescriptionBusy(true);
+    setError("");
+    try {
+      const response = await listFetch("/api/list/bulk", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ids: bulkDescription.ids,
+          action: "description",
+          description: bulkDescription.value,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error || "No pudimos actualizar la descripción.");
+      setBulkDescription(null);
+      setSelectedIds([]);
+      setSelectionMode(false);
+      await fetchList();
+      setStatus("Descripción actualizada.");
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos actualizar la descripción.",
+      );
+    } finally {
+      setBulkDescriptionBusy(false);
+    }
   }
 
   const clean = async () => {
@@ -887,11 +935,6 @@ export default function List() {
           Tienes acceso de solo lectura a esta lista.
         </p>
       )}
-      <p className="text-sm text-zinc-500">
-        Finaliza la compra para guardar los productos comprados en el historial.
-        Los cambios se guardan automáticamente; al volver a esta pestaña se
-        sincroniza la lista compartida.
-      </p>
       {error && (
         <div className="error-notice" role="alert">
           <p>{error}</p>
@@ -930,7 +973,7 @@ export default function List() {
               {products.length === 1 ? "producto" : "productos"} · {boughtCount}{" "}
               {boughtCount === 1 ? "comprado" : "comprados"}
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {canEditList && (
                 <button
                   type="button"
@@ -964,13 +1007,27 @@ export default function List() {
               >
                 {purchaseActionLabel}
               </button>
+              <InfoTooltip
+                label="Información sobre la lista"
+                description="Finaliza la compra para guardar los productos comprados en el historial. Los cambios se guardan automáticamente; al volver a esta pestaña se sincroniza la lista compartida."
+              />
             </div>
           </div>
           {selectionMode && selectedIds.length > 0 && (
             <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-              <span className="mr-2 text-sm font-medium">{selectedIds.length} seleccionados</span>
+              <span className="mr-2 text-sm font-medium">{new Set(selectedIds).size} seleccionados</span>
               <button className="btn-secondary" onClick={() => void applyBulkAction("buy")}>Marcar comprados</button>
-              <button className="btn-secondary" onClick={() => void applyBulkAction("description")}>Agregar descripción</button>
+              <button
+                className="btn-secondary"
+                onClick={() =>
+                  setBulkDescription({
+                    ids: Array.from(new Set(selectedIds)),
+                    value: "",
+                  })
+                }
+              >
+                Agregar descripción
+              </button>
               <button className="btn-secondary text-red-700" onClick={() => void applyBulkAction("remove")}>Eliminar</button>
               <button className="btn-secondary" onClick={async () => { const target = window.prompt("ID de la lista de destino:"); if (!target) return; const response = await listFetch("/api/list/cart-items", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ targetListId: target, itemIds: selectedIds }) }); const result = await response.json(); if (!response.ok) { setError(result.error || "No pudimos mover los artículos."); return; } setSelectedIds([]); setSelectionMode(false); await fetchList(); setStatus(`${result.moved} artículos movidos.`); }}>Mover a otra lista</button>
               <button className="btn-secondary" onClick={() => { const ids = selectedIds; setSelectionMode(false); setPurchaseConfirmation({ ids, isPartial: true, name:  listName, listId: getActiveListId() || "" }); }}>Finalizar compra parcial</button>
@@ -1151,7 +1208,7 @@ export default function List() {
                           onClick={() => handleOpenModal(product)}
                           className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg text-left text-sm hover:text-zinc-500 sm:gap-3"
                         >
-                          {selectionMode ? <input type="checkbox" aria-label={`Seleccionar ${product.name}`} checked={selectedIds.includes(product.id)} onChange={(event) => { event.stopPropagation(); setSelectedIds((current) => event.target.checked ? [...current, product.id] : current.filter((id) => id !== product.id)); }} /> : <span
+                          {selectionMode ? <input type="checkbox" aria-label={`Seleccionar ${product.name}`} checked={selectedIds.includes(product.id)} onChange={(event) => { event.stopPropagation(); setSelectedIds((current) => event.target.checked ? Array.from(new Set([...current, product.id])) : current.filter((id) => id !== product.id)); }} /> : <span
                             aria-hidden="true"
                             className={`flex size-5 shrink-0 items-center justify-center rounded-full border ${product.comprado === "1" ? "border-zinc-900 bg-zinc-900 text-xs text-white" : "border-zinc-300"}`}
                           >
@@ -1169,7 +1226,9 @@ export default function List() {
                           </span>
                         </button>
                         {product.isProvisional && (
-                          <ProvisionalInfo
+                          <InfoTooltip
+                            label="Información del producto provisional"
+                            icon={RiErrorWarningLine}
                             description={`Provisional · agregado por ${product.createdBy || "un miembro de la lista"}${
                               product.catalogRequestEmail
                                 ? ` · solicitud ${
@@ -1556,6 +1615,56 @@ export default function List() {
                 : moveDestination === "__create_new__"
                   ? "Crear lista y mover"
                   : "Mover artículos"}
+            </button>
+          </div>
+        </Modal>
+      )}
+      {bulkDescription && (
+        <Modal
+          isOpen
+          title="Agregar descripción"
+          onClose={() => !bulkDescriptionBusy && setBulkDescription(null)}
+        >
+          <p className="text-sm text-zinc-600">
+            Se aplicará a {bulkDescription.ids.length === 1 ? "el artículo seleccionado" : `los ${bulkDescription.ids.length} artículos seleccionados`}.
+          </p>
+          <label className="mt-4 block text-sm font-medium" htmlFor="bulk-description">
+            Descripción
+            <textarea
+              id="bulk-description"
+              className="field mt-2 min-h-28 w-full resize-y"
+              value={bulkDescription.value}
+              onChange={(event) =>
+                setBulkDescription((current) =>
+                  current ? { ...current, value: event.target.value } : current,
+                )
+              }
+              maxLength={500}
+              autoFocus
+              disabled={bulkDescriptionBusy}
+            />
+          </label>
+          {error && (
+            <p role="alert" className="error-notice mt-4">
+              {error}
+            </p>
+          )}
+          <div className="mt-6 flex flex-wrap justify-end gap-3">
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={bulkDescriptionBusy}
+              onClick={() => setBulkDescription(null)}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={bulkDescriptionBusy}
+              onClick={() => void submitBulkDescription()}
+            >
+              {bulkDescriptionBusy ? "Guardando…" : "Guardar descripción"}
             </button>
           </div>
         </Modal>
