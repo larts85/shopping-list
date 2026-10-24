@@ -1,10 +1,10 @@
-import type { HouseholdAccessRole } from "./database";
+import type { ListAccessRole } from "./database";
 export type InvitationDelivery = "not_configured" | "sent" | "failed";
 export interface InvitationMessage {
   email: string;
   name: string;
   url: string;
-  accessRole: HouseholdAccessRole;
+  accessRole: ListAccessRole;
   apiKey?: string;
   from?: string;
   gmailUser?: string;

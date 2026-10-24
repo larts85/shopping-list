@@ -10,9 +10,9 @@ import {
 import {
   acceptInvitation,
   declineInvitation,
-  reviewHouseholdName,
-} from "@/app/actions/households";
-import type { getHomeLists } from "@/app/actions/households";
+  reviewListName,
+} from "@/app/actions/lists";
+import type { getHomeLists } from "@/app/actions/lists";
 import CreateListModal from "./createListModal";
 import ActionMenu from "@/shared/components/ui/ActionMenu";
 import ConfirmModal from "@/shared/components/ui/ConfirmModal";
@@ -44,7 +44,7 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
     let cancelled = false;
     async function load() {
       try {
-        const response = await fetch("/api/households?view=home", {
+        const response = await fetch("/api/lists?view=home", {
           cache: "no-store",
         });
         const result = await response.json();
@@ -78,7 +78,7 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
     setDeletingId(list.id);
     setDeleteError("");
     try {
-      const response = await fetch("/api/households", {
+      const response = await fetch("/api/lists", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "delete", id: list.id }),
@@ -120,7 +120,7 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
     if (action === "suggest-delete" && !window.confirm(`¿Sugerir al propietario eliminar «${list.name}»?`)) return;
     setRespondingId(list.id);
     try {
-      const response = await fetch("/api/households", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, id: list.id }) });
+      const response = await fetch("/api/lists", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, id: list.id }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "No pudimos actualizar la lista.");
       const wasActive = getActiveListId() === list.id;
@@ -131,7 +131,6 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
   }
   function openList(list: Data["lists"][number]) {
     setActiveListId(list.id);
-    window.dispatchEvent(new Event("active-list-changed"));
     router.push(`/lists/${list.slug}`);
   }
   async function respondToInvitation(
@@ -144,7 +143,6 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
       if (accept) {
         const list = await acceptInvitation(invitation.id);
         setActiveListId(list.id);
-        window.dispatchEvent(new Event("active-list-changed"));
         router.push(`/lists/${list.slug}`);
         router.refresh();
       } else {
@@ -178,10 +176,10 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
     setRespondingId(suggestion.id);
     setNotificationError("");
     try {
-      await reviewHouseholdName(
+      await reviewListName(
         suggestion.id,
         decision,
-        suggestion.household_id,
+        suggestion.list_id,
       );
       setData((previous) =>
         previous
@@ -190,7 +188,7 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
               lists:
                 decision === "approve"
                   ? previous.lists.map((list) =>
-                      list.id === suggestion.household_id
+                      list.id === suggestion.list_id
                         ? { ...list, name: suggestion.name }
                         : list,
                     )
@@ -227,7 +225,6 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
               aria-label={`Abrir ${list.name}`}
               onClick={() => {
                 setActiveListId(list.id);
-                window.dispatchEvent(new Event("active-list-changed"));
               }}
             />
             <div className="pointer-events-none relative z-10 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-1">
@@ -387,10 +384,7 @@ export default function HomeLists({ defaultName }: { defaultName: string }) {
                         href="/data"
                         className="btn-secondary"
                         onClick={() => {
-                          setActiveListId(suggestion.household_id);
-                          window.dispatchEvent(
-                            new Event("active-list-changed"),
-                          );
+                          setActiveListId(suggestion.list_id);
                         }}
                       >
                         Ver en Accesos

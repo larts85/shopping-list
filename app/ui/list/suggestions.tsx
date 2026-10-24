@@ -2,7 +2,7 @@
 import { getActiveListId } from "@/app/lib/listClient";
 import { useEffect, useState } from "react";
 import { getProducts } from "@/app/actions/products";
-import { getHouseholdData } from "@/app/actions/households";
+import { getListData } from "@/app/actions/lists";
 import { getList } from "@/app/actions/list";
 import {
   submitSuggestion,
@@ -62,7 +62,7 @@ export default function Suggestions({
     setLoadState("loading");
     try {
       const [data, suggestions, catalog, list] = await Promise.all([
-        getHouseholdData(getActiveListId()),
+        getListData(getActiveListId()),
         getSuggestions(getActiveListId()),
         getProducts(getActiveListId()),
         getList(getActiveListId()),

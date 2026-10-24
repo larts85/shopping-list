@@ -1,13 +1,13 @@
-// Run with node --env-file=.env scripts/update-argentina-catalog.mjs --household UUID [--apply].
+// Run with node --env-file=.env scripts/update-argentina-catalog.mjs -- list UUID [--apply].
 // Catalog-only update: receipts, prices, identities and invoice details are not imported.
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import pg from "pg";
 const args = process.argv.slice(2);
-const household = args[args.indexOf("--household") + 1];
+const  list = args[args.indexOf("-- list") + 1];
 assert(
-  args.includes("--household") && /^[a-f0-9-]{36}$/i.test(household),
-  "An explicit household UUID is required",
+  args.includes("-- list") && /^[a-f0-9-]{36}$/i.test( list),
+  "An explicit  list UUID is required",
 );
 const apply = args.includes("--apply");
 const catalog = JSON.parse(
@@ -53,31 +53,31 @@ try {
   assert.equal(
     (
       await db.query(
-        `select id from households where id=$1 ${apply ? "for update" : ""}`,
-        [household],
+        `select id from lists where id=$1 ${apply ? "for update" : ""}`,
+        [ list],
       )
     ).rowCount,
     1,
-    "Household not found",
+    "List not found",
   );
   const categories = (
-    await db.query("select * from categories where household_id=$1", [
-      household,
+    await db.query("select * from categories where list_id=$1", [
+       list,
     ])
   ).rows;
   const products = (
-    await db.query("select * from products where household_id=$1", [household])
+    await db.query("select * from products where list_id=$1", [ list])
   ).rows;
   const list = (
-    await db.query("select * from shopping_list where household_id=$1", [
-      household,
+    await db.query("select * from shopping_list where list_id=$1", [
+       list,
     ])
   ).rows;
   const history = async () =>
     (
       await db.query(
-        "select count(*)::int as count,md5(coalesce(string_agg(id::text || purchase::text || purchased_at::text,'' order by id),'')) as hash from historical where household_id=$1",
-        [household],
+        "select count(*)::int as count,md5(coalesce(string_agg(id::text || purchase::text || purchased_at::text,'' order by id),'')) as hash from historical where list_id=$1",
+        [ list],
       )
     ).rows[0];
   const beforeHistory = await history();
@@ -115,7 +115,7 @@ try {
     writeFileSync(
       backup,
       JSON.stringify(
-        { household, categories, products, list, history: beforeHistory },
+        {  list, categories, products, list, history: beforeHistory },
         null,
         2,
       ),
@@ -123,8 +123,8 @@ try {
     );
     for (const name of newCategories) {
       const { rows } = await db.query(
-        "insert into categories(household_id,name) values($1,$2) returning id",
-        [household, name],
+        "insert into categories(list_id,name) values($1,$2) returning id",
+        [ list, name],
       );
       categoriesByName.set(normalize(name), rows[0].id);
     }
@@ -135,27 +135,27 @@ try {
     await db.query(
       `update shopping_list l set unit=m.old_unit
       from jsonb_to_recordset($2::jsonb) as m(id text,old_unit text,new_unit text)
-      where l.household_id=$1 and l.id_product=m.id and l.comprado and l.unit is null`,
-      [household, mapping],
+      where l.list_id=$1 and l.id_product=m.id and l.comprado and l.unit is null`,
+      [ list, mapping],
     );
     await db.query(
       `update products p set unit=m.new_unit
       from jsonb_to_recordset($2::jsonb) as m(id text,old_unit text,new_unit text)
-      where p.household_id=$1 and p.id=m.id`,
-      [household, mapping],
+      where p.list_id=$1 and p.id=m.id`,
+      [ list, mapping],
     );
     await db.query(
       `update shopping_list l set unit=m.new_unit,cantidad=null,medida=null,precio=null
       from jsonb_to_recordset($2::jsonb) as m(id text,old_unit text,new_unit text)
-      where l.household_id=$1 and l.id_product=m.id and not l.comprado`,
-      [household, mapping],
+      where l.list_id=$1 and l.id_product=m.id and not l.comprado`,
+      [ list, mapping],
     );
     await db.query(
-      `insert into products(household_id,name,id_category,unit,checked)
+      `insert into products(list_id,name,id_category,unit,checked)
       select $1,p.name,p.id_category,p.unit,false
       from jsonb_to_recordset($2::jsonb) as p(name text,id_category text,unit text)`,
       [
-        household,
+         list,
         JSON.stringify(
           additions.map((p) => ({
             name: p.name,
@@ -167,8 +167,8 @@ try {
     );
     assert.deepEqual(await history(), beforeHistory, "History must not change");
     const afterList = (
-      await db.query("select * from shopping_list where household_id=$1", [
-        household,
+      await db.query("select * from shopping_list where list_id=$1", [
+         list,
       ])
     ).rows;
     assert.equal(
@@ -198,8 +198,8 @@ try {
       }
     }
     const afterProducts = (
-      await db.query("select * from products where household_id=$1", [
-        household,
+      await db.query("select * from products where list_id=$1", [
+         list,
       ])
     ).rows;
     for (const old of products) {
