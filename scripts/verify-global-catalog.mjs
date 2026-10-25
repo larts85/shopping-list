@@ -1813,7 +1813,7 @@ try {
     "/api/lists",
     "POST",
     { action: "suggest-name", name: "Other list" },
-    viewer,
+    outsider,
     403,
     homeB,
   );
