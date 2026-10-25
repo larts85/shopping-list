@@ -31,6 +31,8 @@ export type NutritionLookup = {
   status: NutritionStatus;
   product: NutritionProduct | null;
   message: string | null;
+  attempts?: string[];
+  matchedQuery?: string | null;
   cachedAt?: string;
 };
 
@@ -98,6 +100,50 @@ export function normalizeNutritionQuery(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+const regionalFoodVariants: Array<[string, string]> = [
+  ["aguacate", "palta"],
+  ["pimiento", "morrón"],
+  ["morrón", "pimiento"],
+  ["calabacín", "zapallito"],
+  ["calabaza", "zapallo"],
+  ["patata", "papa"],
+  ["boniato", "batata"],
+  ["judía", "chaucha"],
+  ["alubia", "poroto"],
+  ["guisante", "arveja"],
+  ["fresa", "frutilla"],
+  ["melocotón", "durazno"],
+  ["piña", "ananá"],
+  ["maíz", "choclo"],
+  ["cacahuete", "maní"],
+  ["cilantro", "coriandro"],
+];
+
+function simplifiedNutritionQuery(value: string): string {
+  return value
+    .replace(/\b\d+(?:[.,]\d+)?\s*(?:kg|kgs|g|gr|gramos?|mg|l|lt|litros?|ml)\b/gi, " ")
+    .replace(/\b(?:pack|packs|paquete|paquetes|caja|cajas|bolsa|bolsas|unidad|unidades)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function nutritionQueryVariants(query: string): string[] {
+  const candidates = [query.trim(), simplifiedNutritionQuery(query)];
+  for (const [from, to] of regionalFoodVariants) {
+    if (new RegExp(`\\b${from}\\b`, "i").test(query)) {
+      candidates.push(query.replace(new RegExp(`\\b${from}\\b`, "gi"), to));
+    }
+  }
+  const unique: string[] = [];
+  for (const candidate of candidates) {
+    const trimmed = candidate.trim();
+    const key = normalizeNutritionQuery(trimmed);
+    if (trimmed && key && !unique.some((value) => normalizeNutritionQuery(value) === key)) unique.push(trimmed);
+    if (unique.length >= 4) break;
+  }
+  return unique;
 }
 
 function queryTokens(value: string): string[] {
