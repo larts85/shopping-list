@@ -1,10 +1,10 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { syncGoogleUser } from "./app/lib/syncGoogleUser";
+import { sessionMaxAgeInSeconds } from "./app/lib/authConfig";
 
 // Session configuration: enforce JWT sessions and a reasonable expiration
 // maxAge is in seconds. Here: half day (12 * 60 * 60)
-const halfDayInSeconds = 12 * 60 * 60;
 
 export const {
   handlers: { GET, POST },
@@ -25,10 +25,10 @@ export const {
 
   session: {
     strategy: "jwt",
-    maxAge: halfDayInSeconds,
+    maxAge: sessionMaxAgeInSeconds,
   },
   jwt: {
-    maxAge: halfDayInSeconds,
+    maxAge: sessionMaxAgeInSeconds,
   },
   // Ensure NEXTAUTH_SECRET is used (should be set in env). Fall back to AUTH_SECRET if present.
   secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,

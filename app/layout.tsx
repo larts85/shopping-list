@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import React from "react";
 import { SessionProvider } from "next-auth/react";
+import SessionRedirect from "./ui/sessionRedirect";
+import { sessionMaxAgeInSeconds } from "./lib/authConfig";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,7 +21,10 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={inter.className}>
-        <SessionProvider>{children}</SessionProvider>
+        <SessionProvider refetchInterval={sessionMaxAgeInSeconds}>
+          <SessionRedirect />
+          {children}
+        </SessionProvider>
       </body>
     </html>
   );

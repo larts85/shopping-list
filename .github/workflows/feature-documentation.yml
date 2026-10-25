@@ -17,5 +17,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Fetch default branch for comparison
+        run: git fetch --no-tags origin main:refs/remotes/origin/main
       - name: Check the feature inventory
         run: yarn verify:feature-docs
