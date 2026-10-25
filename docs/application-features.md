@@ -96,7 +96,8 @@ actualización.
 | Paginar el historial de compras         | Sí | No |
 | Editar artículos del historial          | Sí | No |
 | Repetir una compra anterior             | Sí | No |
-| Consultar total y estadísticas de una compra (resumen, perfiles nutricionales orientativos detallados, categorías y unidades) | Sí | No |
+| Consultar total y estadísticas de una compra (resumen, categorías y unidades) | Sí | No |
+| Consultar nutrientes por alimento desde OpenFoodFacts, con estados de fuente, caché local y fallback offline | Sí | No |
 
 ## Sugerencias
 

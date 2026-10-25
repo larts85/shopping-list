@@ -1,0 +1,81 @@
+name: backport
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: backport-main
+  cancel-in-progress: false
+
+jobs:
+  create-backport:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create backport branch and pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          date_path="$(date -u +'%Y/%m/%d')"
+          display_date="$(date -u +'%Y-%m-%d')"
+          base_branch="backport/${date_path}"
+          branch_name="$base_branch"
+          suffix=2
+
+          existing_pr="$(gh pr list \
+            --base develop \
+            --state open \
+            --json headRefName,headRefOid \
+            --jq ".[] | select(.headRefOid == \"${MERGED_SHA}\") | .headRefName" \
+            | head -n 1)"
+          if [ -n "$existing_pr" ]; then
+            echo "A backport PR for ${MERGED_SHA} already exists on ${existing_pr}."
+            exit 0
+          fi
+
+          while git ls-remote --exit-code --heads origin "$branch_name" >/dev/null 2>&1; do
+            branch_name="${base_branch}-${suffix}"
+            suffix=$((suffix + 1))
+          done
+
+          git switch --create "$branch_name" "$MERGED_SHA"
+          git push --set-upstream origin "$branch_name"
+
+          body_file="${RUNNER_TEMP}/backport-body.md"
+          cat > "$body_file" <<EOF
+          ## Backport automático
+
+          Esta rama se creó desde el commit ${MERGED_SHA} de main después de un merge a producción.
+
+          - Rama: ${branch_name}
+          - Base del PR: develop
+          - Fecha UTC: ${display_date}
+
+          Revisar los conflictos y los checks antes de mergear este PR.
+          EOF
+
+          gh pr create \
+            --base develop \
+            --head "$branch_name" \
+            --title "backport: ${display_date}" \
+            --body-file "$body_file"

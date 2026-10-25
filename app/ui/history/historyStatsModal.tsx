@@ -2,24 +2,19 @@
 
 import { useRef, useState } from "react";
 import { unitLabels } from "@/app/lib/units";
-import {
-  getNutritionProfile,
-  NUTRITION_DATA_NOTICE,
-  type NutritionNutrientKind,
-} from "@/data/nutrition-profiles";
 import Modal from "@/shared/components/ui/Modal";
 import {
   categoryTotals,
   formatCurrency,
   formatQuantity,
   groupTotal,
-  itemCategory,
-  nutrientGroups,
   packageTotals,
   quantitySummary,
   unitTotals,
 } from "./historyStats";
 import type { HistoryItem } from "./historyTypes";
+import { MAX_NUTRITION_LOOKUPS, useHistoryNutrition } from "./useHistoryNutrition";
+import type { NutritionField, NutritionGroup } from "@/app/lib/nutrition";
 import {
   RiCloseLine,
   RiLeafLine,
@@ -82,68 +77,6 @@ function ProgressList({
   );
 }
 
-const nutrientKinds: NutritionNutrientKind[] = [
-  "Macronutriente",
-  "Vitamina",
-  "Mineral",
-  "Compuesto bioactivo",
-];
-
-function NutritionDetailsTable({ items }: { items: HistoryItem[] }) {
-  return (
-    <div className="space-y-3">
-      <div>
-        <h3 className="font-semibold">Detalle orientativo por alimento</h3>
-        <p className="mt-1 text-sm text-zinc-500">
-          Se muestra el perfil de un alimento genérico; no son cantidades de la compra ni valores de etiqueta.
-        </p>
-      </div>
-      <div className="overflow-x-auto rounded-2xl border border-zinc-200">
-        <table className="min-w-[58rem] w-full text-left text-sm">
-          <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
-            <tr>
-              <th className="px-4 py-3 font-medium">Alimento</th>
-              {nutrientKinds.map((kind) => (
-                <th key={kind} className="px-4 py-3 font-medium">{kind}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {items.map((item) => {
-              const profile = getNutritionProfile(
-                String(item.purchase.name ?? "Producto"),
-                itemCategory(item),
-              );
-              return (
-                <tr key={item.id} className="align-top">
-                  <th className="max-w-56 px-4 py-3 font-medium">
-                    <span className="block">{String(item.purchase.name ?? "Producto")}</span>
-                    <span className="mt-1 block text-xs font-normal text-zinc-500">{profile?.label ?? itemCategory(item)}</span>
-                  </th>
-                  {nutrientKinds.map((kind) => (
-                    <td key={kind} className="px-4 py-3 text-zinc-600">
-                      {profile
-                        ? profile.nutrients
-                            .filter((nutrient) => nutrient.kind === kind)
-                            .map((nutrient) => (
-                              <span key={nutrient.name} className="mb-1 block">
-                                <strong className="font-medium text-zinc-800">{nutrient.name}</strong>
-                                <span className="block text-xs text-zinc-500">{nutrient.note}</span>
-                              </span>
-                            ))
-                        : <span className="text-zinc-400">Perfil pendiente</span>}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 function SummaryTab({ items }: { items: HistoryItem[] }) {
   const total = groupTotal(items);
   const quantity = quantitySummary(items);
@@ -186,38 +119,95 @@ function SummaryTab({ items }: { items: HistoryItem[] }) {
   );
 }
 
+const nutritionGroupLabels: Record<NutritionGroup, string> = {
+  macros: "Macronutrientes",
+  vitamins: "Vitaminas",
+  minerals: "Minerales",
+};
+
+function nutritionBasisLabel(basis: NutritionField["basis"]): string {
+  if (basis === "100ml") return "por 100 ml";
+  if (basis === "serving") return "por porción declarada";
+  return "por 100 g";
+}
+
+function NutritionFields({ fields }: { fields: NutritionField[] }) {
+  const groups = (["macros", "vitamins", "minerals"] as NutritionGroup[])
+    .map((group) => ({ group, fields: fields.filter((field) => field.group === group) }))
+    .filter(({ fields: groupFields }) => groupFields.length);
+  return (
+    <div className="mt-4 space-y-4">
+      {groups.map(({ group, fields: groupFields }) => (
+        <div key={group}>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">{nutritionGroupLabels[group]}</h4>
+          <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+            {groupFields.map((field) => (
+              <div key={field.key} className="rounded-lg bg-zinc-50 px-3 py-2">
+                <dt className="text-xs text-zinc-500">{field.label}</dt>
+                <dd className="mt-0.5 font-semibold tabular-nums">{formatQuantity(field.value, 2)} {field.unit}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-2 text-xs text-zinc-400">{nutritionBasisLabel(groupFields[0].basis)}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function NutrientsTab({ items }: { items: HistoryItem[] }) {
-  const groups = nutrientGroups(items);
+  const { queries, results, offline, skippedCount } = useHistoryNutrition(items);
+  const found = queries.filter((entry) => results[entry.key]?.status === "found");
+  const fieldCount = found.reduce((total, entry) => total + (results[entry.key]?.product?.fields.length ?? 0), 0);
+  const pending = queries.slice(0, MAX_NUTRITION_LOOKUPS).filter((entry) => !results[entry.key]).length;
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">
-        {NUTRITION_DATA_NOTICE} La fuente ideal para una próxima integración es una base nutricional especializada, no Wikipedia.
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-950">
+        Los valores se leen de OpenFoodFacts para cada alimento encontrado y se muestran con la base declarada por la fuente. No se estiman nutrientes a partir del nombre, la categoría, la cantidad comprada ni la unidad.
+        <a className="ml-1 font-semibold underline" href="https://world.openfoodfacts.org/" target="_blank" rel="noreferrer">Ver fuente</a>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        {groups.map((group) => {
-          const quantity = quantitySummary(group.items);
-          const detail = [
-            `${group.items.length} ${group.items.length === 1 ? "artículo" : "artículos"}`,
-            quantity.massKg ? `${formatQuantity(quantity.massKg, 3)} kg` : "",
-            quantity.volumeLt ? `${formatQuantity(quantity.volumeLt, 3)} lt` : "",
-            quantity.discrete ? `${formatQuantity(quantity.discrete, 2)} un` : "",
-          ].filter(Boolean).join(" · ");
+      {offline && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Estás sin conexión. Se muestran únicamente resultados que ya estaban guardados en este dispositivo.
+        </div>
+      )}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatCard label="Alimentos únicos" value={formatQuantity(queries.length, 0)} icon={<RiStackLine size={22} />} />
+        <StatCard label="Con fuente" value={formatQuantity(found.length, 0)} icon={<RiLeafLine size={22} />} />
+        <StatCard label="Datos disponibles" value={formatQuantity(fieldCount, 0)} icon={<RiScales3Line size={22} />} />
+      </div>
+      {pending > 0 && <p role="status" className="text-sm text-zinc-500">Consultando {pending} alimento{pending === 1 ? "" : "s"} de forma gradual para respetar el límite de OpenFoodFacts…</p>}
+      {skippedCount > 0 && <p className="text-sm text-zinc-500">{skippedCount} alimento{skippedCount === 1 ? "" : "s"} no se consultaron todavía para cuidar el límite de la fuente.</p>}
+      <div className="space-y-4">
+        {queries.map((entry, index) => {
+          const result = results[entry.key];
+          const product = result?.product;
+          const skipped = index >= MAX_NUTRITION_LOOKUPS && !result;
           return (
-            <article key={group.key} className="rounded-2xl border border-zinc-200 p-4">
+            <article key={entry.key} className="rounded-2xl border border-zinc-200 p-4">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold">{group.label}</h3>
-                  <p className="mt-1 text-sm text-zinc-500">{group.description}</p>
+                <div className="min-w-0">
+                  <h3 className="font-semibold">{entry.query}</h3>
+                  {entry.items.length > 1 && <p className="mt-1 text-xs text-zinc-500">Usado en {entry.items.length} artículos de esta compra.</p>}
                 </div>
-                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold tabular-nums">{group.items.length}</span>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${product ? "bg-emerald-100 text-emerald-800" : result?.status === "unavailable" || result?.status === "rate_limited" ? "bg-amber-100 text-amber-800" : "bg-zinc-100 text-zinc-600"}`}>
+                  {product ? "Encontrado" : result ? result.status === "not_found" ? "Sin datos" : result.status === "rate_limited" ? "Límite" : "No disponible" : skipped ? "No consultado" : "Pendiente"}
+                </span>
               </div>
-              <p className="mt-3 text-sm font-medium text-zinc-700">{detail}</p>
-              <p className="mt-3 text-xs leading-relaxed text-zinc-500">{group.items.slice(0, 4).map((item) => String(item.purchase.name ?? "Producto")).join(" · ")}{group.items.length > 4 ? " · …" : ""}</p>
+              {product ? (
+                <>
+                  <p className="mt-3 text-sm text-zinc-600">{product.productName}{product.brands ? ` · ${product.brands}` : ""}{product.quantity ? ` · ${product.quantity}` : ""}</p>
+                  <NutritionFields fields={product.fields} />
+                  <a className="mt-4 inline-block text-xs font-medium text-zinc-500 underline" href={product.sourceUrl} target="_blank" rel="noreferrer">Abrir ficha en OpenFoodFacts</a>
+                </>
+              ) : (
+                <p className="mt-3 text-sm text-zinc-500">{result?.message ?? (skipped ? "Se omitió para respetar el límite de consultas de OpenFoodFacts." : "La consulta se realizará al abrir esta pestaña.")}</p>
+              )}
             </article>
           );
         })}
       </div>
-      <NutritionDetailsTable items={items} />
+      {!queries.length && <p className="text-sm text-zinc-500">No hay nombres de alimentos disponibles para consultar.</p>}
     </div>
   );
 }

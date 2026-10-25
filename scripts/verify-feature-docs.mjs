@@ -19,9 +19,27 @@ function git(...args) {
   return execFileSync("git", args, { encoding: "utf8" }).trim();
 }
 
-const base = process.env.GITHUB_BASE_REF
-  ? `origin/${process.env.GITHUB_BASE_REF}`
-  : (process.argv[2] ?? "main");
+function canResolve(ref) {
+  try {
+    execFileSync("git", ["rev-parse", "--verify", `${ref}^{commit}`], {
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const baseCandidates = process.env.GITHUB_BASE_REF
+  ? [`origin/${process.env.GITHUB_BASE_REF}`, process.env.GITHUB_BASE_REF]
+  : process.argv[2]
+    ? [process.argv[2]]
+    : ["main", "origin/main"];
+const base = baseCandidates.find(canResolve);
+if (!base) {
+  console.error(`Unable to resolve feature documentation base: ${baseCandidates.join(", ")}`);
+  process.exit(1);
+}
 const changedFiles = git("diff", "--name-only", `${base}...HEAD`)
   .split("\n")
   .filter(Boolean);

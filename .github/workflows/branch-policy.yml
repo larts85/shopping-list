@@ -1,0 +1,73 @@
+name: Branch policy
+
+on:
+  pull_request:
+    branches: [develop, main]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: branch-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Branch policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate the target and source branch
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$BASE_REF" == "develop" ]]; then
+            echo "Pull requests into develop are allowed from any branch."
+            exit 0
+          fi
+
+          if [[ "$BASE_REF" != "main" ]]; then
+            echo "Unsupported protected target: $BASE_REF" >&2
+            exit 1
+          fi
+
+          if [[ "$HEAD_REPO" != "$REPOSITORY" ]]; then
+            echo "Pull requests into main must come from a branch in $REPOSITORY." >&2
+            exit 1
+          fi
+
+          case "$HEAD_REF" in
+            release/*)
+              source_ref="origin/develop"
+              source_name="develop"
+              ;;
+            hotfix/*)
+              source_ref="origin/main"
+              source_name="main"
+              ;;
+            *)
+              echo "Only release/* branches from develop or hotfix/* branches from main may target main." >&2
+              exit 1
+              ;;
+          esac
+
+          if ! git merge-base --is-ancestor "$source_ref" "$HEAD_SHA"; then
+            echo "$HEAD_REF must include the current tip of $source_name before it can target main." >&2
+            exit 1
+          fi
+
+          echo "$HEAD_REF is a valid source for main and includes $source_name."

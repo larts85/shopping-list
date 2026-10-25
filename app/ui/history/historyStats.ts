@@ -1,82 +1,6 @@
 import { isUnit, type Unit } from "@/app/lib/units";
 import type { HistoryItem } from "./historyTypes";
 
-export type NutrientGroupKey =
-  | "proteins"
-  | "carbohydrates"
-  | "vitamins"
-  | "minerals"
-  | "dairy"
-  | "hydration"
-  | "other";
-
-export type NutrientGroup = {
-  key: NutrientGroupKey;
-  label: string;
-  description: string;
-  items: HistoryItem[];
-};
-
-const nutrientDefinitions: Array<
-  Omit<NutrientGroup, "items"> & { matches: string[] }
-> = [
-  {
-    key: "proteins",
-    label: "Proteínas",
-    description: "Carnes, pescados, huevos, legumbres y fuentes proteicas.",
-    matches: [
-      "carnic", "pescad", "fiambre", "huevo", "pollo", "carne", "cerdo",
-      "atun", "salmon", "merluza", "legumbre", "poroto", "lenteja",
-      "garbanzo", "soja", "tofu", "mani",
-    ],
-  },
-  {
-    key: "carbohydrates",
-    label: "Carbohidratos",
-    description: "Cereales, harinas, pastas, panificados y tubérculos.",
-    matches: [
-      "almacen", "arroz", "pasta", "fideo", "harina", "pan", "avena",
-      "cereal", "galleta", "papa", "batata", "maiz", "rebozador", "azucar",
-    ],
-  },
-  {
-    key: "vitamins",
-    label: "Vitaminas y fibra",
-    description: "Frutas, verduras y alimentos frescos de origen vegetal.",
-    matches: [
-      "verduler", "fruta", "frutas", "verdura", "vegetal", "banana", "manzana",
-      "tomate", "limon", "jengibre", "espinaca", "zanahoria", "brocoli", "palta",
-    ],
-  },
-  {
-    key: "minerals",
-    label: "Minerales y micronutrientes",
-    description: "Frutos secos, semillas, suplementos y productos funcionales.",
-    matches: [
-      "dietetica", "fruto seco", "almendra", "nuez", "castana", "semilla", "chia",
-      "sesamo", "vitamina", "suplement", "calcio", "hierro", "magnesio", "potasio", "zinc",
-    ],
-  },
-  {
-    key: "dairy",
-    label: "Lácteos y calcio",
-    description: "Leches, yogures, quesos y derivados lácteos.",
-    matches: ["lacteo", "leche", "queso", "yogur", "yogurt", "crema", "manteca"],
-  },
-  {
-    key: "hydration",
-    label: "Hidratación",
-    description: "Agua y bebidas; se muestran por volumen cuando existe.",
-    matches: ["bebida", "agua", "soda", "jugo", "gaseosa", "cerveza", "vino"],
-  },
-  {
-    key: "other",
-    label: "Otros",
-    description: "Artículos sin una afinidad nutricional detectable.",
-    matches: [],
-  },
-];
-
 const unitFactors: Record<Unit, { kind: "mass" | "volume" | "discrete"; factor: number }> = {
   kg: { kind: "mass", factor: 1 },
   g: { kind: "mass", factor: 0.001 },
@@ -184,24 +108,6 @@ export function packageTotals(items: HistoryItem[]) {
     totals.set(label, current);
   }
   return [...totals.entries()].sort(([, a], [, b]) => b.quantity - a.quantity);
-}
-
-function normalizedText(item: HistoryItem): string {
-  return `${itemCategory(item)} ${item.purchase.name ?? ""} ${item.purchase.description ?? ""}`
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-}
-
-export function nutrientGroups(items: HistoryItem[]): NutrientGroup[] {
-  const grouped = new Map<NutrientGroupKey, HistoryItem[]>();
-  for (const definition of nutrientDefinitions) grouped.set(definition.key, []);
-  for (const item of items) {
-    const text = normalizedText(item);
-    const definition = nutrientDefinitions.find(({ matches }) => matches.some((match) => text.includes(match))) ?? nutrientDefinitions[nutrientDefinitions.length - 1];
-    grouped.get(definition.key)!.push(item);
-  }
-  return nutrientDefinitions
-    .map(({ matches: _matches, ...definition }) => ({ ...definition, items: grouped.get(definition.key)! }))
-    .filter((group) => group.items.length > 0);
 }
 
 export function categoryTotals(items: HistoryItem[]) {
