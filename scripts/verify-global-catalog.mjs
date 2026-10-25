@@ -2092,7 +2092,7 @@ try {
   );
   assert.match(
     completed.purchaseName,
-    /^Masaje lista \[\d{2}\/\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\]$/,
+    /^Masaje lista editada \[\d{2}\/\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\]$/,
   );
   assert.deepEqual(
     (
