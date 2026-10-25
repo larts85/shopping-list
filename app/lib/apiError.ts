@@ -7,7 +7,13 @@ export function apiError(error: unknown, request?: Request) {
   if (error instanceof DataError)
     return NextResponse.json(
       { error: error.message, errorId },
-      { status: error.status, headers: { "X-Error-ID": errorId } },
+      {
+        status: error.status,
+        headers: {
+          "X-Error-ID": errorId,
+          ...(error.status === 401 ? { "X-Auth-Required": "true" } : {}),
+        },
+      },
     );
   const details = error as {
     code?: string;
