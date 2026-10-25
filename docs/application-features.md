@@ -114,6 +114,7 @@ actualización.
 | Funcionalidad                                     | Web        | MCP                        |
 | ------------------------------------------------- | ---------- | -------------------------- |
 | Iniciar sesión con Google       | Sí         | Sí (OAuth MCP)             |
+| Redirigir a auth cuando vence la sesión | Sí         | No                          |
 | Sincronizar la cuenta           | Sí         | Sí (OAuth MCP)             |
 | Consultar el perfil conectado   | Sí         | Sí (`get_account_profile`) |
 
