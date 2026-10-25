@@ -34,6 +34,7 @@ import {
 import SharedListControls from "./sharedListControls";
 import { getListData } from "@/app/actions/lists";
 import { Category } from "@/app/lib/types";
+import { getOrderedShoppingGroups } from "@/app/lib/shoppingOrder";
 import Select from "@/app/ui/add/select";
 
 interface MoveTarget {
@@ -927,6 +928,7 @@ export default function List() {
     (product) => product.comprado === "1",
   ).length;
   const purchaseActionLabel = getPurchaseActionLabel(products);
+  const orderedGroups = getOrderedShoppingGroups(categories, list);
   return (
     <div className="space-y-6">
       <SharedListControls onSwitch={load} />
@@ -1082,9 +1084,8 @@ export default function List() {
           </p>
         </div>
       )}
-      {categories
-        .filter((category) => list[category.id]?.length > 0)
-        .map((category) => (
+      {orderedGroups
+        .map(({ category, products }) => (
           <section
             key={category.id}
             className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
@@ -1190,7 +1191,7 @@ export default function List() {
                   <span aria-hidden="true" />
                 </div>
                 <ul className="divide-y divide-zinc-100">
-                  {list[category.id].map((product) => (
+                  {products.map((product) => (
                     <li
                       key={product.id}
                       className="grid grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] items-center gap-2 px-4 py-2 sm:grid-cols-[minmax(0,1fr)_3.5rem_4rem_2.5rem] sm:gap-2 sm:px-6 md:grid-cols-[minmax(0,1fr)_3.5rem_4rem_8rem]"

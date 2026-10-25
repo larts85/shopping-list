@@ -68,6 +68,8 @@ actualización.
 | Funcionalidad                                                 | Web | MCP                        |
 | ------------------------------------------------------------- | --- | -------------------------- |
 | Marcar artículos como comprados         | Sí | Sí (`mark_item_purchased`) |
+| Ordenar los artículos comprados al final de su categoría, conservando el orden relativo por estado | Sí | No |
+| Ordenar las categorías completas al final de la lista y devolverlas a pendientes al desmarcar un artículo | Sí | No |
 | Registrar la cantidad comprada          | Sí | Sí (`mark_item_purchased`) |
 | Registrar la unidad comprada            | Sí | Sí (`mark_item_purchased`) |
 | Registrar el precio de compra           | Sí | Sí (`mark_item_purchased`) |
