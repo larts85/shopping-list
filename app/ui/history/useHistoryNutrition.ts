@@ -9,7 +9,8 @@ import type { HistoryItem } from "./historyTypes";
 
 const STORAGE_KEY = "shopear:nutrition:openfoodfacts:v1";
 const LOCAL_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-export const MAX_NUTRITION_LOOKUPS = 8;
+export const NUTRITION_BATCH_SIZE = 8;
+export const MAX_NUTRITION_LOOKUPS = NUTRITION_BATCH_SIZE;
 
 type StoredNutrition = Record<string, NutritionLookup>;
 
@@ -90,6 +91,7 @@ export function useHistoryNutrition(items: HistoryItem[]) {
   const [results, setResults] = useState<StoredNutrition>({});
   const [cacheLoaded, setCacheLoaded] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(NUTRITION_BATCH_SIZE);
   const startedQueryKey = useRef("");
 
   useEffect(() => {
@@ -108,12 +110,13 @@ export function useHistoryNutrition(items: HistoryItem[]) {
 
   useEffect(() => {
     if (!cacheLoaded) return;
-    if (startedQueryKey.current === queryKey) return;
-    startedQueryKey.current = queryKey;
+    const runKey = `${queryKey}:${visibleCount}`;
+    if (startedQueryKey.current === runKey) return;
+    startedQueryKey.current = runKey;
     let cancelled = false;
     const storedResults = readStoredNutrition();
     const candidates = queries
-      .slice(0, MAX_NUTRITION_LOOKUPS)
+      .slice(0, visibleCount)
       .filter((entry) => !storedResults[entry.key]);
 
     async function load() {
@@ -155,12 +158,14 @@ export function useHistoryNutrition(items: HistoryItem[]) {
     return () => {
       cancelled = true;
     };
-  }, [cacheLoaded, queryKey, queries]);
+  }, [cacheLoaded, queryKey, queries, visibleCount]);
 
   return {
     queries,
     results,
     offline,
-    skippedCount: Math.max(0, queries.length - MAX_NUTRITION_LOOKUPS),
+    visibleCount,
+    loadMore: () => setVisibleCount((current) => Math.min(current + NUTRITION_BATCH_SIZE, queries.length)),
+    skippedCount: Math.max(0, queries.length - visibleCount),
   };
 }

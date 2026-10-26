@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/app/lib/apiError";
 import { identity, DataError } from "@/app/lib/database";
+import { getKnowledgeGraphVariants } from "@/app/lib/googleKnowledgeGraph";
 import {
   chooseNutritionProduct,
   normalizeNutritionQuery,
+  nutritionQueryVariants,
   type NutritionLookup,
 } from "@/app/lib/nutrition";
 
@@ -21,18 +23,27 @@ function canSearch() {
   return true;
 }
 
-async function fetchNutrition(query: string): Promise<NutritionLookup> {
+async function fetchNutritionVariant(
+  query: string,
+  variant: string,
+  attempts: string[],
+  variantSource: "local" | "knowledge_graph",
+): Promise<NutritionLookup | null> {
   if (!canSearch()) {
     return {
       query,
       status: "rate_limited",
       product: null,
       message: "Se alcanzó el límite temporal de consultas. Podés volver a intentarlo más tarde.",
+      attempts,
+      matchedQuery: null,
+      variantSource: null,
     };
   }
+  attempts.push(variant);
 
   const url = new URL("https://world.openfoodfacts.org/cgi/search.pl");
-  url.searchParams.set("search_terms", query);
+  url.searchParams.set("search_terms", variant);
   url.searchParams.set("search_simple", "1");
   url.searchParams.set("action", "process");
   url.searchParams.set("json", "1");
@@ -64,22 +75,17 @@ async function fetchNutrition(query: string): Promise<NutritionLookup> {
     if (!response.ok) throw new Error(`OpenFoodFacts responded with ${response.status}`);
     const data = (await response.json()) as { products?: unknown };
     const products = Array.isArray(data.products) ? data.products : [];
-    const product = chooseNutritionProduct(query, products.filter((item): item is Record<string, unknown> => !!item && typeof item === "object"));
-    return product
-      ? {
-          query,
-          status: "found",
-          product,
-          message: null,
-          cachedAt: new Date().toISOString(),
-        }
-      : {
-          query,
-          status: "not_found",
-          product: null,
-          message: "No encontramos una coincidencia confiable con datos nutricionales suficientes.",
-          cachedAt: new Date().toISOString(),
-        };
+    const product = chooseNutritionProduct(variant, products.filter((item): item is Record<string, unknown> => !!item && typeof item === "object"));
+    return product ? {
+      query,
+      status: "found",
+      product,
+      message: null,
+      attempts,
+      matchedQuery: variant,
+      variantSource,
+      cachedAt: new Date().toISOString(),
+    } : null;
   } catch (error) {
     console.warn("OpenFoodFacts nutrition lookup unavailable", {
       query,
@@ -90,10 +96,39 @@ async function fetchNutrition(query: string): Promise<NutritionLookup> {
       status: "unavailable",
       product: null,
       message: "No se pudo consultar OpenFoodFacts. Se conserva cualquier resultado guardado en este dispositivo.",
+      attempts,
+      matchedQuery: null,
+      variantSource: null,
     };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function fetchNutrition(query: string): Promise<NutritionLookup> {
+  const attempts: string[] = [];
+  const localVariants = nutritionQueryVariants(query);
+  const knowledgeGraphVariants = await getKnowledgeGraphVariants(query);
+  const variants = [
+    ...localVariants.map((variant) => ({ variant, source: "local" as const })),
+    ...knowledgeGraphVariants.map((variant) => ({ variant, source: "knowledge_graph" as const })),
+  ];
+  for (const { variant, source } of variants) {
+    const result = await fetchNutritionVariant(query, variant, attempts, source);
+    if (result) return result;
+  }
+  return {
+    query,
+    status: "not_found",
+    product: null,
+    message: attempts.length > 1
+      ? `No encontramos datos suficientes después de probar ${attempts.length} nombres posibles.`
+      : "No encontramos una coincidencia confiable con datos nutricionales suficientes.",
+    attempts,
+    matchedQuery: null,
+    variantSource: null,
+    cachedAt: new Date().toISOString(),
+  };
 }
 
 async function lookup(query: string): Promise<NutritionLookup> {
