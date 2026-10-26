@@ -98,7 +98,7 @@ actualización.
 | Editar artículos del historial          | Sí | No |
 | Repetir una compra anterior             | Sí | No |
 | Consultar total y estadísticas de una compra (resumen, categorías y unidades) | Sí | No |
-| Consultar nutrientes por alimento desde OpenFoodFacts, con estados de fuente, variantes regionales, caché local y fallback offline | Sí | No |
+| Consultar nutrientes por alimento desde OpenFoodFacts, con estados de fuente, variantes regionales y fallback opcional de Google Knowledge Graph, caché local y modo offline | Sí | No |
 | Visualizar estadísticas con modos por alimento/nutriente y gráficos de barras y distribución | Sí | No |
 
 ## Sugerencias

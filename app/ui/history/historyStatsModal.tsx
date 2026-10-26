@@ -297,7 +297,7 @@ function NutrientsTab({ items }: { items: HistoryItem[] }) {
               {product ? (
                 <>
                   <p className="mt-3 text-sm text-zinc-600">{product.productName}{product.brands ? ` · ${product.brands}` : ""}{product.quantity ? ` · ${product.quantity}` : ""}</p>
-                  {result?.matchedQuery && result.matchedQuery !== entry.query && <p className="mt-1 text-xs text-emerald-700">Encontrado con la variante: {result.matchedQuery}</p>}
+                  {result?.matchedQuery && result.matchedQuery !== entry.query && <p className="mt-1 text-xs text-emerald-700">Encontrado {result.variantSource === "knowledge_graph" ? "mediante Google Knowledge Graph" : "con una variante local"}: {result.matchedQuery}</p>}
                   <NutritionFields fields={product.fields} />
                   <a className="mt-4 inline-block text-xs font-medium text-zinc-500 underline" href={product.sourceUrl} target="_blank" rel="noreferrer">Abrir ficha en OpenFoodFacts</a>
                 </>

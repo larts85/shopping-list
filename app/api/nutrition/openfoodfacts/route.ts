@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/app/lib/apiError";
 import { identity, DataError } from "@/app/lib/database";
+import { getKnowledgeGraphVariants } from "@/app/lib/googleKnowledgeGraph";
 import {
   chooseNutritionProduct,
   normalizeNutritionQuery,
@@ -26,6 +27,7 @@ async function fetchNutritionVariant(
   query: string,
   variant: string,
   attempts: string[],
+  variantSource: "local" | "knowledge_graph",
 ): Promise<NutritionLookup | null> {
   if (!canSearch()) {
     return {
@@ -35,6 +37,7 @@ async function fetchNutritionVariant(
       message: "Se alcanzó el límite temporal de consultas. Podés volver a intentarlo más tarde.",
       attempts,
       matchedQuery: null,
+      variantSource: null,
     };
   }
   attempts.push(variant);
@@ -80,6 +83,7 @@ async function fetchNutritionVariant(
       message: null,
       attempts,
       matchedQuery: variant,
+      variantSource,
       cachedAt: new Date().toISOString(),
     } : null;
   } catch (error) {
@@ -94,6 +98,7 @@ async function fetchNutritionVariant(
       message: "No se pudo consultar OpenFoodFacts. Se conserva cualquier resultado guardado en este dispositivo.",
       attempts,
       matchedQuery: null,
+      variantSource: null,
     };
   } finally {
     clearTimeout(timeout);
@@ -102,8 +107,14 @@ async function fetchNutritionVariant(
 
 async function fetchNutrition(query: string): Promise<NutritionLookup> {
   const attempts: string[] = [];
-  for (const variant of nutritionQueryVariants(query)) {
-    const result = await fetchNutritionVariant(query, variant, attempts);
+  const localVariants = nutritionQueryVariants(query);
+  const knowledgeGraphVariants = await getKnowledgeGraphVariants(query);
+  const variants = [
+    ...localVariants.map((variant) => ({ variant, source: "local" as const })),
+    ...knowledgeGraphVariants.map((variant) => ({ variant, source: "knowledge_graph" as const })),
+  ];
+  for (const { variant, source } of variants) {
+    const result = await fetchNutritionVariant(query, variant, attempts, source);
     if (result) return result;
   }
   return {
@@ -115,6 +126,7 @@ async function fetchNutrition(query: string): Promise<NutritionLookup> {
       : "No encontramos una coincidencia confiable con datos nutricionales suficientes.",
     attempts,
     matchedQuery: null,
+    variantSource: null,
     cachedAt: new Date().toISOString(),
   };
 }
