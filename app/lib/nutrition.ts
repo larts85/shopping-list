@@ -34,6 +34,7 @@ export type NutritionLookup = {
   attempts?: string[];
   matchedQuery?: string | null;
   variantSource?: "local" | "knowledge_graph" | null;
+  nextVariants?: Array<{ query: string; source: "local" | "knowledge_graph" }>;
   cachedAt?: string;
 };
 

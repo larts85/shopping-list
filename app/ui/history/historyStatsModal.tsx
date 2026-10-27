@@ -182,8 +182,8 @@ function NutritionFields({ fields }: { fields: NutritionField[] }) {
 }
 
 function NutrientsTab({ items }: { items: HistoryItem[] }) {
-  const [viewMode, setViewMode] = useState<"foods" | "nutrients">("foods");
-  const { queries, results, offline, skippedCount, visibleCount, loadMore } = useHistoryNutrition(items);
+  const [viewMode, setViewMode] = useState<"foods" | "nutrients">("nutrients");
+  const { queries, results, offline, excludedCount, skippedCount, visibleCount, loadMore, retryVariant, retryingKey } = useHistoryNutrition(items);
   const found = foundNutritionEntries(queries, results);
   const aggregates = nutritionAggregates(found);
   const fieldCount = aggregates.reduce((total, field) => total + field.observations, 0);
@@ -197,6 +197,11 @@ function NutrientsTab({ items }: { items: HistoryItem[] }) {
       {offline && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           Estás sin conexión. Se muestran únicamente resultados que ya estaban guardados en este dispositivo.
+        </div>
+      )}
+      {excludedCount > 0 && (
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+          Se excluyeron {excludedCount} artículo{excludedCount === 1 ? "" : "s"} no alimentario{excludedCount === 1 ? "" : "s"} de esta vista nutricional.
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-3">
@@ -305,6 +310,16 @@ function NutrientsTab({ items }: { items: HistoryItem[] }) {
                 <>
                   <p className="mt-3 text-sm text-zinc-500">{result?.message ?? (skipped ? "Se omitió para respetar el límite de consultas de OpenFoodFacts." : "La consulta se realizará al abrir esta pestaña.")}</p>
                   {result?.attempts && result.attempts.length > 1 && <p className="mt-1 text-xs text-zinc-400">Se probaron {result.attempts.length} variantes del nombre.</p>}
+                  {result?.nextVariants?.length && (
+                    <button
+                      type="button"
+                      className="btn-secondary mt-3"
+                      disabled={retryingKey !== null}
+                      onClick={() => void retryVariant(entry.key, entry.query, result.nextVariants![0])}
+                    >
+                      {retryingKey === entry.key ? "Reintentando…" : `Reintentar como ${result.nextVariants[0].query}`}
+                    </button>
+                  )}
                 </>
               )}
             </article>
