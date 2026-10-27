@@ -105,41 +105,46 @@ async function fetchNutritionVariant(
   }
 }
 
-async function fetchNutrition(query: string): Promise<NutritionLookup> {
+async function fetchNutrition(
+  query: string,
+  requestedVariant?: string,
+  requestedSource: "local" | "knowledge_graph" = "local",
+): Promise<NutritionLookup> {
   const attempts: string[] = [];
   const localVariants = nutritionQueryVariants(query);
-  const knowledgeGraphVariants = await getKnowledgeGraphVariants(query);
-  const variants = [
-    ...localVariants.map((variant) => ({ variant, source: "local" as const })),
-    ...knowledgeGraphVariants.map((variant) => ({ variant, source: "knowledge_graph" as const })),
-  ];
-  for (const { variant, source } of variants) {
-    const result = await fetchNutritionVariant(query, variant, attempts, source);
-    if (result) return result;
-  }
+  const nextVariants = requestedVariant
+    ? []
+    : [
+        ...localVariants.slice(1).map((variant) => ({ query: variant, source: "local" as const })),
+        ...(await getKnowledgeGraphVariants(query)).map((variant) => ({ query: variant, source: "knowledge_graph" as const })),
+      ];
+  const variant = requestedVariant ?? localVariants[0] ?? query;
+  const result = await fetchNutritionVariant(query, variant, attempts, requestedVariant ? requestedSource : "local");
+  if (result) return { ...result, nextVariants };
   return {
     query,
     status: "not_found",
     product: null,
-    message: attempts.length > 1
-      ? `No encontramos datos suficientes después de probar ${attempts.length} nombres posibles.`
+    message: nextVariants.length
+      ? `No encontramos datos suficientes. Podés reintentar con ${nextVariants.length} variante${nextVariants.length === 1 ? "" : "s"}.`
       : "No encontramos una coincidencia confiable con datos nutricionales suficientes.",
     attempts,
     matchedQuery: null,
     variantSource: null,
+    nextVariants,
     cachedAt: new Date().toISOString(),
   };
 }
 
-async function lookup(query: string): Promise<NutritionLookup> {
-  const key = normalizeNutritionQuery(query);
+async function lookup(query: string, variant?: string, source: "local" | "knowledge_graph" = "local"): Promise<NutritionLookup> {
+  const key = `${normalizeNutritionQuery(query)}::${normalizeNutritionQuery(variant ?? "")}`;
   const current = cache.get(key);
   if (current && current.expiresAt > Date.now()) return { ...current.value, cachedAt: current.value.cachedAt };
 
   const pending = inFlight.get(key);
   if (pending) return pending;
 
-  const request = fetchNutrition(query).then((value) => {
+  const request = fetchNutrition(query, variant, source).then((value) => {
     if (value.status === "found" || value.status === "not_found") {
       cache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, value });
     }
@@ -156,9 +161,13 @@ async function lookup(query: string): Promise<NutritionLookup> {
 export async function GET(request: Request) {
   try {
     await identity();
-    const query = new URL(request.url).searchParams.get("q")?.trim() ?? "";
+    const searchParams = new URL(request.url).searchParams;
+    const query = searchParams.get("q")?.trim() ?? "";
+    const variant = searchParams.get("variant")?.trim() || undefined;
+    const source = searchParams.get("source") === "knowledge_graph" ? "knowledge_graph" : "local";
     if (!query || query.length > 120) throw new DataError("El alimento no es válido");
-    return NextResponse.json(await lookup(query), {
+    if (variant && variant.length > 120) throw new DataError("La variante no es válida");
+    return NextResponse.json(await lookup(query, variant, source), {
       headers: {
         "Cache-Control": "private, max-age=300",
         Vary: "Cookie",
