@@ -9,7 +9,8 @@ import type { HistoryItem } from "./historyTypes";
 
 const STORAGE_KEY = "shopear:nutrition:openfoodfacts:v1";
 const LOCAL_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-export const MAX_NUTRITION_LOOKUPS = 8;
+export const NUTRITION_BATCH_SIZE = 8;
+export const MAX_NUTRITION_LOOKUPS = NUTRITION_BATCH_SIZE;
 
 type StoredNutrition = Record<string, NutritionLookup>;
 
@@ -18,6 +19,21 @@ export type HistoryNutritionQuery = {
   query: string;
   items: HistoryItem[];
 };
+
+const NON_FOOD_CATEGORIES = ["limpieza", "hogar", "bazar", "farmacia", "perfumeria", "electro", "ferreteria", "libreria", "mascota", "jugueteria", "indumentaria"];
+const NON_FOOD_ALMACEN_NAMES = [
+  "mantel", "embudo", "control remoto", "cortina", "escurridor", "machacador", "balde", "tender", "zapatilla electrica",
+  "colador", "cajonero", "abridor", "jarro", "almohadon", "jabon", "detergente", "lavandina", "esponja", "trapo",
+  "papel higienico", "papel de cocina", "foco", "lampara", "bateria", "pila", "cable", "pegamento", "percha", "colgador",
+];
+
+export function isNutritionFoodItem(item: HistoryItem): boolean {
+  const category = normalizeNutritionQuery(String(item.purchase.category_name ?? item.purchase.category ?? ""));
+  if (NON_FOOD_CATEGORIES.some((term) => category.includes(term))) return false;
+  if (!category.includes("almacen")) return true;
+  const text = normalizeNutritionQuery(`${item.purchase.name ?? ""} ${item.purchase.description ?? ""}`);
+  return !NON_FOOD_ALMACEN_NAMES.some((term) => text.includes(term));
+}
 
 function itemQuery(item: HistoryItem): string {
   return [item.purchase.name, item.purchase.description]
@@ -74,9 +90,11 @@ function resultForRateLimit(query: string): NutritionLookup {
 }
 
 export function useHistoryNutrition(items: HistoryItem[]) {
+  const foodItems = useMemo(() => items.filter(isNutritionFoodItem), [items]);
+  const excludedCount = items.length - foodItems.length;
   const queries = useMemo<HistoryNutritionQuery[]>(() => {
     const grouped = new Map<string, HistoryNutritionQuery>();
-    for (const item of items) {
+    for (const item of foodItems) {
       const query = itemQuery(item);
       const key = normalizeNutritionQuery(query);
       if (!key) continue;
@@ -85,11 +103,13 @@ export function useHistoryNutrition(items: HistoryItem[]) {
       else grouped.set(key, { key, query, items: [item] });
     }
     return [...grouped.values()];
-  }, [items]);
+  }, [foodItems]);
   const queryKey = queries.map((entry) => entry.key).join("|");
   const [results, setResults] = useState<StoredNutrition>({});
   const [cacheLoaded, setCacheLoaded] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(NUTRITION_BATCH_SIZE);
+  const [retryingKey, setRetryingKey] = useState<string | null>(null);
   const startedQueryKey = useRef("");
 
   useEffect(() => {
@@ -108,12 +128,13 @@ export function useHistoryNutrition(items: HistoryItem[]) {
 
   useEffect(() => {
     if (!cacheLoaded) return;
-    if (startedQueryKey.current === queryKey) return;
-    startedQueryKey.current = queryKey;
+    const runKey = `${queryKey}:${visibleCount}`;
+    if (startedQueryKey.current === runKey) return;
+    startedQueryKey.current = runKey;
     let cancelled = false;
     const storedResults = readStoredNutrition();
     const candidates = queries
-      .slice(0, MAX_NUTRITION_LOOKUPS)
+      .slice(0, visibleCount)
       .filter((entry) => !storedResults[entry.key]);
 
     async function load() {
@@ -155,12 +176,48 @@ export function useHistoryNutrition(items: HistoryItem[]) {
     return () => {
       cancelled = true;
     };
-  }, [cacheLoaded, queryKey, queries]);
+  }, [cacheLoaded, queryKey, queries, visibleCount]);
+
+  async function retryVariant(
+    entryKey: string,
+    query: string,
+    variant: { query: string; source: "local" | "knowledge_graph" },
+  ) {
+    if (retryingKey) return;
+    setRetryingKey(entryKey);
+    try {
+      const response = await fetch(`/api/nutrition/openfoodfacts?q=${encodeURIComponent(query)}&variant=${encodeURIComponent(variant.query)}&source=${variant.source}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Nutrition retry failed");
+      const result = (await response.json()) as NutritionLookup;
+      setResults((current) => {
+        const next = { ...current, [entryKey]: result };
+        if (result.status === "found" || result.status === "not_found") writeStoredNutrition(next);
+        return next;
+      });
+    } catch {
+      setResults((current) => ({
+        ...current,
+        [entryKey]: {
+          query,
+          status: "unavailable",
+          product: null,
+          message: "No se pudo reintentar esta variante.",
+        },
+      }));
+    } finally {
+      setRetryingKey(null);
+    }
+  }
 
   return {
     queries,
     results,
     offline,
-    skippedCount: Math.max(0, queries.length - MAX_NUTRITION_LOOKUPS),
+    excludedCount,
+    visibleCount,
+    loadMore: () => setVisibleCount((current) => Math.min(current + NUTRITION_BATCH_SIZE, queries.length)),
+    retryVariant,
+    retryingKey,
+    skippedCount: Math.max(0, queries.length - visibleCount),
   };
 }

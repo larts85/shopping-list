@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/app/lib/apiError";
 import { identity, DataError } from "@/app/lib/database";
+import { getKnowledgeGraphVariants } from "@/app/lib/googleKnowledgeGraph";
 import {
   chooseNutritionProduct,
   normalizeNutritionQuery,
+  nutritionQueryVariants,
   type NutritionLookup,
 } from "@/app/lib/nutrition";
 
@@ -21,18 +23,27 @@ function canSearch() {
   return true;
 }
 
-async function fetchNutrition(query: string): Promise<NutritionLookup> {
+async function fetchNutritionVariant(
+  query: string,
+  variant: string,
+  attempts: string[],
+  variantSource: "local" | "knowledge_graph",
+): Promise<NutritionLookup | null> {
   if (!canSearch()) {
     return {
       query,
       status: "rate_limited",
       product: null,
       message: "Se alcanzó el límite temporal de consultas. Podés volver a intentarlo más tarde.",
+      attempts,
+      matchedQuery: null,
+      variantSource: null,
     };
   }
+  attempts.push(variant);
 
   const url = new URL("https://world.openfoodfacts.org/cgi/search.pl");
-  url.searchParams.set("search_terms", query);
+  url.searchParams.set("search_terms", variant);
   url.searchParams.set("search_simple", "1");
   url.searchParams.set("action", "process");
   url.searchParams.set("json", "1");
@@ -64,22 +75,17 @@ async function fetchNutrition(query: string): Promise<NutritionLookup> {
     if (!response.ok) throw new Error(`OpenFoodFacts responded with ${response.status}`);
     const data = (await response.json()) as { products?: unknown };
     const products = Array.isArray(data.products) ? data.products : [];
-    const product = chooseNutritionProduct(query, products.filter((item): item is Record<string, unknown> => !!item && typeof item === "object"));
-    return product
-      ? {
-          query,
-          status: "found",
-          product,
-          message: null,
-          cachedAt: new Date().toISOString(),
-        }
-      : {
-          query,
-          status: "not_found",
-          product: null,
-          message: "No encontramos una coincidencia confiable con datos nutricionales suficientes.",
-          cachedAt: new Date().toISOString(),
-        };
+    const product = chooseNutritionProduct(variant, products.filter((item): item is Record<string, unknown> => !!item && typeof item === "object"));
+    return product ? {
+      query,
+      status: "found",
+      product,
+      message: null,
+      attempts,
+      matchedQuery: variant,
+      variantSource,
+      cachedAt: new Date().toISOString(),
+    } : null;
   } catch (error) {
     console.warn("OpenFoodFacts nutrition lookup unavailable", {
       query,
@@ -90,21 +96,55 @@ async function fetchNutrition(query: string): Promise<NutritionLookup> {
       status: "unavailable",
       product: null,
       message: "No se pudo consultar OpenFoodFacts. Se conserva cualquier resultado guardado en este dispositivo.",
+      attempts,
+      matchedQuery: null,
+      variantSource: null,
     };
   } finally {
     clearTimeout(timeout);
   }
 }
 
-async function lookup(query: string): Promise<NutritionLookup> {
-  const key = normalizeNutritionQuery(query);
+async function fetchNutrition(
+  query: string,
+  requestedVariant?: string,
+  requestedSource: "local" | "knowledge_graph" = "local",
+): Promise<NutritionLookup> {
+  const attempts: string[] = [];
+  const localVariants = nutritionQueryVariants(query);
+  const nextVariants = requestedVariant
+    ? []
+    : [
+        ...localVariants.slice(1).map((variant) => ({ query: variant, source: "local" as const })),
+        ...(await getKnowledgeGraphVariants(query)).map((variant) => ({ query: variant, source: "knowledge_graph" as const })),
+      ];
+  const variant = requestedVariant ?? localVariants[0] ?? query;
+  const result = await fetchNutritionVariant(query, variant, attempts, requestedVariant ? requestedSource : "local");
+  if (result) return { ...result, nextVariants };
+  return {
+    query,
+    status: "not_found",
+    product: null,
+    message: nextVariants.length
+      ? `No encontramos datos suficientes. Podés reintentar con ${nextVariants.length} variante${nextVariants.length === 1 ? "" : "s"}.`
+      : "No encontramos una coincidencia confiable con datos nutricionales suficientes.",
+    attempts,
+    matchedQuery: null,
+    variantSource: null,
+    nextVariants,
+    cachedAt: new Date().toISOString(),
+  };
+}
+
+async function lookup(query: string, variant?: string, source: "local" | "knowledge_graph" = "local"): Promise<NutritionLookup> {
+  const key = `${normalizeNutritionQuery(query)}::${normalizeNutritionQuery(variant ?? "")}`;
   const current = cache.get(key);
   if (current && current.expiresAt > Date.now()) return { ...current.value, cachedAt: current.value.cachedAt };
 
   const pending = inFlight.get(key);
   if (pending) return pending;
 
-  const request = fetchNutrition(query).then((value) => {
+  const request = fetchNutrition(query, variant, source).then((value) => {
     if (value.status === "found" || value.status === "not_found") {
       cache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, value });
     }
@@ -121,9 +161,13 @@ async function lookup(query: string): Promise<NutritionLookup> {
 export async function GET(request: Request) {
   try {
     await identity();
-    const query = new URL(request.url).searchParams.get("q")?.trim() ?? "";
+    const searchParams = new URL(request.url).searchParams;
+    const query = searchParams.get("q")?.trim() ?? "";
+    const variant = searchParams.get("variant")?.trim() || undefined;
+    const source = searchParams.get("source") === "knowledge_graph" ? "knowledge_graph" : "local";
     if (!query || query.length > 120) throw new DataError("El alimento no es válido");
-    return NextResponse.json(await lookup(query), {
+    if (variant && variant.length > 120) throw new DataError("La variante no es válida");
+    return NextResponse.json(await lookup(query, variant, source), {
       headers: {
         "Cache-Control": "private, max-age=300",
         Vary: "Cookie",
