@@ -3,6 +3,14 @@
 import { useRef, useState } from "react";
 import { unitLabels } from "@/app/lib/units";
 import Modal from "@/shared/components/ui/Modal";
+import { BarChart, DonutChart } from "./historyCharts";
+import {
+  fieldsByFood,
+  foundNutritionEntries,
+  groupFieldCounts,
+  nutritionAggregates,
+  nutritionStatusCounts,
+} from "./historyNutritionStats";
 import {
   categoryTotals,
   formatCurrency,
@@ -13,7 +21,7 @@ import {
   unitTotals,
 } from "./historyStats";
 import type { HistoryItem } from "./historyTypes";
-import { MAX_NUTRITION_LOOKUPS, useHistoryNutrition } from "./useHistoryNutrition";
+import { useHistoryNutrition } from "./useHistoryNutrition";
 import type { NutritionField, NutritionGroup } from "@/app/lib/nutrition";
 import {
   RiCloseLine,
@@ -101,10 +109,28 @@ function SummaryTab({ items }: { items: HistoryItem[] }) {
             <div className="flex justify-between gap-3 rounded-xl bg-zinc-50 px-4 py-3"><span>Volumen</span><strong>{quantity.volumeLt ? `${formatQuantity(quantity.volumeLt, 3)} lt` : "—"}</strong></div>
             <div className="flex justify-between gap-3 rounded-xl bg-zinc-50 px-4 py-3"><span>Unidades de inventario</span><strong>{quantity.discrete ? formatQuantity(quantity.discrete, 2) : "—"}</strong></div>
           </div>
+          <div className="mt-5">
+            <h3 className="mb-3 text-sm font-semibold">Distribución por categoría</h3>
+            <DonutChart
+              rows={categories.map(([label, value]) => ({ label, value: value.items, detail: `${value.items}` }))}
+              center={`${categories.length} categorías`}
+              valueLabel="categorías de la compra"
+            />
+          </div>
         </div>
         <div>
           <h3 className="text-base font-semibold">Mayor impacto en el total</h3>
           <p className="mt-1 text-sm text-zinc-500">Artículos que más aportaron al importe registrado.</p>
+          <div className="mt-4">
+            <BarChart
+              rows={largest.map((item) => ({
+                label: String(item.purchase.name ?? "Producto"),
+                value: Number(item.purchase.precio_total ?? 0),
+                detail: item.purchase.precio_total == null ? "—" : formatCurrency(Number(item.purchase.precio_total)),
+              }))}
+              valueLabel="importe por artículo"
+            />
+          </div>
           <ul className="mt-4 divide-y divide-zinc-100">
             {largest.map((item) => (
               <li key={item.id} className="flex justify-between gap-3 py-3 text-sm">
@@ -156,10 +182,12 @@ function NutritionFields({ fields }: { fields: NutritionField[] }) {
 }
 
 function NutrientsTab({ items }: { items: HistoryItem[] }) {
-  const { queries, results, offline, skippedCount } = useHistoryNutrition(items);
-  const found = queries.filter((entry) => results[entry.key]?.status === "found");
-  const fieldCount = found.reduce((total, entry) => total + (results[entry.key]?.product?.fields.length ?? 0), 0);
-  const pending = queries.slice(0, MAX_NUTRITION_LOOKUPS).filter((entry) => !results[entry.key]).length;
+  const [viewMode, setViewMode] = useState<"foods" | "nutrients">("nutrients");
+  const { queries, results, offline, excludedCount, skippedCount, visibleCount, loadMore, retryVariant, retryingKey } = useHistoryNutrition(items);
+  const found = foundNutritionEntries(queries, results);
+  const aggregates = nutritionAggregates(found);
+  const fieldCount = aggregates.reduce((total, field) => total + field.observations, 0);
+  const pending = queries.slice(0, visibleCount).filter((entry) => !results[entry.key]).length;
   return (
     <div className="space-y-5">
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm leading-relaxed text-emerald-950">
@@ -171,18 +199,95 @@ function NutrientsTab({ items }: { items: HistoryItem[] }) {
           Estás sin conexión. Se muestran únicamente resultados que ya estaban guardados en este dispositivo.
         </div>
       )}
+      {excludedCount > 0 && (
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+          Se excluyeron {excludedCount} artículo{excludedCount === 1 ? "" : "s"} no alimentario{excludedCount === 1 ? "" : "s"} de esta vista nutricional.
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-3">
         <StatCard label="Alimentos únicos" value={formatQuantity(queries.length, 0)} icon={<RiStackLine size={22} />} />
         <StatCard label="Con fuente" value={formatQuantity(found.length, 0)} icon={<RiLeafLine size={22} />} />
         <StatCard label="Datos disponibles" value={formatQuantity(fieldCount, 0)} icon={<RiScales3Line size={22} />} />
       </div>
+      <div role="tablist" aria-label="Modo de visualización nutricional" className="flex flex-wrap gap-2">
+        {([
+          ["foods", "Por alimento"],
+          ["nutrients", "Por nutriente"],
+        ] as const).map(([mode, label]) => (
+          <button
+            key={mode}
+            type="button"
+            role="tab"
+            aria-selected={viewMode === mode}
+            className={`rounded-full border px-3 py-2 text-sm font-medium transition-colors ${viewMode === mode ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-200 text-zinc-600 hover:border-zinc-400"}`}
+            onClick={() => setViewMode(mode)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+        {viewMode === "foods"
+          ? "Cada tarjeta conserva la trazabilidad del alimento encontrado y sus valores según la base declarada por OpenFoodFacts."
+          : "El gráfico cuenta en cuántos alimentos aparece cada nutriente. No suma valores por 100 g, por 100 ml y porción porque esas bases no son comparables entre sí."}
+      </div>
       {pending > 0 && <p role="status" className="text-sm text-zinc-500">Consultando {pending} alimento{pending === 1 ? "" : "s"} de forma gradual para respetar el límite de OpenFoodFacts…</p>}
-      {skippedCount > 0 && <p className="text-sm text-zinc-500">{skippedCount} alimento{skippedCount === 1 ? "" : "s"} no se consultaron todavía para cuidar el límite de la fuente.</p>}
-      <div className="space-y-4">
+      {skippedCount > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <span>{skippedCount} alimento{skippedCount === 1 ? "" : "s"} todavía no se consultaron para cuidar el límite de la fuente.</span>
+          <button type="button" className="btn-secondary" onClick={loadMore}>Buscar restantes</button>
+        </div>
+      )}
+      {viewMode === "nutrients" && (
+        <div className="grid gap-6 rounded-2xl border border-zinc-200 p-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <h3 className="font-semibold">Presencia por nutriente</h3>
+            <p className="mb-4 mt-1 text-sm text-zinc-500">Cantidad de alimentos encontrados que declaran cada nutriente.</p>
+            <BarChart rows={aggregates.map((field) => ({ label: field.label, value: field.foods, detail: `${field.foods} alimentos` }))} valueLabel="alimentos por nutriente" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Familias de nutrientes</h3>
+            <p className="mb-4 mt-1 text-sm text-zinc-500">Distribución de los datos disponibles entre macros, vitaminas y minerales.</p>
+            <DonutChart rows={groupFieldCounts(found)} center={`${fieldCount} datos`} valueLabel="familias nutricionales" />
+          </div>
+        </div>
+      )}
+      {viewMode === "nutrients" && (
+        <div className="rounded-2xl border border-zinc-200 p-4">
+          <h3 className="font-semibold">Nutrientes encontrados</h3>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {aggregates.map((field) => (
+              <div key={field.key} className="rounded-xl bg-zinc-50 px-3 py-3 text-sm">
+                <div className="flex items-baseline justify-between gap-3">
+                  <strong>{field.label}</strong>
+                  <span className="tabular-nums text-zinc-500">{field.foods} alimentos</span>
+                </div>
+                <p className="mt-1 text-xs text-zinc-500">{field.units.join(" / ")} · {field.bases.map((basis) => basis === "100g" ? "100 g" : basis === "100ml" ? "100 ml" : "porción").join(" / ")}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {viewMode === "foods" && (
+        <div className="grid gap-6 rounded-2xl border border-zinc-200 p-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <h3 className="font-semibold">Datos por alimento</h3>
+            <p className="mb-4 mt-1 text-sm text-zinc-500">Cantidad de nutrientes disponibles en cada alimento encontrado.</p>
+            <BarChart rows={fieldsByFood(found)} valueLabel="datos por alimento" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Estado de búsqueda</h3>
+            <p className="mb-4 mt-1 text-sm text-zinc-500">Incluye encontrados, sin datos, pendientes y no consultados.</p>
+            <DonutChart rows={nutritionStatusCounts(queries, results, visibleCount)} center={`${queries.length} alimentos`} valueLabel="estado de búsqueda" />
+          </div>
+        </div>
+      )}
+      {viewMode === "foods" && (
+        <div className="space-y-4">
         {queries.map((entry, index) => {
           const result = results[entry.key];
           const product = result?.product;
-          const skipped = index >= MAX_NUTRITION_LOOKUPS && !result;
+          const skipped = index >= visibleCount && !result;
           return (
             <article key={entry.key} className="rounded-2xl border border-zinc-200 p-4">
               <div className="flex items-start justify-between gap-3">
@@ -197,23 +302,39 @@ function NutrientsTab({ items }: { items: HistoryItem[] }) {
               {product ? (
                 <>
                   <p className="mt-3 text-sm text-zinc-600">{product.productName}{product.brands ? ` · ${product.brands}` : ""}{product.quantity ? ` · ${product.quantity}` : ""}</p>
+                  {result?.matchedQuery && result.matchedQuery !== entry.query && <p className="mt-1 text-xs text-emerald-700">Encontrado {result.variantSource === "knowledge_graph" ? "mediante Google Knowledge Graph" : "con una variante local"}: {result.matchedQuery}</p>}
                   <NutritionFields fields={product.fields} />
                   <a className="mt-4 inline-block text-xs font-medium text-zinc-500 underline" href={product.sourceUrl} target="_blank" rel="noreferrer">Abrir ficha en OpenFoodFacts</a>
                 </>
               ) : (
-                <p className="mt-3 text-sm text-zinc-500">{result?.message ?? (skipped ? "Se omitió para respetar el límite de consultas de OpenFoodFacts." : "La consulta se realizará al abrir esta pestaña.")}</p>
+                <>
+                  <p className="mt-3 text-sm text-zinc-500">{result?.message ?? (skipped ? "Se omitió para respetar el límite de consultas de OpenFoodFacts." : "La consulta se realizará al abrir esta pestaña.")}</p>
+                  {result?.attempts && result.attempts.length > 1 && <p className="mt-1 text-xs text-zinc-400">Se probaron {result.attempts.length} variantes del nombre.</p>}
+                  {result?.nextVariants?.length && (
+                    <button
+                      type="button"
+                      className="btn-secondary mt-3"
+                      disabled={retryingKey !== null}
+                      onClick={() => void retryVariant(entry.key, entry.query, result.nextVariants![0])}
+                    >
+                      {retryingKey === entry.key ? "Reintentando…" : `Reintentar como ${result.nextVariants[0].query}`}
+                    </button>
+                  )}
+                </>
               )}
             </article>
           );
         })}
-      </div>
+        </div>
+      )}
       {!queries.length && <p className="text-sm text-zinc-500">No hay nombres de alimentos disponibles para consultar.</p>}
     </div>
   );
 }
 
 function CategoriesTab({ items }: { items: HistoryItem[] }) {
-  const rows = categoryTotals(items).map(([label, value]) => ({
+  const totals = categoryTotals(items);
+  const rows = totals.map(([label, value]) => ({
     label,
     value: value.items,
     detail: `${value.items} ${value.items === 1 ? "artículo" : "artículos"} · ${formatQuantity(value.quantity, 2)} un`,
@@ -224,6 +345,16 @@ function CategoriesTab({ items }: { items: HistoryItem[] }) {
         <h3 className="font-semibold">Artículos por categoría</h3>
         <p className="mt-1 text-sm text-zinc-500">Cuenta líneas de compra; la cantidad comprada aparece como dato complementario.</p>
       </div>
+      <div className="grid gap-6 rounded-2xl border border-zinc-200 p-4 lg:grid-cols-2">
+        <div>
+          <h3 className="mb-4 font-semibold">Distribución por cantidad de artículos</h3>
+          <BarChart rows={rows} valueLabel="artículos por categoría" />
+        </div>
+        <div>
+          <h3 className="mb-4 font-semibold">Participación de categorías</h3>
+          <DonutChart rows={rows} center={`${items.length} líneas`} valueLabel="categorías de la compra" />
+        </div>
+      </div>
       <ProgressList rows={rows} total={items.length} />
     </div>
   );
@@ -231,12 +362,14 @@ function CategoriesTab({ items }: { items: HistoryItem[] }) {
 
 function UnitsTab({ items }: { items: HistoryItem[] }) {
   const quantity = quantitySummary(items);
-  const unitRows = unitTotals(items).map(([unit, value]) => ({
+  const unitTotalsRows = unitTotals(items);
+  const unitRows = unitTotalsRows.map(([unit, value]) => ({
     label: unitLabels[unit],
     value: value.quantity,
     detail: `${formatQuantity(value.quantity, 3)} ${unit}`,
   }));
   const packages = packageTotals(items);
+  const packageRows = packages.map(([label, value]) => ({ label, value: value.quantity, detail: `${formatQuantity(value.quantity, 2)} un` }));
   return (
     <div className="space-y-6">
       <div>
@@ -248,6 +381,16 @@ function UnitsTab({ items }: { items: HistoryItem[] }) {
         <StatCard label="Volumen" value={`${formatQuantity(quantity.volumeLt, 3)} lt`} icon={<RiScales3Line size={22} />} />
         <StatCard label="Almacenables" value={`${formatQuantity(quantity.discrete, 2)} un`} icon={<RiStackLine size={22} />} />
       </div>
+      <div className="grid gap-6 rounded-2xl border border-zinc-200 p-4 lg:grid-cols-2">
+        <div>
+          <h3 className="mb-4 font-semibold">Cantidad por unidad</h3>
+          <BarChart rows={unitRows} valueLabel="cantidad por unidad" />
+        </div>
+        <div>
+          <h3 className="mb-4 font-semibold">Presentaciones</h3>
+          <DonutChart rows={packageRows} center={`${formatQuantity(quantity.discrete, 2)} un`} valueLabel="presentaciones de almacén" />
+        </div>
+      </div>
       <div className="grid gap-6 lg:grid-cols-2">
         <div>
           <h3 className="mb-4 font-semibold">Por unidad registrada</h3>
@@ -257,7 +400,7 @@ function UnitsTab({ items }: { items: HistoryItem[] }) {
           <h3 className="mb-1 font-semibold">Presentación de almacén</h3>
           <p className="mb-4 text-sm text-zinc-500">Criterio: detectamos cajas, latas, paquetes, botellas y formatos similares escritos en el nombre o descripción; el resto queda como suelto/otro.</p>
           {packages.length ? (
-            <ProgressList rows={packages.map(([label, value]) => ({ label, value: value.quantity, detail: `${formatQuantity(value.quantity, 2)} un` }))} total={packages.reduce((sum, [, value]) => sum + value.quantity, 0)} />
+            <ProgressList rows={packageRows} total={packages.reduce((sum, [, value]) => sum + value.quantity, 0)} />
           ) : <p className="text-sm text-zinc-500">No hay unidades discretas con una presentación reconocible.</p>}
         </div>
       </div>
