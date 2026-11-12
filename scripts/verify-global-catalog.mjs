@@ -810,6 +810,55 @@ try {
     homeA,
   );
   checks += 2;
+  await req(
+    "/api/list/bulk",
+    "POST",
+    {
+      ids: ["old-purchase"],
+      action: "urgent",
+      urgentPurchase: true,
+    },
+    user,
+    200,
+    homeA,
+  );
+  const bulkUrgentList = await req(
+    "/api/list/get-list",
+    "GET",
+    undefined,
+    admin,
+    200,
+    homeA,
+  );
+  assert.equal(
+    bulkUrgentList.find((item) => item.id === "old-purchase").urgentPurchase,
+    true,
+  );
+  await req(
+    "/api/list/bulk",
+    "POST",
+    {
+      ids: ["old-purchase"],
+      action: "urgent",
+      urgentPurchase: false,
+    },
+    user,
+    200,
+    homeA,
+  );
+  await req(
+    "/api/list/bulk",
+    "POST",
+    {
+      ids: [pendingPriceCompanionId],
+      action: "urgent",
+      urgentPurchase: true,
+    },
+    user,
+    400,
+    homeA,
+  );
+  checks += 1;
   assert.equal(
     purchasedList.find((item) => item.id === noPriceItemId).description,
     "Descripción actualizada por un miembro",

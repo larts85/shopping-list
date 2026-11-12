@@ -466,24 +466,39 @@ export async function bulkUpdateCartItems(input: {
   ids: unknown;
   action: unknown;
   description?: unknown;
+  urgentPurchase?: unknown;
 }): Promise<void> {
   if (!input || !Array.isArray(input.ids) || input.ids.length < 1 || input.ids.length > 500)
     throw new DataError("Selecciona al menos un artículo");
   const ids = input.ids.map(text);
   const action = input.action;
-  if (!["remove", "buy", "description"].includes(String(action)))
+  if (!["remove", "buy", "description", "urgent"].includes(String(action)))
     throw new DataError("Acción masiva inválida");
   if (action === "description" && (typeof input.description !== "string" || input.description.trim().length > 500))
     throw new DataError("La descripción no puede superar los 500 caracteres");
+  if (action === "urgent" && typeof input.urgentPurchase !== "boolean")
+    throw new DataError("Prioridad de compra inválida");
   await withListItemEditor(async (db, h) => {
-    const rows = await db.query("select id,comprado from shopping_list where list_id=$1 and id=any($2::text[]) for update", [h, ids]);
+    const rows = await db.query("select id,id_product,comprado from shopping_list where list_id=$1 and id=any($2::text[]) for update", [h, ids]);
     if (rows.rowCount !== ids.length) throw new DataError("Uno o más artículos ya no están disponibles");
     if (action === "remove") {
       await db.query("delete from shopping_list where list_id=$1 and id=any($2::text[])", [h, ids]);
     } else if (action === "buy") {
       await db.query("update shopping_list set comprado=true where list_id=$1 and id=any($2::text[])", [h, ids]);
-    } else {
+    } else if (action === "description") {
       await db.query("update shopping_list set description=$3 where list_id=$1 and id=any($2::text[])", [h, ids, String(input.description).trim()]);
+    } else {
+      if (rows.rows.some((row) => !row.id_product))
+        throw new DataError(
+          "La compra urgente solo está disponible para productos del catálogo",
+        );
+      const productIds = [...new Set(rows.rows.map((row) => row.id_product))];
+      const updated = await db.query(
+        "update catalog_products set urgent_purchase=$2 where id=any($1::text[]) and not archived returning id",
+        [productIds, input.urgentPurchase],
+      );
+      if (updated.rowCount !== productIds.length)
+        throw new DataError("Uno o más productos ya no están disponibles");
     }
   });
 }
