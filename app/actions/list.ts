@@ -40,7 +40,7 @@ export async function getList(scope?: string): Promise<IList[]> {
       `select l.*,coalesce(p.name,l.provisional_name) name,
         coalesce(p.id_category,l.provisional_category_id) id_category,
         c.name as category_name,
-        p.unit as product_unit,
+        p.unit as product_unit,p.urgent_purchase,
         coalesce(p.available_units,l.provisional_available_units) available_units,
         l.id_product is null is_provisional,l.provisional_created_by,
         cr.email catalog_request_email,cr.status catalog_request_status
@@ -85,6 +85,7 @@ export async function getList(scope?: string): Promise<IList[]> {
       comprado: r.comprado ? "1" : "",
       unit: r.unit ?? r.product_unit,
       productUnit: r.product_unit ?? r.unit ?? "un",
+      urgentPurchase: r.urgent_purchase ?? false,
       availableUnits: unitsForCategory(r.category_name ?? ""),
       isProvisional: r.is_provisional,
       createdBy: r.provisional_created_by,
@@ -167,6 +168,7 @@ export async function updateListItemDetails(
     cantidad?: unknown;
     unit?: unknown;
     precio?: unknown;
+    urgentPurchase?: unknown;
   },
 ): Promise<void> {
   const rowId = text(id);
@@ -174,6 +176,9 @@ export async function updateListItemDetails(
     throw new DataError("Descripción inválida");
   const description = input.description.trim();
   if (description.length > 500) throw new DataError("Descripción demasiado larga");
+  const hasUrgentPurchase = Object.hasOwn(input, "urgentPurchase");
+  if (hasUrgentPurchase && typeof input.urgentPurchase !== "boolean")
+    throw new DataError("Prioridad de compra inválida");
 
   const hasCantidad = Object.hasOwn(input, "cantidad");
   const cantidad =
@@ -191,10 +196,24 @@ export async function updateListItemDetails(
 
   await withListItemEditor(async (db, h, email) => {
     const product = await db.query(
-      "select l.comprado,l.cantidad,l.precio,l.unit,p.unit product_unit,coalesce(p.available_units,l.provisional_available_units) available_units from shopping_list l left join catalog_products p on p.id=l.id_product where l.list_id=$1 and l.id=$2 for update of l",
+      "select l.comprado,l.cantidad,l.precio,l.unit,l.id_product,p.unit product_unit,coalesce(p.available_units,l.provisional_available_units) available_units from shopping_list l left join catalog_products p on p.id=l.id_product where l.list_id=$1 and l.id=$2 for update of l",
       [h, rowId],
     );
     requireRow(product.rowCount);
+    if (hasUrgentPurchase) {
+      if (!product.rows[0].id_product)
+        throw new DataError(
+          "Los productos provisionales no admiten prioridad de compra",
+        );
+      requireRow(
+        (
+          await db.query(
+            "update catalog_products set urgent_purchase=$2 where id=$1 and not archived",
+            [product.rows[0].id_product, input.urgentPurchase],
+          )
+        ).rowCount,
+      );
+    }
     const bought = product.rows[0].comprado;
     const editingPurchase = hasCantidad || hasUnit || hasPrice;
     if (
@@ -277,7 +296,7 @@ export async function getListPageData(scope?: string): Promise<{
       db.query(
         `select l.*,coalesce(p.name,l.provisional_name) name,
           coalesce(p.id_category,l.provisional_category_id) id_category,
-          c.name as category_name,p.unit as product_unit,
+          c.name as category_name,p.unit as product_unit,p.urgent_purchase,
           coalesce(p.available_units,l.provisional_available_units) available_units,
           l.id_product is null is_provisional,l.provisional_created_by,
           cr.email catalog_request_email,cr.status catalog_request_status
@@ -333,6 +352,7 @@ export async function getListPageData(scope?: string): Promise<{
       comprado: r.comprado ? "1" : "",
       unit: r.unit ?? r.product_unit,
       productUnit: r.product_unit ?? r.unit ?? "un",
+      urgentPurchase: r.urgent_purchase ?? false,
       availableUnits: unitsForCategory(r.category_name ?? ""),
       isProvisional: r.is_provisional,
       createdBy: r.provisional_created_by,

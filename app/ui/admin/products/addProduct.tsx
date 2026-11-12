@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { ClipLoader } from "react-spinners";
 import { capitalize } from "../../utils/capitalize";
 import { RiDeleteBin6Line } from "react-icons/ri";
+import { RiFlashlightFill } from "react-icons/ri";
 import DeleteProductModal from "./deleteProductModal";
 import { BiEditAlt } from "react-icons/bi";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
@@ -33,6 +34,7 @@ interface Product {
   checked: boolean;
   unit?: Unit;
   availableUnits?: Unit[];
+  urgentPurchase?: boolean;
 }
 
 export interface NewProduct {
@@ -453,6 +455,12 @@ export default function AddProduct() {
                 >
                   Aplicar unidades
                 </button>
+                <button type="button" className="btn-secondary" disabled={bulkBusy} onClick={() => void runBulkEdit({ urgentPurchase: true })}>
+                  Marcar compra urgente
+                </button>
+                <button type="button" className="btn-secondary" disabled={bulkBusy} onClick={() => void runBulkEdit({ urgentPurchase: false })}>
+                  Quitar compra urgente
+                </button>
                 <button
                   type="button"
                   className="btn-secondary text-red-700 hover:bg-red-50"
@@ -488,6 +496,7 @@ export default function AddProduct() {
                   }
                 />
                 <span className="min-w-0 break-words text-sm font-medium">
+                  {product.urgentPurchase && <RiFlashlightFill className="mr-1 inline text-amber-500" title="Compra urgente" aria-label="Compra urgente" />}
                   {product.name}
                   {(() => {
                     const available = product.availableUnits ?? [
