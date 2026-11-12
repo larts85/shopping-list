@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { RiFlashlightFill } from "react-icons/ri";
 import { listFetch } from "@/app/lib/listClient";
 import type { IList } from "@/app/lib/types";
 import {
@@ -23,6 +24,9 @@ export default function ProductDetailsModal({
   onClose,
 }: ProductDetailsModalProps) {
   const [description, setDescription] = useState(item.description ?? "");
+  const [urgentPurchase, setUrgentPurchase] = useState(
+    item.urgentPurchase ?? false,
+  );
   const [cantidad, setCantidad] = useState(item.cantidad);
   const [unit, setUnit] = useState<Unit>(item.unit ?? item.productUnit ?? "un");
   const [precio, setPrecio] = useState(
@@ -82,6 +86,7 @@ export default function ProductDetailsModal({
       const body: Record<string, unknown> = {
         id: item.id,
         description: trimmedDescription,
+        urgentPurchase,
       };
       if (canEditPurchase) {
         body.cantidad = cantidad;
@@ -119,6 +124,7 @@ export default function ProductDetailsModal({
       onClose({
         ...item,
         description: trimmedDescription,
+        urgentPurchase,
         precioTotal: updatedPrecioTotal,
         ...(canEditPurchase
           ? {
@@ -177,6 +183,18 @@ export default function ProductDetailsModal({
         </p>
       )}
       <form onSubmit={saveDetails}>
+        {!item.isProvisional && (
+          <label className="mb-5 flex cursor-pointer items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-950">
+            <input
+              type="checkbox"
+              checked={urgentPurchase}
+              onChange={(event) => setUrgentPurchase(event.target.checked)}
+              disabled={isSaving}
+            />
+            <RiFlashlightFill className="text-amber-500" aria-hidden="true" />
+            Compra urgente
+          </label>
+        )}
         <label className="block text-sm font-medium">
           Descripción (opcional)
           <textarea

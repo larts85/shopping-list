@@ -25,6 +25,7 @@ import { getPurchaseActionLabel } from "@/app/lib/purchaseAction";
 import BoughtListModal from "./boughtModal";
 import ProductDetailsModal from "./productDetailsModal";
 import { IList } from "@/app/lib/types";
+import { RiFlashlightFill } from "react-icons/ri";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
 import {
   compatibleUnits,
@@ -1218,6 +1219,13 @@ export default function List() {
                           <span
                             className={`min-w-0 flex-1 break-words ${product.comprado === "1" ? "text-zinc-500 line-through" : "font-medium"}`}
                           >
+                            {product.urgentPurchase && (
+                              <RiFlashlightFill
+                                className="mr-1 inline text-amber-500"
+                                title="Compra urgente"
+                                aria-label="Compra urgente"
+                              />
+                            )}
                             {product.name}
                           </span>
                           <span className="sr-only">
