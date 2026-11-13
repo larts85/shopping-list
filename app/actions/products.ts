@@ -29,15 +29,16 @@ export async function getProducts(scope?: string): Promise<Product[]> {
     async (db, h) =>
       (
         await db.query(
-          "select p.id,p.name,p.id_category,coalesce(s.checked,false) checked,p.unit,p.available_units from catalog_products p left join list_selections s on s.product_id=p.id and s.list_id=$1 where not p.archived order by p.name,p.id",
+          "select p.id,p.name,p.id_category,coalesce(s.checked,false) checked,p.unit,p.available_units,p.urgent_purchase from catalog_products p left join list_selections s on s.product_id=p.id and s.list_id=$1 where not p.archived order by p.name,p.id",
           [h],
         )
       ).rows,
     scope,
   );
-  return products.map(({ available_units, ...product }) => ({
+  return products.map(({ available_units, urgent_purchase, ...product }) => ({
       ...product,
       availableUnits: available_units,
+      urgentPurchase: urgent_purchase,
     }));
 }
 export async function addProduct(p: AddProduct): Promise<void> {
@@ -145,7 +146,13 @@ export async function editNameProduct(p: EditProductParams): Promise<void> {
       (
         await db.query(
           "update catalog_products set name=$2,unit=$3,available_units=$4,id_category=coalesce($5,id_category) where id=$1 and not archived",
-          [p.idProduct, text(p.newNameProduct), unit, availableUnits, p.idCategory ? text(p.idCategory) : null],
+          [
+            p.idProduct,
+            text(p.newNameProduct),
+            unit,
+            availableUnits,
+            p.idCategory ? text(p.idCategory) : null,
+          ],
         )
       ).rowCount,
     );
@@ -157,6 +164,7 @@ export interface BulkEditProductsInput {
   idCategory?: string;
   unit?: Unit;
   availableUnits?: Unit[];
+  urgentPurchase?: boolean;
   action?: "update" | "delete";
 }
 
@@ -182,6 +190,11 @@ export async function bulkEditProducts(input: BulkEditProductsInput): Promise<vo
   if (input.unit !== undefined && !isUnit(input.unit))
     throw new DataError("Unidad principal inválida");
   if (
+    input.urgentPurchase !== undefined &&
+    typeof input.urgentPurchase !== "boolean"
+  )
+    throw new DataError("Prioridad de compra inválida");
+  if (
     input.availableUnits !== undefined &&
     (!Array.isArray(input.availableUnits) ||
       !input.availableUnits.length ||
@@ -190,7 +203,12 @@ export async function bulkEditProducts(input: BulkEditProductsInput): Promise<vo
       new Set(input.availableUnits).size !== input.availableUnits.length)
   )
     throw new DataError("Unidades disponibles inválidas");
-  if (!input.idCategory && input.unit === undefined && input.availableUnits === undefined)
+  if (
+    !input.idCategory &&
+    input.unit === undefined &&
+    input.availableUnits === undefined &&
+    input.urgentPurchase === undefined
+  )
     throw new DataError("Indica una categoría o las unidades para aplicar");
   await withCatalog(async (db) => {
     const products = await db.query(
@@ -236,8 +254,14 @@ export async function bulkEditProducts(input: BulkEditProductsInput): Promise<vo
           );
       }
       await db.query(
-        "update catalog_products set id_category=coalesce($2,id_category),unit=$3,available_units=$4 where id=$1",
-        [product.id, input.idCategory ? text(input.idCategory) : null, unit, availableUnits],
+        "update catalog_products set id_category=coalesce($2,id_category),unit=$3,available_units=$4,urgent_purchase=coalesce($5,urgent_purchase) where id=$1",
+        [
+          product.id,
+          input.idCategory ? text(input.idCategory) : null,
+          unit,
+          availableUnits,
+          input.urgentPurchase ?? null,
+        ],
       );
     }
   }, true);

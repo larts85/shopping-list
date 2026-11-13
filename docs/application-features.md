@@ -59,6 +59,7 @@ actualización.
 | Agregar productos a una lista         | Sí  | Sí (`add_item_to_list`)  |
 | Autocompletar productos               | Sí  | No                       |
 | Seleccionar categorías                | Sí  | No                       |
+| Marcar productos como compra urgente desde el detalle, la edición múltiple del catálogo o la selección múltiple del carrito | Sí | No |
 | Administrar categorías                | Sí  | No                       |
 | Solicitar productos de catálogo          | Sí | No |
 | Revisar solicitudes de productos (actualización inmediata del historial) | Sí | No |

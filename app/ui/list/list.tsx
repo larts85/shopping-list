@@ -25,6 +25,7 @@ import { getPurchaseActionLabel } from "@/app/lib/purchaseAction";
 import BoughtListModal from "./boughtModal";
 import ProductDetailsModal from "./productDetailsModal";
 import { IList } from "@/app/lib/types";
+import { RiFlashlightFill } from "react-icons/ri";
 import UnitSelect from "@/shared/components/ui/UnitSelect";
 import {
   compatibleUnits,
@@ -232,6 +233,17 @@ export default function List() {
   const [autoSaveError, setAutoSaveError] = useState("");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const selectedCartIds = Array.from(new Set(selectedIds));
+  const selectedCartItems = Object.values(list)
+    .flat()
+    .filter((item) => selectedCartIds.includes(item.id));
+  const hasUnsupportedUrgentSelection =
+    selectedCartItems.length !== selectedCartIds.length ||
+    selectedCartItems.some((item) => item.isProvisional);
+  const allSelectedUrgent =
+    selectedCartItems.length > 0 &&
+    selectedCartItems.every((item) => item.urgentPurchase);
+  const [bulkUrgencyBusy, setBulkUrgencyBusy] = useState(false);
   const pendingProductUpdates = useRef<Record<string, PendingProductUpdate>>(
     {},
   );
@@ -810,6 +822,48 @@ export default function List() {
     setStatus(action === "buy" ? "Artículos marcados como comprados." : action === "remove" ? "Artículos eliminados del carrito." : "Descripción actualizada.");
   }
 
+  async function applyBulkUrgency() {
+    if (
+      !selectedCartIds.length ||
+      hasUnsupportedUrgentSelection ||
+      bulkUrgencyBusy
+    )
+      return;
+    const urgentPurchase = !allSelectedUrgent;
+    setBulkUrgencyBusy(true);
+    setError("");
+    try {
+      const response = await listFetch("/api/list/bulk", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedCartIds,
+          action: "urgent",
+          urgentPurchase,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok)
+        throw new Error(result.error || "No pudimos actualizar la urgencia.");
+      setSelectedIds([]);
+      setSelectionMode(false);
+      await fetchList();
+      setStatus(
+        urgentPurchase
+          ? "Artículos marcados como compra urgente."
+          : "Se quitó la marca de compra urgente.",
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos actualizar la urgencia.",
+      );
+    } finally {
+      setBulkUrgencyBusy(false);
+    }
+  }
+
   async function submitBulkDescription() {
     if (!bulkDescription || bulkDescriptionBusy) return;
     setBulkDescriptionBusy(true);
@@ -1027,6 +1081,30 @@ export default function List() {
               <span className="mr-2 text-sm font-medium">{new Set(selectedIds).size} seleccionados</span>
               <button className="btn-secondary" onClick={() => void applyBulkAction("buy")}>Marcar comprados</button>
               <button
+                type="button"
+                className="btn-secondary inline-flex items-center gap-2"
+                disabled={
+                  !canEditList ||
+                  isLoading ||
+                  purchaseBusy ||
+                  pendingSaveCount > 0 ||
+                  isSavingEdits ||
+                  bulkUrgencyBusy ||
+                  hasUnsupportedUrgentSelection
+                }
+                title={
+                  hasUnsupportedUrgentSelection
+                    ? "La compra urgente solo está disponible para productos del catálogo."
+                    : undefined
+                }
+                onClick={() => void applyBulkUrgency()}
+              >
+                <RiFlashlightFill className="text-amber-500" aria-hidden="true" />
+                {allSelectedUrgent
+                  ? "Quitar compra urgente"
+                  : "Marcar compra urgente"}
+              </button>
+              <button
                 className="btn-secondary"
                 onClick={() =>
                   setBulkDescription({
@@ -1225,6 +1303,13 @@ export default function List() {
                           <span
                             className={`min-w-0 flex-1 break-words ${product.comprado === "1" ? "text-zinc-500 line-through" : "font-medium"}`}
                           >
+                            {product.urgentPurchase && (
+                              <RiFlashlightFill
+                                className="mr-1 inline text-amber-500"
+                                title="Compra urgente"
+                                aria-label="Compra urgente"
+                              />
+                            )}
                             {product.name}
                           </span>
                           <span className="sr-only">

@@ -114,6 +114,13 @@ try {
       ) +
       "commit;",
   );
+  const urgentPurchaseMigration = migrationNames.find((name) =>
+    name.includes("urgent_purchase_preview_catalog_flag"),
+  );
+  assert.ok(urgentPurchaseMigration);
+  await db.exec(
+    readFileSync("supabase/migrations/" + urgentPurchaseMigration, "utf8"),
+  );
   const userRolesMigration = migrationNames.find((n) =>
     n.includes("manage_app_user_roles"),
   );
@@ -766,6 +773,92 @@ try {
     200,
     homeA,
   );
+  await req(
+    "/api/list/item-details",
+    "PATCH",
+    {
+      id: "old-purchase",
+      description: "Descripción de compra urgente",
+      urgentPurchase: true,
+    },
+    user,
+    200,
+    homeA,
+  );
+  const urgentList = await req(
+    "/api/list/get-list",
+    "GET",
+    undefined,
+    admin,
+    200,
+    homeA,
+  );
+  assert.equal(
+    urgentList.find((item) => item.id === "old-purchase").urgentPurchase,
+    true,
+  );
+  await req(
+    "/api/list/item-details",
+    "PATCH",
+    {
+      id: "old-purchase",
+      description: "Compra anterior",
+      urgentPurchase: false,
+    },
+    user,
+    200,
+    homeA,
+  );
+  checks += 2;
+  await req(
+    "/api/list/bulk",
+    "POST",
+    {
+      ids: ["old-purchase"],
+      action: "urgent",
+      urgentPurchase: true,
+    },
+    user,
+    200,
+    homeA,
+  );
+  const bulkUrgentList = await req(
+    "/api/list/get-list",
+    "GET",
+    undefined,
+    admin,
+    200,
+    homeA,
+  );
+  assert.equal(
+    bulkUrgentList.find((item) => item.id === "old-purchase").urgentPurchase,
+    true,
+  );
+  await req(
+    "/api/list/bulk",
+    "POST",
+    {
+      ids: ["old-purchase"],
+      action: "urgent",
+      urgentPurchase: false,
+    },
+    user,
+    200,
+    homeA,
+  );
+  await req(
+    "/api/list/bulk",
+    "POST",
+    {
+      ids: [pendingPriceCompanionId],
+      action: "urgent",
+      urgentPurchase: true,
+    },
+    user,
+    400,
+    homeA,
+  );
+  checks += 1;
   assert.equal(
     purchasedList.find((item) => item.id === noPriceItemId).description,
     "Descripción actualizada por un miembro",
@@ -817,7 +910,7 @@ try {
   // Cart mutations must stay scoped and leave the global catalog untouched.
   const original = (
     await db.query(
-      "select id,id_product from preview_lists.shopping_list where list_id=$1",
+      "select id,id_product from preview_lists.shopping_list where list_id=$1 and id_product is not null order by id limit 1",
       [homeA],
     )
   ).rows[0];
@@ -1355,6 +1448,24 @@ try {
   assert.ok(bulkUpdated.every((p) => p.id_category === category.id));
   assert.ok(bulkUpdated.every((p) => p.availableUnits.includes("lt")));
   checks += 3;
+  await req(
+    "/api/products/bulk-edit-products",
+    "PUT",
+    { productIds: bulkProducts, urgentPurchase: true },
+    admin,
+  );
+  assert.ok(
+    (await req("/api/products/get-products", "GET", undefined, admin))
+      .filter((product) => bulkProducts.includes(product.id))
+      .every((product) => product.urgentPurchase === true),
+  );
+  await req(
+    "/api/products/bulk-edit-products",
+    "PUT",
+    { productIds: bulkProducts, urgentPurchase: false },
+    admin,
+  );
+  checks += 2;
   await req(
     "/api/products/bulk-edit-products",
     "PUT",

@@ -7,6 +7,7 @@ export interface Product {
   checked: boolean;
   unit?: Unit;
   availableUnits?: Unit[];
+  urgentPurchase?: boolean;
 }
 
 export interface ProductChecked {
@@ -53,4 +54,5 @@ export interface IList {
   createdBy?: string | null;
   catalogRequestEmail?: string | null;
   catalogRequestStatus?: "pending" | "approved" | "rejected" | null;
+  urgentPurchase?: boolean;
 }
