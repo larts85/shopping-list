@@ -62,6 +62,10 @@ export default function EditHistoricalItemModal({
       String(purchase.cantidad ?? "1"),
     );
   });
+  const [discountType, setDiscountType] = useState<"percent" | "amount" | "">(purchase.discount_type === "percent" || purchase.discount_type === "amount" ? purchase.discount_type : "");
+  const [discountValue, setDiscountValue] = useState(purchase.discount_value == null ? "" : String(purchase.discount_value));
+  const [listDiscountType, setListDiscountType] = useState<"percent" | "amount" | "">(purchase.list_discount_type === "percent" || purchase.list_discount_type === "amount" ? purchase.list_discount_type : "");
+  const [listDiscountValue, setListDiscountValue] = useState(purchase.list_discount_value == null ? "" : String(purchase.list_discount_value));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -78,6 +82,8 @@ export default function EditHistoricalItemModal({
     const quantity = Number(cantidad);
     const price = precio === "" ? null : Number(precio);
     const totalPrice = precioTotal === "" ? null : Number(precioTotal);
+    const productDiscount = discountValue === "" ? null : Number(discountValue);
+    const listDiscount = listDiscountValue === "" ? null : Number(listDiscountValue);
     if (!Number.isFinite(quantity) || quantity <= 0) {
       setError("La cantidad debe ser mayor que cero.");
       return;
@@ -94,6 +100,10 @@ export default function EditHistoricalItemModal({
       setError("El precio total debe ser igual o mayor que cero.");
       return;
     }
+    if ((discountType && (productDiscount === null || productDiscount < 0 || (discountType === "percent" && productDiscount > 100))) || (listDiscountType && (listDiscount === null || listDiscount < 0 || (listDiscountType === "percent" && listDiscount > 100)))) {
+      setError("Los descuentos deben tener un valor válido; los porcentajes no pueden superar 100 %.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -103,7 +113,7 @@ export default function EditHistoricalItemModal({
           "content-type": "application/json",
           "X-List-ID": item.listId,
         },
-        body: JSON.stringify({ id: item.id, name, description, cantidad: quantity, unit, precio: price, precio_total: totalPrice }),
+        body: JSON.stringify({ id: item.id, name, description, cantidad: quantity, unit, precio: price, precio_total: totalPrice, discount_type: discountType || null, discount_value: discountType ? productDiscount : null, list_discount_type: listDiscountType || null, list_discount_value: listDiscountType ? listDiscount : null }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "No se pudieron guardar los cambios.");
@@ -211,6 +221,20 @@ export default function EditHistoricalItemModal({
               }}
               disabled={saving}
             />
+          </label>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="text-sm font-medium">Descuento del producto
+            <select className="field mt-2" value={discountType} onChange={(event) => setDiscountType(event.target.value as "percent" | "amount" | "")} disabled={saving}>
+              <option value="">Sin descuento</option><option value="percent">Porcentaje</option><option value="amount">Monto fijo (ARS)</option>
+            </select>
+            <input className="field mt-2" type="number" min="0" max={discountType === "percent" ? "100" : undefined} step="any" value={discountValue} onChange={(event) => setDiscountValue(event.target.value)} disabled={saving || !discountType} />
+          </label>
+          <label className="text-sm font-medium">Descuento de la compra completa
+            <select className="field mt-2" value={listDiscountType} onChange={(event) => setListDiscountType(event.target.value as "percent" | "amount" | "")} disabled={saving}>
+              <option value="">Sin descuento</option><option value="percent">Porcentaje</option><option value="amount">Monto fijo (ARS)</option>
+            </select>
+            <input className="field mt-2" type="number" min="0" max={listDiscountType === "percent" ? "100" : undefined} step="any" value={listDiscountValue} onChange={(event) => setListDiscountValue(event.target.value)} disabled={saving || !listDiscountType} />
           </label>
         </div>
         <div className="flex justify-end gap-3">

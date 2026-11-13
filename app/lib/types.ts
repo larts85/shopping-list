@@ -42,6 +42,9 @@ export interface IList {
   medida: string;
   precio: string;
   precioValue?: number | null;
+  precioTotalValue?: number | null;
+  discountType?: "percent" | "amount" | null;
+  discountValue?: number | null;
   precioTotal: string;
   precioKg: string;
   kgTotal: string;

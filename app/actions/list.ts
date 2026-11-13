@@ -66,6 +66,9 @@ export async function getList(scope?: string): Promise<IList[]> {
       medida: r.medida ?? "",
       precio: r.precio == null ? "" : currency(Number(r.precio)),
       precioValue: r.precio == null ? null : Number(r.precio),
+      precioTotalValue: r.precio_total == null ? null : Number(r.precio_total),
+      discountType: r.discount_type ?? null,
+      discountValue: r.discount_value == null ? null : Number(r.discount_value),
       precioTotal:
         r.precio_total == null && (r.precio == null || r.cantidad == null)
           ? ""
@@ -169,6 +172,9 @@ export async function updateListItemDetails(
     unit?: unknown;
     precio?: unknown;
     urgentPurchase?: unknown;
+    precio_total?: unknown;
+    discount_type?: unknown;
+    discount_value?: unknown;
   },
 ): Promise<void> {
   const rowId = text(id);
@@ -193,6 +199,21 @@ export async function updateListItemDetails(
     !hasPrice || input.precio === null || input.precio === ""
       ? null
       : positive(input.precio, true);
+  const hasTotal = Object.hasOwn(input, "precio_total");
+  const total = !hasTotal || input.precio_total === null || input.precio_total === ""
+    ? null
+    : positive(input.precio_total, true);
+  const hasDiscount = Object.hasOwn(input, "discount_type") || Object.hasOwn(input, "discount_value");
+  const discountType = input.discount_type == null || input.discount_type === ""
+    ? null
+    : input.discount_type;
+  const discountValue = discountType === null
+    ? null
+    : positive(input.discount_value, true);
+  if (discountType !== null && discountType !== "percent" && discountType !== "amount")
+    throw new DataError("Tipo de descuento inválido");
+  if (discountType === "percent" && discountValue! > 100)
+    throw new DataError("El descuento porcentual debe estar entre 0 y 100");
 
   await withListItemEditor(async (db, h, email) => {
     const product = await db.query(
@@ -215,7 +236,7 @@ export async function updateListItemDetails(
       );
     }
     const bought = product.rows[0].comprado;
-    const editingPurchase = hasCantidad || hasUnit || hasPrice;
+    const editingPurchase = hasCantidad || hasUnit || hasPrice || hasTotal || hasDiscount;
     if (
       bought &&
       editingPurchase &&
@@ -231,16 +252,19 @@ export async function updateListItemDetails(
       hasCantidad && Number(cantidad) !== Number(product.rows[0].cantidad);
     const unitChanged = hasUnit && unit !== currentUnit;
     const priceChanged =
-      hasPrice &&
+      hasPrice && !hasTotal &&
       (price === null
         ? product.rows[0].precio !== null
         : product.rows[0].precio === null ||
           Number(price) !== Number(product.rows[0].precio));
-    const recalculateTotal =
-      bought && (quantityChanged || unitChanged || priceChanged);
+    const recalculateTotal = bought && !hasTotal && (quantityChanged || unitChanged || priceChanged);
+    const effectiveQuantity = hasCantidad ? cantidad : Number(product.rows[0].cantidad);
+    const effectivePrice = hasTotal
+      ? total === null ? null : total / effectiveQuantity
+      : hasPrice ? price : product.rows[0].precio == null ? null : Number(product.rows[0].precio);
     if (hasUnit && unit !== currentUnit)
       requireAvailableUnit(unit!, product.rows[0].available_units);
-    if (hasPrice && !bought)
+    if ((hasPrice || hasTotal) && !bought)
       throw new DataError("El precio se registra al marcar el producto como comprado");
 
     requireRow(
@@ -249,12 +273,11 @@ export async function updateListItemDetails(
           `update shopping_list set description=$3,
              cantidad=case when $4 then $5 else cantidad end,
              unit=case when $6 then $7 else unit end,
-             precio=case when $8 then $9 else precio end,
-             precio_total=case when $10 then
-               case when (case when $8 then $9 else precio end) is null then null
-                 else (case when $4 then $5 else cantidad end)*
-                   (case when $8 then $9 else precio end) end
-               else precio_total end
+             precio=case when $8 or $10 then $11 else precio end,
+             precio_total=case when $10 then $12
+               when $13 then $14 else precio_total end,
+             discount_type=case when $15 then $16 else discount_type end,
+             discount_value=case when $15 then $17 else discount_value end
            where list_id=$1 and id=$2`,
           [
             h,
@@ -266,11 +289,38 @@ export async function updateListItemDetails(
             unit,
             hasPrice,
             price,
+            hasTotal,
+            effectivePrice,
+            hasTotal,
+            total,
             recalculateTotal,
+            effectivePrice === null ? null : effectiveQuantity * effectivePrice,
+            hasDiscount,
+            discountType,
+            discountValue,
           ],
         )
       ).rowCount,
     );
+  });
+}
+
+export async function setListDiscount(input: {
+  type: unknown;
+  value: unknown;
+}): Promise<{ type: "percent" | "amount" | null; value: number | null }> {
+  const type = input?.type == null || input.type === "" ? null : input.type;
+  const value = type === null ? null : positive(input.value, true);
+  if (type !== null && type !== "percent" && type !== "amount")
+    throw new DataError("Tipo de descuento inválido");
+  if (type === "percent" && value! > 100)
+    throw new DataError("El descuento porcentual debe estar entre 0 y 100");
+  return withListEditor(async (db, listId) => {
+    await db.query(
+      "update lists set discount_type=$2,discount_value=$3 where id=$1",
+      [listId, type, value],
+    );
+    return { type: type as "percent" | "amount" | null, value };
   });
 }
 export async function getListProductsByCategories(): Promise<
@@ -285,7 +335,7 @@ export async function getListProductsByCategories(): Promise<
   );
 }
 export async function getListPageData(scope?: string): Promise<{
-  activeList: { id: string; name: string };
+  activeList: { id: string; name: string; discountType: "percent" | "amount" | null; discountValue: number | null };
   canEditList: boolean;
   canManageList: boolean;
   list: Record<string, IList[]>;
@@ -311,7 +361,7 @@ export async function getListPageData(scope?: string): Promise<{
         "select id,name from catalog_categories where not archived order by name,id",
       ),
       db.query(
-        `select h.id,h.name,h.owner_email=$2 as can_manage,
+        `select h.id,h.name,h.discount_type,h.discount_value,h.owner_email=$2 as can_manage,
           case when h.owner_email=$2 then 'owner' else m.role end as member_role
          from lists h join list_members m on m.list_id=h.id and m.email=$2
          where h.id=$1`,
@@ -333,6 +383,9 @@ export async function getListPageData(scope?: string): Promise<{
       medida: r.medida ?? "",
       precio: r.precio == null ? "" : currency(Number(r.precio)),
       precioValue: r.precio == null ? null : Number(r.precio),
+      precioTotalValue: r.precio_total == null ? null : Number(r.precio_total),
+      discountType: r.discount_type ?? null,
+      discountValue: r.discount_value == null ? null : Number(r.discount_value),
       precioTotal:
         r.precio_total == null && (r.precio == null || r.cantidad == null)
           ? ""
@@ -363,6 +416,8 @@ export async function getListPageData(scope?: string): Promise<{
       activeList: {
         id: listMetaRows.rows[0].id,
         name: listMetaRows.rows[0].name,
+        discountType: listMetaRows.rows[0].discount_type,
+        discountValue: listMetaRows.rows[0].discount_value == null ? null : Number(listMetaRows.rows[0].discount_value),
       },
       canEditList: canEditList(
         listMetaRows.rows[0].member_role as MemberRole,
