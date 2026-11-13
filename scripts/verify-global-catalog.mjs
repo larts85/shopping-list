@@ -1024,9 +1024,9 @@ try {
     "insert into preview_lists.shopping_list(id,list_id,id_product) values('cart-other-scope',$1,$2)",
     [homeB, original.id_product],
   );
-  // An accepted member can remove/unmark items but cannot finalize purchases.
+  // A viewer can remove/unmark items but cannot finalize purchases.
   await db.query(
-    "insert into preview_lists.list_members(list_id,email) values($1,$2)",
+    "insert into preview_lists.list_members(list_id,email,role) values($1,$2,'list_viewer')",
     [homeB, outsider],
   );
   await db.query(
@@ -1042,6 +1042,44 @@ try {
     { productIds: ["cart-other-scope"] },
     outsider,
     403,
+    homeB,
+  );
+  await db.query(
+    "update preview_lists.list_members set role='list_editor' where list_id=$1 and email=$2",
+    [homeB, outsider],
+  );
+  await db.query(
+    "insert into preview_lists.catalog_products(id,name,id_category,unit) values('editor-pending-product','Editor pendiente',$1,'un')",
+    [cartCategory],
+  );
+  await db.query(
+    "insert into preview_lists.shopping_list(id,list_id,id_product) values('editor-pending-scope',$1,'editor-pending-product')",
+    [homeB],
+  );
+  await db.query(
+    "insert into preview_lists.catalog_products(id,name,id_category,unit) values('editor-purchase-product','Compra del editor',$1,'un')",
+    [cartCategory],
+  );
+  await db.query(
+    "insert into preview_lists.shopping_list(id,list_id,id_product,cantidad,medida,precio,comprado,unit) values('editor-purchase-scope',$1,'editor-purchase-product',1,1,10,true,'un')",
+    [homeB],
+  );
+  await req(
+    "/api/lists",
+    "POST",
+    { action: "rename", name: "Masaje lista editada" },
+    outsider,
+    200,
+    homeB,
+  );
+  const editorList = await req("/api/lists", "GET", undefined, outsider, 200, homeB);
+  assert.equal(editorList.list.name, "Masaje lista editada");
+  await req(
+    "/api/historical/add-historical",
+    "POST",
+    { productIds: ["editor-purchase-scope"], purchaseName: "Compra del editor" },
+    outsider,
+    200,
     homeB,
   );
   await req(
@@ -1816,7 +1854,7 @@ try {
     "/api/historical/add-historical",
     "POST",
     { productIds: [list[0].id] },
-    outsider,
+    viewer,
     403,
     second,
   );
@@ -1894,7 +1932,7 @@ try {
     "POST",
     { action: "rename", name: "No permitido" },
     outsider,
-    403,
+    200,
     second,
   );
   await req(
@@ -1911,7 +1949,7 @@ try {
   assert.equal(
     (await req("/api/lists", "GET", undefined, user, 200, second))
       . list.name,
-    "Otra lista",
+    "No permitido",
   );
   await req(
     "/api/lists",
@@ -1970,7 +2008,7 @@ try {
     "/api/lists",
     "POST",
     { action: "suggest-name", name: "Other list" },
-    outsider,
+    viewer,
     403,
     homeB,
   );
@@ -2211,7 +2249,7 @@ try {
   );
   assert.match(
     completed.purchaseName,
-    /^Masaje lista \[\d{2}\/\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\]$/,
+    /^Masaje lista editada \[\d{2}\/\d{2}\/\d{2}-\d{2}:\d{2}:\d{2}\]$/,
   );
   assert.deepEqual(
     (
