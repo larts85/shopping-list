@@ -38,7 +38,7 @@ export default function SharedListControls({
     setNameError("");
     setNameMessage("");
     try {
-      if (data.canManageList) {
+      if (data.canEditList) {
         await renameList(name, getActiveListId());
         setData((current) =>
           current
@@ -108,7 +108,7 @@ export default function SharedListControls({
                   {data.canManageList
                     ? "Puedes gestionar esta lista."
                     : data.canEditList
-                      ? "Puedes editar artículos y sugerir un nombre al propietario."
+                      ? "Puedes editar artículos y el nombre de la lista."
                       : "Tienes acceso de solo lectura a esta lista."}
                 </p>
               </div>
@@ -117,12 +117,12 @@ export default function SharedListControls({
                 <button
                   type="button"
                   aria-label={
-                    data.canManageList
+                    data.canEditList
                       ? "Editar nombre de la lista"
                       : "Proponer nombre de la lista"
                   }
                   title={
-                    data.canManageList
+                    data.canEditList
                       ? "Editar nombre de la lista"
                       : "Proponer nombre de la lista"
                   }
@@ -169,17 +169,17 @@ export default function SharedListControls({
           isOpen
           onClose={() => !nameBusy && setNameOpen(false)}
           title={
-            data.canManageList
+            data.canEditList
               ? "Editar nombre de la lista"
               : "Proponer nombre de la lista"
           }
         >
           <h2 className="mb-3 text-xl font-semibold">
-            {data.canManageList
+            {data.canEditList
               ? "Editar nombre de la lista"
               : "Proponer nombre"}
           </h2>
-          {!data.canManageList && (
+          {!data.canEditList && (
             <p className="mb-4 text-sm text-zinc-600">
               El propietario revisará tu sugerencia antes de cambiar el nombre.
             </p>
@@ -217,7 +217,7 @@ export default function SharedListControls({
               <button type="submit" className="btn-primary" disabled={nameBusy}>
                 {nameBusy
                   ? "Guardando…"
-                  : data.canManageList
+                  : data.canEditList
                     ? "Guardar nombre"
                     : "Enviar sugerencia"}
               </button>

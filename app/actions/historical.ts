@@ -9,6 +9,7 @@ import {
   transaction,
   withList,
   withListEditor,
+  withListItemEditor,
 } from "../lib/database";
 import {
   compatibleUnits,
@@ -17,7 +18,7 @@ import {
   requiresWholeQuantity,
 } from "../lib/units";
 import { purchaseDate, purchaseHistoryGroupKey } from "../lib/purchaseHistory";
-export async function addHistorical(productIds: unknown) {
+export async function addHistorical(productIds: unknown, requestedName?: unknown) {
   if (
     !Array.isArray(productIds) ||
     !productIds.length ||
@@ -27,8 +28,8 @@ export async function addHistorical(productIds: unknown) {
   const ids = productIds.map((id) => text(id));
   if (new Set(ids).size !== ids.length)
     throw new DataError("Productos duplicados");
-  return withListEditor(async (db, h) => {
-    // withListEditor serializes all mutations of this cart in one transaction.
+  return withListItemEditor(async (db, h) => {
+    // withListItemEditor serializes all mutations of this cart in one transaction.
     // Only the confirmed row IDs can be archived, including on retries.
     const selected = await db.query(
       "select id from shopping_list where list_id=$1 and comprado and id=any($2::text[])",
@@ -44,10 +45,9 @@ export async function addHistorical(productIds: unknown) {
       [h],
     );
     const purchasedAt = new Date();
-    const purchaseName = completedPurchaseName(
-       list.rows[0].name,
-      purchasedAt,
-    );
+    const purchaseBaseName =
+      requestedName === undefined ? list.rows[0].name : text(requestedName);
+    const purchaseName = completedPurchaseName(purchaseBaseName, purchasedAt);
     const purchaseId = randomUUID();
     await db.query(
       `insert into historical(list_id,purchase,purchased_at)

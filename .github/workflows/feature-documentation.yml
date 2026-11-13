@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [develop, main]
   push:
-    branches: [develop, main]
+    branches: [main]
 
 permissions:
   contents: read
@@ -17,7 +17,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Fetch default branch for push comparison
+      - name: Fetch default branch for main comparison
         if: github.event_name == 'push'
         run: git fetch --no-tags origin main:refs/remotes/origin/main
       - name: Check the feature inventory

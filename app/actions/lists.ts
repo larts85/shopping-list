@@ -229,7 +229,7 @@ export async function renameList(
   name: string,
   scope?: string,
 ): Promise<void> {
-  await withListEditor(async (db, h) => {
+  await withListItemEditor(async (db, h) => {
     await db.query("update lists set name=$2 where id=$1", [
       h,
       text(name),
