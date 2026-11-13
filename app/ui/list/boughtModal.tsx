@@ -144,6 +144,7 @@ const BoughtListModal: React.FC<ListModalProps> = ({
         medida: medida.toString(),
         precio: unitPrice === null ? "" : unitPrice.toString(),
         precioValue: unitPrice,
+        precioTotalValue: totalPrice,
         precioTotal:
           totalPrice === null
             ? ""

@@ -22,6 +22,7 @@ import Modal from "@/shared/components/ui/Modal";
 import ConfirmModal from "@/shared/components/ui/ConfirmModal";
 import { completedPurchaseName } from "@/app/lib/completedPurchase";
 import { getPurchaseActionLabel } from "@/app/lib/purchaseAction";
+import { getPurchasedTotal } from "@/app/lib/shoppingTotal";
 import BoughtListModal from "./boughtModal";
 import ProductDetailsModal from "./productDetailsModal";
 import { IList } from "@/app/lib/types";
@@ -190,6 +191,11 @@ export default function List() {
   const [canEditList, setCanEditList] = useState(false);
   const [canManageList, setCanManageList] = useState(false);
   const [ listName, setListName] = useState("");
+  const [listDiscount, setListDiscount] = useState<{ type: "percent" | "amount" | null; value: number | null }>({ type: null, value: null });
+  const [discountEditorOpen, setDiscountEditorOpen] = useState(false);
+  const [discountTypeDraft, setDiscountTypeDraft] = useState<"percent" | "amount">("percent");
+  const [discountValueDraft, setDiscountValueDraft] = useState("");
+  const [discountSaving, setDiscountSaving] = useState(false);
   const [isAddItemsOpen, setIsAddItemsOpen] = useState(false);
   const addProductSearchRef = useRef<HTMLInputElement>(null);
   const [movePrompt, setMovePrompt] = useState<{
@@ -315,6 +321,7 @@ export default function List() {
       setCanEditList(pageData.canEditList);
       setCanManageList(pageData.canManageList);
       setListName(pageData.activeList.name);
+      setListDiscount({ type: pageData.activeList.discountType, value: pageData.activeList.discountValue });
       setList(pageData.list);
       setCategories(pageData.categories);
     } catch {
@@ -322,6 +329,30 @@ export default function List() {
         setError("No pudimos cargar tu lista. Intenta nuevamente.");
     } finally {
       if (startedAtRevision === revision.current) setIsLoading(false);
+    }
+  }
+  async function saveListDiscount(clear = false) {
+    const value = clear ? null : Number(discountValueDraft);
+    if (!clear && (discountValueDraft === "" || !Number.isFinite(value) || value! < 0 || (discountTypeDraft === "percent" && value! > 100))) {
+      setError(discountTypeDraft === "percent" ? "El porcentaje debe estar entre 0 y 100." : "Ingresa un monto válido.");
+      return;
+    }
+    setDiscountSaving(true);
+    setError("");
+    try {
+      const response = await listFetch("/api/list/discount", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: clear ? null : discountTypeDraft, value }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No se pudo guardar el descuento.");
+      setListDiscount(result);
+      setDiscountEditorOpen(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo guardar el descuento.");
+    } finally {
+      setDiscountSaving(false);
     }
   }
   const [visibleCategories, setVisibleCategories] = useState<
@@ -988,6 +1019,7 @@ export default function List() {
   const boughtCount = products.filter(
     (product) => product.comprado === "1",
   ).length;
+  const purchasedTotal = getPurchasedTotal(products, listDiscount);
   const purchaseActionLabel = getPurchaseActionLabel(products);
   const orderedGroups = getOrderedShoppingGroups(categories, list);
   return (
@@ -1029,14 +1061,46 @@ export default function List() {
       {!isLoading && (
         <div>
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <p className="text-sm text-zinc-500">
-              <span className="font-semibold text-zinc-900">
-                {products.length}
-              </span>{" "}
-              {products.length === 1 ? "producto" : "productos"} · {boughtCount}{" "}
-              {boughtCount === 1 ? "comprado" : "comprados"}
-            </p>
+            <div className="space-y-1">
+              <p className="text-sm text-zinc-500">
+                <span className="font-semibold text-zinc-900">
+                  {products.length}
+                </span>{" "}
+                {products.length === 1 ? "producto" : "productos"} · {boughtCount}{" "}
+                {boughtCount === 1 ? "comprado" : "comprados"}
+              </p>
+              <div aria-live="polite" aria-atomic="true">
+                <p className="text-sm text-zinc-600">
+                  Total comprado:{" "}
+                  <span className="font-semibold text-zinc-900 tabular-nums">
+                    {purchasedTotal.purchasedCount > 0 && purchasedTotal.pricedCount === 0
+                      ? "Sin precios"
+                      : new Intl.NumberFormat("es-AR", {
+                          style: "currency",
+                          currency: "ARS",
+                        }).format(purchasedTotal.value)}
+                  </span>
+                </p>
+                {purchasedTotal.missingCount > 0 && (
+                  <p className="text-xs text-zinc-500">
+                    {purchasedTotal.pricedCount > 0 ? "Parcial: " : ""}
+                    {purchasedTotal.missingCount}{" "}
+                    {purchasedTotal.missingCount === 1
+                      ? "producto sin importe"
+                      : "productos sin importe"}
+                  </p>
+                )}
+                {(purchasedTotal.discount > 0 || listDiscount.type) && purchasedTotal.pricedCount > 0 && (
+                  <p className="text-xs text-emerald-700">Descuentos: −{new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" }).format(purchasedTotal.discount)}</p>
+                )}
+              </div>
+            </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {canManageList && (
+                <button type="button" className="btn-secondary" onClick={() => { setDiscountTypeDraft(listDiscount.type ?? "percent"); setDiscountValueDraft(listDiscount.value == null ? "" : String(listDiscount.value)); setDiscountEditorOpen(true); }}>
+                  {listDiscount.type ? "Editar descuento de lista" : "Agregar descuento de lista"}
+                </button>
+              )}
               {canEditList && (
                 <button
                   type="button"
@@ -1774,6 +1838,26 @@ export default function List() {
             >
               {bulkDescriptionBusy ? "Guardando…" : "Guardar descripción"}
             </button>
+          </div>
+        </Modal>
+      )}
+      {discountEditorOpen && (
+        <Modal isOpen title="Descuento de la lista" onClose={() => !discountSaving && setDiscountEditorOpen(false)}>
+          <h2 className="mb-4 text-xl font-semibold">Descuento de la lista</h2>
+          <p className="mb-4 text-sm text-zinc-600">Se resta del subtotal de los productos comprados.</p>
+          <label className="block text-sm font-medium">Tipo de descuento
+            <select className="field mt-2" value={discountTypeDraft} onChange={(event) => setDiscountTypeDraft(event.target.value as "percent" | "amount")} disabled={discountSaving}>
+              <option value="percent">Porcentaje</option><option value="amount">Monto fijo (ARS)</option>
+            </select>
+          </label>
+          <label className="mt-4 block text-sm font-medium">{discountTypeDraft === "percent" ? "Porcentaje" : "Monto (ARS)"}
+            <input className="field mt-2" type="number" min="0" max={discountTypeDraft === "percent" ? "100" : undefined} step="any" value={discountValueDraft} onChange={(event) => setDiscountValueDraft(event.target.value)} disabled={discountSaving} />
+          </label>
+          {error && <p role="alert" className="error-notice mt-4">{error}</p>}
+          <div className="mt-6 flex flex-wrap justify-end gap-3">
+            {listDiscount.type && <button type="button" className="btn-secondary mr-auto" disabled={discountSaving} onClick={() => void saveListDiscount(true)}>Quitar descuento</button>}
+            <button type="button" className="btn-secondary" disabled={discountSaving} onClick={() => setDiscountEditorOpen(false)}>Cancelar</button>
+            <button type="button" className="btn-primary" disabled={discountSaving} onClick={() => void saveListDiscount()}>{discountSaving ? "Guardando…" : "Guardar"}</button>
           </div>
         </Modal>
       )}

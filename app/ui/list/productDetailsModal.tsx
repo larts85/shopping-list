@@ -32,6 +32,11 @@ export default function ProductDetailsModal({
   const [precio, setPrecio] = useState(
     item.precioValue == null ? "" : String(item.precioValue),
   );
+  const [precioTotal, setPrecioTotal] = useState(item.precioTotalValue == null
+    ? item.precioValue == null ? "" : String(Number(item.precioValue) * Number(item.cantidad || 1))
+    : String(item.precioTotalValue));
+  const [discountType, setDiscountType] = useState<"percent" | "amount" | "">(item.discountType ?? "");
+  const [discountValue, setDiscountValue] = useState(item.discountValue == null ? "" : String(item.discountValue));
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const bought = item.comprado === "1";
@@ -70,6 +75,11 @@ export default function ProductDetailsModal({
       setError("La cantidad debe ser un número entero para esta unidad.");
       return;
     }
+    const parsedDiscount = discountValue === "" ? null : Number(discountValue);
+    if (discountType && (parsedDiscount === null || !Number.isFinite(parsedDiscount) || parsedDiscount < 0 || (discountType === "percent" && parsedDiscount > 100))) {
+      setError(discountType === "percent" ? "El descuento debe estar entre 0 y 100 %." : "El monto de descuento debe ser válido.");
+      return;
+    }
     if (
       bought &&
       canEditPurchase &&
@@ -77,6 +87,10 @@ export default function ProductDetailsModal({
       (!Number.isFinite(Number(precio)) || Number(precio) < 0)
     ) {
       setError("El precio debe ser igual o mayor que cero.");
+      return;
+    }
+    if (bought && canManageList && precioTotal !== "" && (!Number.isFinite(Number(precioTotal)) || Number(precioTotal) < 0)) {
+      setError("El precio total debe ser igual o mayor que cero.");
       return;
     }
 
@@ -91,7 +105,14 @@ export default function ProductDetailsModal({
       if (canEditPurchase) {
         body.cantidad = cantidad;
         body.unit = unit;
-        if (bought) body.precio = precio === "" ? null : Number(precio);
+        if (bought) {
+          body.precio = precio === "" ? null : Number(precio);
+          body.precio_total = precioTotal === "" ? null : Number(precioTotal);
+        }
+      }
+      if (!bought || canManageList) {
+        body.discount_type = discountType || null;
+        body.discount_value = discountType ? parsedDiscount : null;
       }
       const response = await listFetch("/api/list/item-details", {
         method: "PATCH",
@@ -107,25 +128,34 @@ export default function ProductDetailsModal({
           ? null
           : Number(precio)
         : item.precioValue ?? null;
+      const updatedTotal = bought ? precioTotal === "" ? null : Number(precioTotal) : item.precioTotalValue ?? null;
       const purchaseChanged =
         bought &&
         canManageList &&
         (Number(cantidad) !== Number(item.cantidad) ||
           unit !== (item.unit ?? item.productUnit ?? "un") ||
-          updatedPrice !== (item.precioValue ?? null));
+          updatedPrice !== (item.precioValue ?? null) ||
+          updatedTotal !== (item.precioTotalValue ?? null));
       const updatedPrecioTotal = purchaseChanged
         ? updatedPrice === null
           ? ""
           : new Intl.NumberFormat("es-AR", {
               style: "currency",
               currency: "ARS",
-            }).format(Number(cantidad) * updatedPrice)
+            }).format(updatedTotal ?? Number(cantidad) * updatedPrice)
         : item.precioTotal;
       onClose({
         ...item,
         description: trimmedDescription,
         urgentPurchase,
         precioTotal: updatedPrecioTotal,
+        precioTotalValue: purchaseChanged
+          ? updatedPrice === null
+            ? null
+            : updatedTotal ?? Number(cantidad) * updatedPrice
+          : item.precioTotalValue,
+        discountType: !bought || canManageList ? discountType || null : item.discountType ?? null,
+        discountValue: !bought || canManageList ? parsedDiscount : item.discountValue ?? null,
         ...(canEditPurchase
           ? {
               cantidad: cantidad.toString(),
@@ -134,6 +164,8 @@ export default function ProductDetailsModal({
                 ? {
                     precio: updatedPrice === null ? "" : String(updatedPrice),
                     precioValue: updatedPrice,
+                    discountType: discountType || null,
+                    discountValue: parsedDiscount,
                   }
                 : {}),
             }
@@ -221,7 +253,7 @@ export default function ProductDetailsModal({
               required={bought && canManageList}
               className="field mt-2"
               value={cantidad}
-              onChange={(event) => setCantidad(event.target.value)}
+              onChange={(event) => { const next = event.target.value; setCantidad(next); const quantity = Number(next); if (precio !== "" && Number.isFinite(Number(precio)) && quantity > 0) setPrecioTotal(String(Number(precio) * quantity)); }}
               disabled={isSaving || !canEditPurchase}
             />
           </label>
@@ -237,6 +269,7 @@ export default function ProductDetailsModal({
             />
           </label>
           {bought && (
+            <>
             <label className="col-span-2 text-sm font-medium">
               Precio por unidad de medida (opcional)
               <input
@@ -245,12 +278,27 @@ export default function ProductDetailsModal({
                 step="any"
                 className="field mt-2"
                 value={precio}
-                onChange={(event) => setPrecio(event.target.value)}
+                onChange={(event) => { const next = event.target.value; setPrecio(next); const quantity = Number(cantidad); setPrecioTotal(next === "" || !Number.isFinite(Number(next)) || quantity <= 0 ? "" : String(Number(next) * quantity)); }}
                 disabled={isSaving || !canManageList}
                 placeholder="Sin precio"
               />
             </label>
+            <label className="col-span-2 text-sm font-medium">
+              Precio total (opcional)
+              <input type="number" min="0" step="any" className="field mt-2" value={precioTotal} onChange={(event) => { const next = event.target.value; setPrecioTotal(next); const quantity = Number(cantidad); setPrecio(next === "" || !Number.isFinite(Number(next)) || quantity <= 0 ? "" : String(Number(next) / quantity)); }} disabled={isSaving || !canManageList} placeholder="Sin precio" />
+            </label>
+            </>
           )}
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-4">
+          <label className="text-sm font-medium">Descuento del producto
+            <select className="field mt-2" value={discountType} onChange={(event) => setDiscountType(event.target.value as "percent" | "amount" | "")} disabled={isSaving || (bought && !canManageList)}>
+              <option value="">Sin descuento</option><option value="percent">Porcentaje</option><option value="amount">Monto fijo (ARS)</option>
+            </select>
+          </label>
+          <label className="text-sm font-medium">{discountType === "percent" ? "Porcentaje" : "Monto (ARS)"}
+            <input type="number" min="0" max={discountType === "percent" ? "100" : undefined} step="any" className="field mt-2" value={discountValue} onChange={(event) => setDiscountValue(event.target.value)} disabled={isSaving || !discountType || (bought && !canManageList)} />
+          </label>
         </div>
         <div className="mt-6 flex justify-end gap-3">
           <button

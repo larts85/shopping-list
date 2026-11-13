@@ -36,6 +36,7 @@ actualización.
 | Seleccionar listas compartidas       | Sí  | No                              |
 | Abandonar la selección de una lista  | Sí  | No                              |
 | Consultar la lista activa            | Sí  | Sí (`get_active_shopping_list`) |
+| Configurar descuento porcentual o fijo en una lista y restarlo del total de compra | Sí | No |
 
 ## Artículos
 
@@ -45,6 +46,7 @@ actualización.
 | Editar la cantidad de un artículo        | Sí | No |
 | Editar la unidad de un artículo          | Sí | No |
 | Editar los detalles de un artículo       | Sí | No |
+| Configurar descuento porcentual o fijo por producto y restarlo del importe | Sí | No |
 | Editar artículos en lote                 | Sí | No |
 | Agregar descripciones a artículos en lote | Sí | No |
 | Desmarcar productos                      | Sí | No |
@@ -73,6 +75,7 @@ actualización.
 | Ordenar las categorías completas al final de la lista y devolverlas a pendientes al desmarcar un artículo | Sí | No |
 | Registrar la cantidad comprada          | Sí | Sí (`mark_item_purchased`) |
 | Registrar la unidad comprada            | Sí | Sí (`mark_item_purchased`) |
+| Ver el total en ARS de los productos comprados de la lista activa, con aviso de importes faltantes y actualización al marcar, desmarcar o editar | Sí | No |
 | Registrar el precio de compra           | Sí | Sí (`mark_item_purchased`) |
 | Registrar la descripción de la compra  | Sí | Sí (`mark_item_purchased`) |
 | Completar compras parciales y totales (propietario y editores) | Sí | No |
@@ -98,6 +101,7 @@ actualización.
 | Consultar el historial de compras       | Sí | No |
 | Paginar el historial de compras         | Sí | No |
 | Editar artículos del historial          | Sí | No |
+| Editar precios y descuentos por producto y de la compra completa en compras finalizadas | Sí | No |
 | Repetir una compra anterior             | Sí | No |
 | Consultar total y estadísticas de una compra (resumen, categorías y unidades) | Sí | No |
 | Consultar nutrientes por alimento desde OpenFoodFacts, con filtro de alimentos, estados de fuente, variantes regionales, presupuesto de consultas, fallback opcional de Google Knowledge Graph, caché local y modo offline | Sí | No |
