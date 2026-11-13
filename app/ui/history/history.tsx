@@ -106,7 +106,13 @@ export default function History() {
           item={editing}
           onClose={() => setEditing(null)}
           onSaved={(updated) => {
-            setItems((current) => current.map((item) => item.id === updated.id ? updated : item));
+            setItems((current) => current.map((item) => {
+              if (item.id === updated.id) return updated;
+              if (item.listId === updated.listId && item.purchase.purchase_id === updated.purchase.purchase_id && typeof updated.purchase.purchase_id === "string") {
+                return { ...item, purchase: { ...item.purchase, list_discount_type: updated.purchase.list_discount_type, list_discount_value: updated.purchase.list_discount_value } };
+              }
+              return item;
+            }));
             setEditing(null);
           }}
         />

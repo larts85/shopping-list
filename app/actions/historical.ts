@@ -5,6 +5,7 @@ import {
   DataError,
   identity,
   positive,
+  requireRow,
   text,
   transaction,
   withList,
@@ -53,8 +54,9 @@ export async function addHistorical(productIds: unknown) {
       `insert into historical(list_id,purchase,purchased_at)
    select l.list_id,jsonb_build_object('id_list',l.id,'id_product',l.id_product,'name',coalesce(p.name,l.provisional_name),'description',l.description,'id_category',coalesce(p.id_category,l.provisional_category_id),
     'purchase_id',$3::text,'purchase_name',$4::text,'list_name',$5::text,
-    'unit',l.unit,'cantidad',l.cantidad,'medida',l.medida,'precio',l.precio,'precio_total',coalesce(l.precio_total,case when l.precio is null then null else l.cantidad*l.precio end),'precio_kg',case when l.precio is null then null else l.precio/l.medida end,'kg_total',l.cantidad*l.medida),$6::timestamptz
-   from shopping_list l left join catalog_products p on p.id=l.id_product where l.list_id=$1 and l.comprado and l.id=any($2::text[])`,
+    'unit',l.unit,'cantidad',l.cantidad,'medida',l.medida,'precio',l.precio,'precio_total',coalesce(l.precio_total,case when l.precio is null then null else l.cantidad*l.precio end),'precio_kg',case when l.precio is null then null else l.precio/l.medida end,'kg_total',l.cantidad*l.medida,
+    'discount_type',l.discount_type,'discount_value',l.discount_value,'list_discount_type',h.discount_type,'list_discount_value',h.discount_value),$6::timestamptz
+   from shopping_list l join lists h on h.id=l.list_id left join catalog_products p on p.id=l.id_product where l.list_id=$1 and l.comprado and l.id=any($2::text[])`,
       [h, ids, purchaseId, purchaseName,  list.rows[0].name, purchasedAt],
     );
     await db.query(
@@ -157,16 +159,46 @@ export async function updateHistoricalItem(
     : precio === null
       ? null
       : precio * cantidad;
+  const discountType = values.discount_type == null || values.discount_type === "" ? null : values.discount_type;
+  const discountValue = discountType === null ? null : positive(values.discount_value, true);
+  if (discountType !== null && discountType !== "percent" && discountType !== "amount")
+    throw new DataError("Tipo de descuento inválido");
+  if (discountType === "percent" && discountValue! > 100)
+    throw new DataError("El descuento porcentual debe estar entre 0 y 100");
+  const hasListDiscount = Object.hasOwn(values, "list_discount_type") || Object.hasOwn(values, "list_discount_value");
+  const listDiscountType = values.list_discount_type == null || values.list_discount_type === "" ? null : values.list_discount_type;
+  const listDiscountValue = listDiscountType === null ? null : positive(values.list_discount_value, true);
+  if (listDiscountType !== null && listDiscountType !== "percent" && listDiscountType !== "amount")
+    throw new DataError("Tipo de descuento de lista inválido");
+  if (listDiscountType === "percent" && listDiscountValue! > 100)
+    throw new DataError("El descuento de lista debe estar entre 0 y 100");
 
   return withListEditor(async (db, listId) => {
-    const patch = {
+    const patch: Record<string, unknown> = {
       name,
       description,
       cantidad,
       unit,
       precio,
       precio_total: precioTotal,
+      discount_type: discountType,
+      discount_value: discountValue,
     };
+    const current = await db.query("select purchase from historical where list_id=$1 and id=$2::uuid for update", [listId, historicalId]);
+    requireRow(current.rowCount);
+    const existing = current.rows[0].purchase as Record<string, unknown>;
+    if (hasListDiscount) {
+      const purchaseId = existing.purchase_id;
+      if (typeof purchaseId === "string") {
+        await db.query(
+          `update historical set purchase=purchase || jsonb_build_object('list_discount_type',$3::text,'list_discount_value',$4::numeric)
+           where list_id=$1 and purchase->>'purchase_id'=$2`,
+          [listId, purchaseId, listDiscountType, listDiscountValue],
+        );
+      }
+      patch.list_discount_type = listDiscountType;
+      patch.list_discount_value = listDiscountValue;
+    }
     const result = await db.query(
       `update historical
        set purchase = purchase || $3::jsonb

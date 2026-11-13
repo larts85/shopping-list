@@ -58,6 +58,11 @@ export default function HistoryPurchase({
               Total de la compra
             </p>
             <p className="text-lg font-semibold tabular-nums">{displayTotal(items)}</p>
+            {total.discount > 0 && (
+              <p className="text-xs font-medium text-emerald-700">
+                Descuentos aplicados: −{formatCurrency(total.discount)}
+              </p>
+            )}
           </div>
           <button
             type="button"

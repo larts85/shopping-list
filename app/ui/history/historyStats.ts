@@ -28,9 +28,16 @@ function itemMeasure(item: HistoryItem): number {
 
 export function itemTotal(item: HistoryItem): number | null {
   const storedTotal = numberValue(item.purchase.precio_total);
-  if (storedTotal !== null) return storedTotal;
+  const gross = storedTotal !== null ? storedTotal : (() => {
   const price = numberValue(item.purchase.precio);
   return price === null ? null : price * itemQuantity(item);
+  })();
+  if (gross === null) return null;
+  const discount = numberValue(item.purchase.discount_value) ?? 0;
+  const reduction = item.purchase.discount_type === "percent"
+    ? gross * Math.min(discount, 100) / 100
+    : item.purchase.discount_type === "amount" ? Math.min(gross, discount) : 0;
+  return Math.max(0, Math.round((gross - reduction + Number.EPSILON) * 100) / 100);
 }
 
 export function groupTotal(items: HistoryItem[]) {
@@ -42,7 +49,12 @@ export function groupTotal(items: HistoryItem[]) {
     value += total;
     pricedItems++;
   }
-  return { value, pricedItems, complete: pricedItems === items.length };
+  const firstPurchase = items[0]?.purchase;
+  const listDiscount = numberValue(firstPurchase?.list_discount_value) ?? 0;
+  const listReduction = firstPurchase?.list_discount_type === "percent"
+    ? value * Math.min(listDiscount, 100) / 100
+    : firstPurchase?.list_discount_type === "amount" ? Math.min(value, listDiscount) : 0;
+  return { value: Math.max(0, Math.round((value - listReduction + Number.EPSILON) * 100) / 100), subtotal: value, discount: listReduction, pricedItems, complete: pricedItems === items.length };
 }
 
 export function itemCategory(item: HistoryItem): string {
