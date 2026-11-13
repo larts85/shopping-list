@@ -273,7 +273,7 @@ export async function updateListItemDetails(
           `update shopping_list set description=$3,
              cantidad=case when $4 then $5 else cantidad end,
              unit=case when $6 then $7 else unit end,
-             precio=case when $8 or $10 then $11 else precio end,
+             precio=case when $10 then $11 when $8 then $9 else precio end,
              precio_total=case when $10 then $12
                when $13 then $14 else precio_total end,
              discount_type=case when $15 then $16 else discount_type end,
@@ -291,7 +291,6 @@ export async function updateListItemDetails(
             price,
             hasTotal,
             effectivePrice,
-            hasTotal,
             total,
             recalculateTotal,
             effectivePrice === null ? null : effectiveQuantity * effectivePrice,

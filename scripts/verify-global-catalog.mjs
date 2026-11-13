@@ -359,6 +359,21 @@ try {
       "preview_lists.",
     ),
   );
+  const purchaseDiscountsMigration = migrationNames.find((name) =>
+    name.includes("purchase_discounts"),
+  );
+  assert.ok(purchaseDiscountsMigration);
+  const purchaseDiscountsSql = readFileSync(
+    "supabase/migrations/" + purchaseDiscountsMigration,
+    "utf8",
+  );
+  const previewDiscountsSql = purchaseDiscountsSql.slice(
+    purchaseDiscountsSql.indexOf("alter table if exists preview_lists."),
+  );
+  assert.ok(previewDiscountsSql.length > 0);
+  await db.exec(
+    previewDiscountsSql,
+  );
   checks++;
   const unitColumns = await db.query(
     "select table_name,domain_name from information_schema.columns where table_schema='preview_lists' and column_name='unit' order by table_name",
@@ -655,6 +670,9 @@ try {
       cantidad: 3,
       unit: "un",
       precio: Number(totalPriced.precioValue),
+      precio_total: 29.99,
+      discount_type: "percent",
+      discount_value: 10,
     },
     admin,
     200,
@@ -676,7 +694,35 @@ try {
     detailsRefresh.find((item) => item.id === totalPriceItemId).description,
     "Descripción editada después de comprar",
   );
-  checks += 2;
+  assert.equal(
+    detailsRefresh.find((item) => item.id === totalPriceItemId).discountType,
+    "percent",
+  );
+  assert.equal(
+    detailsRefresh.find((item) => item.id === totalPriceItemId).discountValue,
+    10,
+  );
+  checks += 4;
+  const listDiscount = await req(
+    "/api/list/discount",
+    "PATCH",
+    { type: "amount", value: 2.5 },
+    admin,
+    200,
+    homeA,
+  );
+  assert.deepEqual(listDiscount, { type: "amount", value: 2.5 });
+  const discountedPage = await req(
+    "/api/list/page-data",
+    "GET",
+    undefined,
+    admin,
+    200,
+    homeA,
+  );
+  assert.equal(discountedPage.activeList.discountType, "amount");
+  assert.equal(discountedPage.activeList.discountValue, 2.5);
+  checks += 3;
   const pricePurchase = await req(
     "/api/historical/add-historical",
     "POST",

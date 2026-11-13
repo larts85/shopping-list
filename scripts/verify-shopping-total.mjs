@@ -42,3 +42,20 @@ test("marking, unmarking and editing recompute from the current active list", ()
   assert.equal(getPurchasedTotal(items).value, 0);
   assert.equal(getPurchasedTotal([item({ precioTotalValue: 450 })]).value, 450);
 });
+test("product discounts are deducted before the list discount", () => {
+  const total = getPurchasedTotal([
+    item({ precioTotalValue: 200, discountType: "percent", discountValue: 25 }),
+    item({ precioTotalValue: 50, discountType: "amount", discountValue: 75 }),
+  ], { type: "amount", value: 20 });
+  assert.deepEqual(total, {
+    value: 130,
+    purchasedCount: 2,
+    pricedCount: 2,
+    missingCount: 0,
+    subtotal: 150,
+    discount: 20,
+  });
+  assert.equal(getPurchasedTotal([
+    item({ precioTotalValue: 50, discountType: "amount", discountValue: 75 }),
+  ], { type: "percent", value: 50 }).value, 0);
+});
