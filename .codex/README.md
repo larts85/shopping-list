@@ -22,6 +22,11 @@ Codex a nivel de proyecto; `.agents/skills/` expone los workflows compartidos de
 | `$review-frontend` | [.ai-assistant/commands/review-frontend.md](../.ai-assistant/commands/review-frontend.md) |
 | `$test-coverage` | [.ai-assistant/commands/test-coverage.md](../.ai-assistant/commands/test-coverage.md) |
 | `$testing` | [.ai-assistant/commands/testing.prompt.md](../.ai-assistant/commands/testing.prompt.md) |
+| `$verify-change` | [.ai-assistant/commands/verify-change.md](../.ai-assistant/commands/verify-change.md) |
+| `$reproduce-bug` | [.ai-assistant/skills/reproduce-bug/SKILL.md](../.ai-assistant/skills/reproduce-bug/SKILL.md) |
+| `$review-architecture-security` | [.agents/skills/review-architecture-security/SKILL.md](../.agents/skills/review-architecture-security/SKILL.md) |
+| `$review-regressions` | [.agents/skills/review-regressions/SKILL.md](../.agents/skills/review-regressions/SKILL.md) |
+| `$evaluate-agent-workflows` | [.ai-assistant/skills/agent-evals/SKILL.md](../.ai-assistant/skills/agent-evals/SKILL.md) |
 
 ## Uso y mantenimiento
 
