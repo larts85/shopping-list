@@ -40,6 +40,10 @@ Aplicar estas reglas al trabajo correspondiente:
 - [Implementación](.ai-assistant/rules/implementation.md): cambios de código y revisión.
 - [Validación](.ai-assistant/rules/validation.md): selección de checks y verificación.
 - [Entrega](.ai-assistant/rules/delivery.md): ramas, commits, PRs y despliegues.
+- [$verify-change](.ai-assistant/commands/verify-change.md): elegir y reportar verificaciones enfocadas según el diff.
+- [$reproduce-bug](.ai-assistant/skills/reproduce-bug/SKILL.md): dejar una reproducción y diagnóstico antes o junto con el arreglo.
+- `$review-architecture-security` y `$review-regressions`: revisiones especializadas de solo lectura; invocarlas en serie cuando aporten valor.
+- [$evaluate-agent-workflows](.ai-assistant/skills/agent-evals/SKILL.md): casos breves para detectar regresiones en los workflows del agente.
 
 Regla permanente de producto: [docs/application-features.md](docs/application-features.md)
 es el inventario de funcionalidades soportadas por entidad. Todo PR que
